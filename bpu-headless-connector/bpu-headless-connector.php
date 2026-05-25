@@ -1092,10 +1092,18 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
 
         $allowed = array(
             'first_name', 'last_name', 'phone_number', 'age_range',
-            'what_is_your_gender', 'level_of_education', 'industry',
+            'birthday',
+            'what_is_your_gender',
+            'your_sexuality',
+            'level_of_education', 'industry',
             'country_location', 'where_in_the_uk', 'location_city',
             'current_employment_status', 'industryfield_of_expertise',
+            'expertise_not_listed',
             'years_of_experience', 'skills_separate', 'user_bio',
+            'how_would_you_best_describe_your_ethnicity',
+            'first-generation_immigrant',
+            'do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of',
+            'other_disability',
         );
 
         if ( ! function_exists( 'update_field' ) ) {

@@ -352,7 +352,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
           <div className="space-y-4 fade-up">
             <div>
               <h2 className="text-xl font-bold">Accredited courses</h2>
-              <p className="section-sub">Courses by BPU partner providers. Progress is tracked in Tutor LMS.</p>
+              <p className="section-sub">Progress is tracked in Tutor LMS.</p>
             </div>
 
             {courses.length === 0
@@ -426,10 +426,9 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
               <p className="text-xs font-bold uppercase tracking-wide text-text-3">Personal details</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {([
-                  ['First name',   'first_name'],
-                  ['Last name',    'last_name'],
-                  ['Phone',        'phone_number'],
-                  ['Age range',    'age_range'],
+                  ['First name',  'first_name'],
+                  ['Last name',   'last_name'],
+                  ['Phone',       'phone_number'],
                 ] as [string, keyof ACFProfile][]).map(([label, key]) => (
                   <div key={key}>
                     <label className="field-label">{label}</label>
@@ -440,47 +439,201 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                     />
                   </div>
                 ))}
+                <div>
+                  <label className="field-label">Date of birth</label>
+                  <input
+                    type="date"
+                    className="field-input"
+                    value={(editForm.birthday as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, birthday: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Gender</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.what_is_your_gender as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, what_is_your_gender: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['Male', 'Female', 'Prefer Not to Say', 'Others'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Sexuality</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.your_sexuality as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, your_sexuality: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['Asexual', 'Bisexual', 'Gay', 'Intersex', 'Lesbian', 'Queer', 'Straight', 'Transgender', 'Prefer not to say'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
 
             <div className="card card-p space-y-5">
               <p className="text-xs font-bold uppercase tracking-wide text-text-3">Location</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {([
-                  ['Country',      'country_location'],
-                  ['City',         'location_city'],
-                  ['UK region',    'where_in_the_uk'],
-                ] as [string, keyof ACFProfile][]).map(([label, key]) => (
-                  <div key={key}>
-                    <label className="field-label">{label}</label>
+                <div className="sm:col-span-2">
+                  <label className="field-label">Country</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.country_location as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, country_location: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {[
+                      'United Kingdom',
+                      'Afghanistan','Albania','Algeria','Andorra','Angola','Antigua and Barbuda','Argentina','Armenia','Australia','Austria','Azerbaijan','Bahamas','Bahrain','Bangladesh','Barbados','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','Brunei','Bulgaria','Burkina Faso','Burundi','Cabo Verde','Cambodia','Cameroon','Canada','Central African Republic','Chad','Chile','China','Colombia','Comoros','Congo','Costa Rica','Croatia','Cuba','Cyprus','Czech Republic','Denmark','Djibouti','Dominica','Dominican Republic','Ecuador','Egypt','El Salvador','Equatorial Guinea','Eritrea','Estonia','Eswatini','Ethiopia','Fiji','Finland','France','Gabon','Gambia','Georgia','Germany','Ghana','Greece','Grenada','Guatemala','Guinea','Guinea-Bissau','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Israel','Italy','Jamaica','Japan','Jordan','Kazakhstan','Kenya','Kiribati','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Liechtenstein','Lithuania','Luxembourg','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Marshall Islands','Mauritania','Mauritius','Mexico','Micronesia','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar','Namibia','Nauru','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','North Korea','North Macedonia','Norway','Oman','Pakistan','Palau','Palestine','Panama','Papua New Guinea','Paraguay','Peru','Philippines','Poland','Portugal','Qatar','Romania','Russia','Rwanda','Saint Kitts and Nevis','Saint Lucia','Saint Vincent and the Grenadines','Samoa','San Marino','Sao Tome and Principe','Saudi Arabia','Senegal','Serbia','Seychelles','Sierra Leone','Singapore','Slovakia','Slovenia','Solomon Islands','Somalia','South Africa','South Korea','South Sudan','Spain','Sri Lanka','Sudan','Suriname','Sweden','Switzerland','Syria','Taiwan','Tajikistan','Tanzania','Thailand','Timor-Leste','Togo','Tonga','Trinidad and Tobago','Tunisia','Turkey','Turkmenistan','Tuvalu','Uganda','Ukraine','United Arab Emirates','United States','Uruguay','Uzbekistan','Vanuatu','Vatican City','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe',
+                    ].map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                {editForm.country_location === 'United Kingdom' && (
+                  <div>
+                    <label className="field-label">Where in the UK?</label>
+                    <select
+                      className="field-input"
+                      value={(editForm.where_in_the_uk as string) || ''}
+                      onChange={e => setEditForm(f => ({ ...f, where_in_the_uk: e.target.value }))}
+                    >
+                      <option value="">Select…</option>
+                      {['England', 'Scotland', 'Wales', 'Northern Ireland'].map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="field-label">City</label>
+                  <input
+                    className="field-input"
+                    value={(editForm.location_city as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, location_city: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="card card-p space-y-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Background</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="field-label">Education level</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.level_of_education as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, level_of_education: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {["High School","Bachelor's Degree","Professional Qualification","Masters Degree","PhD","Other","Prefer Not to Answer"].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Ethnicity</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.how_would_you_best_describe_your_ethnicity as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, how_would_you_best_describe_your_ethnicity: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['African','Asian','Black British','Black Caribbean','Gypsy or Irish Traveller','Hispanic','Mixed Ethnic Group','Other Black Background','White'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">First-generation immigrant?</label>
+                  <select
+                    className="field-input"
+                    value={(editForm['first-generation_immigrant'] as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, 'first-generation_immigrant': e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Disability</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['No Disability','Cognitive or learning disability','Hearing impairment','Mobility impairment','Visual impairment','Others (Input below)'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                {editForm.do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of === 'Others (Input below)' && (
+                  <div className="sm:col-span-2">
+                    <label className="field-label">Please describe your disability</label>
                     <input
                       className="field-input"
-                      value={(editForm[key] as string) || ''}
-                      onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                      placeholder="Describe your disability…"
+                      value={(editForm.other_disability as string) || ''}
+                      onChange={e => setEditForm(f => ({ ...f, other_disability: e.target.value }))}
                     />
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
             <div className="card card-p space-y-5">
               <p className="text-xs font-bold uppercase tracking-wide text-text-3">Career</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {([
-                  ['Employment status',   'current_employment_status'],
-                  ['Industry / expertise','industryfield_of_expertise'],
-                  ['Years of experience', 'years_of_experience'],
-                  ['Education level',     'level_of_education'],
-                ] as [string, keyof ACFProfile][]).map(([label, key]) => (
-                  <div key={key}>
-                    <label className="field-label">{label}</label>
+                <div>
+                  <label className="field-label">Employment status</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.current_employment_status as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, current_employment_status: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['Employed Full-Time','Employed Part-Time','Self-employed','Not employed but looking for work','Not employed and not looking for work','Retired','Student','Prefer Not to Answer'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Industry</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.industry as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['Accounting','Administration & Office Support','Advertising, Arts & Media','Banking & Financial Services','Call Centre & Customer Service','Community Services & Development','Construction','Consulting & Strategy','Education & Training','Engineering','Farming, Animals & Conservation','Government & Defence','Healthcare & Medical','Hospitality & Tourism','Human Resources & Recruitment','Information & Communication Technology','Insurance & Superannuation','Legal','Manufacturing, Transport & Logistics','Marketing & Communications','Mining, Resources & Energy','Real Estate & Property','Retail & Consumer Products','Sales','Science & Technology','Self Employment','Sport & Recreation','Trades & Services','Other'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Field of expertise</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.industryfield_of_expertise as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, industryfield_of_expertise: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {['Accounting & Finance','Administration','Arts & Design','Business Development','Consulting','Customer Service','Data & Analytics','Education','Engineering','Healthcare','HR & Recruitment','IT & Software','Law & Legal Services','Logistics & Supply Chain','Management','Marketing & Communications','Media & Journalism','Operations','Policy & Government','Project Management','Property & Real Estate','Research & Science','Sales','Social Work & Community','Sport & Fitness','Other'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="field-label">Years of experience</label>
+                  <select
+                    className="field-input"
+                    value={(editForm.years_of_experience as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, years_of_experience: e.target.value }))}
+                  >
+                    <option value="">Select…</option>
+                    {[...Array.from({ length: 40 }, (_, i) => String(i + 1)), '40+'].map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </div>
+                {editForm.industryfield_of_expertise === 'Other' && (
+                  <div className="sm:col-span-2">
+                    <label className="field-label">Please specify your field of expertise</label>
                     <input
                       className="field-input"
-                      value={(editForm[key] as string) || ''}
-                      onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                      placeholder="Your field…"
+                      value={(editForm.expertise_not_listed as string) || ''}
+                      onChange={e => setEditForm(f => ({ ...f, expertise_not_listed: e.target.value }))}
                     />
                   </div>
-                ))}
+                )}
                 <div className="sm:col-span-2">
                   <label className="field-label">Skills (comma-separated)</label>
                   <input

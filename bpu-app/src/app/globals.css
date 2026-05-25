@@ -159,6 +159,13 @@ body {
   box-shadow: 0 6px 20px rgba(0,0,0,0.07);
   transform: translateY(-2px);
 }
+.ai-match-item {
+  background: rgba(255,255,255,0.08);
+  transition: background 0.15s ease;
+}
+.ai-match-item:hover {
+  background: rgba(255,255,255,0.14);
+}
 
 /* ─────────────────────────────────────────
    BUTTONS
