@@ -2,8 +2,8 @@
 /**
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
- * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini Pro AI CV parsing, and CV Clinic manual reviews dashboard.
- * Version: 1.1.0
+ * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini Pro AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
+ * Version: 2.0.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -17,13 +17,28 @@ class BPU_Headless_Connector {
 
     private $namespace = 'bpu/v1';
 
+    /**
+     * Allowed redirect origins for SSO handoff.
+     */
+    private $allowed_sso_origins = array(
+        'https://app.blackprofessionals.uk',
+        'https://pairedbybpu.uk',
+    );
+
     public function __construct() {
-        // Register custom post types
+        // Register custom post types (CV Reviews + Mentorship Bookings)
         add_action( 'init', array( $this, 'register_cv_review_post_type' ) );
+        add_action( 'init', array( $this, 'register_mentorship_booking_post_type' ) );
+
+        // SSO token relay handoff (runs on every page load, checks for handoff query param)
+        add_action( 'init', array( $this, 'handle_sso_handoff' ) );
 
         // Register API routes
         add_action( 'rest_api_init', array( $this, 'register_api_routes' ) );
-        
+
+        // CORS headers for REST API responses
+        add_filter( 'rest_pre_serve_request', array( $this, 'add_cors_headers' ), 10, 4 );
+
         // CORS and Cookie domain reminders in Admin Panel
         add_action( 'admin_notices', array( $this, 'display_cookie_domain_check' ) );
 
@@ -67,6 +82,44 @@ class BPU_Headless_Connector {
         );
 
         register_post_type( 'cv_clinic_review', $args );
+    }
+
+    /**
+     * Register Custom Post Type for Mentorship Bookings
+     */
+    public function register_mentorship_booking_post_type() {
+        $labels = array(
+            'name'               => _x( 'Mentorship Bookings', 'post type general name', 'bpu' ),
+            'singular_name'      => _x( 'Mentorship Booking', 'post type singular name', 'bpu' ),
+            'menu_name'          => _x( 'Mentorship Bookings', 'admin menu', 'bpu' ),
+            'add_new'            => _x( 'Add New Booking', 'booking', 'bpu' ),
+            'add_new_item'       => __( 'Add New Mentorship Booking', 'bpu' ),
+            'edit_item'          => __( 'Edit Booking', 'bpu' ),
+            'new_item'           => __( 'New Booking', 'bpu' ),
+            'all_items'          => __( 'All Bookings', 'bpu' ),
+            'view_item'          => __( 'View Booking', 'bpu' ),
+            'search_items'       => __( 'Search Bookings', 'bpu' ),
+            'not_found'          => __( 'No bookings found', 'bpu' ),
+            'not_found_in_trash' => __( 'No bookings found in Trash', 'bpu' ),
+        );
+
+        $args = array(
+            'labels'             => $labels,
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => true,
+            'query_var'          => true,
+            'rewrite'            => array( 'slug' => 'mentorship-booking' ),
+            'capability_type'    => 'post',
+            'has_archive'        => false,
+            'hierarchical'       => false,
+            'menu_position'      => 29,
+            'menu_icon'          => 'dashicons-calendar-alt',
+            'supports'           => array( 'title', 'custom-fields' ),
+        );
+
+        register_post_type( 'mentorship_booking', $args );
     }
 
     /**
@@ -123,6 +176,138 @@ class BPU_Headless_Connector {
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_member_cv_reviews' ),
             'permission_callback' => array( $this, 'check_auth_permissions' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 6. SSO Token Exchange (for PAIRED mentorship app)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/sso/exchange', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'exchange_sso_token' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'token' => array(
+                    'required'          => true,
+                    'type'              => 'string',
+                    'sanitize_callback' => 'sanitize_text_field',
+                    'validate_callback' => function ( $value ) {
+                        return is_string( $value ) && preg_match( '/^[a-f0-9]{64}$/', $value );
+                    },
+                ),
+            ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 7. Mentor Directory (public)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/mentors', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_mentors' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'page' => array(
+                    'default'           => 1,
+                    'sanitize_callback' => 'absint',
+                ),
+                'per_page' => array(
+                    'default'           => 12,
+                    'sanitize_callback' => 'absint',
+                ),
+                'industry' => array(
+                    'default'           => '',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+                'search' => array(
+                    'default'           => '',
+                    'sanitize_callback' => 'sanitize_text_field',
+                ),
+            ),
+        ) );
+
+        // 7b. Single Mentor Profile (public)
+        register_rest_route( $this->namespace, '/mentors/(?P<id>\d+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_single_mentor' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'id' => array(
+                    'required'          => true,
+                    'sanitize_callback' => 'absint',
+                    'validate_callback' => function ( $value ) {
+                        return is_numeric( $value ) && intval( $value ) > 0;
+                    },
+                ),
+            ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 8. Mentorship Bookings (authenticated)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/bookings', array(
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_booking' ),
+                'permission_callback' => array( $this, 'check_auth_permissions' ),
+                'args'                => array(
+                    'mentor_id' => array(
+                        'required'          => true,
+                        'sanitize_callback' => 'absint',
+                        'validate_callback' => function ( $value ) {
+                            return is_numeric( $value ) && intval( $value ) > 0;
+                        },
+                    ),
+                    'date' => array(
+                        'required'          => true,
+                        'sanitize_callback' => 'sanitize_text_field',
+                        'validate_callback' => function ( $value ) {
+                            // Accepts YYYY-MM-DD, must be today or in the future
+                            $d = DateTime::createFromFormat( 'Y-m-d', $value );
+                            return $d && $d->format( 'Y-m-d' ) === $value;
+                        },
+                    ),
+                    'time_slot' => array(
+                        'required'          => true,
+                        'sanitize_callback' => 'sanitize_text_field',
+                        'validate_callback' => function ( $value ) {
+                            // Accepts HH:MM-HH:MM format
+                            return (bool) preg_match( '/^\d{2}:\d{2}-\d{2}:\d{2}$/', $value );
+                        },
+                    ),
+                    'notes' => array(
+                        'required'          => false,
+                        'default'           => '',
+                        'sanitize_callback' => 'sanitize_textarea_field',
+                    ),
+                ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_bookings' ),
+                'permission_callback' => array( $this, 'check_auth_permissions' ),
+                'args'                => array(
+                    'page' => array(
+                        'default'           => 1,
+                        'sanitize_callback' => 'absint',
+                    ),
+                    'per_page' => array(
+                        'default'           => 20,
+                        'sanitize_callback' => 'absint',
+                    ),
+                ),
+            ),
+        ) );
+
+        // 8b. Single Booking
+        register_rest_route( $this->namespace, '/bookings/(?P<id>\d+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_single_booking' ),
+            'permission_callback' => array( $this, 'check_auth_permissions' ),
+            'args'                => array(
+                'id' => array(
+                    'required'          => true,
+                    'sanitize_callback' => 'absint',
+                ),
+            ),
         ) );
     }
 
@@ -543,6 +728,589 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
         return wp_get_current_user()->exists();
     }
 
+    // ══════════════════════════════════════════════════════════════
+    //  SSO TOKEN RELAY SYSTEM
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * SSO Handoff — runs on every `init`.
+     * When ?bpu_sso_handoff=1&redirect_to=<url> is detected:
+     *   • Logged-in  → generate one-time token, redirect to target with ?token=XYZ
+     *   • Logged-out → redirect to /login?redirect_to=<handoff url>
+     */
+    public function handle_sso_handoff() {
+        if ( empty( $_GET['bpu_sso_handoff'] ) ) {
+            return;
+        }
+
+        $redirect_to = isset( $_GET['redirect_to'] ) ? esc_url_raw( wp_unslash( $_GET['redirect_to'] ) ) : '';
+
+        // Validate the redirect target against allowed origins
+        if ( ! $this->is_allowed_sso_origin( $redirect_to ) ) {
+            wp_die(
+                esc_html__( 'Invalid redirect target. Only authorised BPU applications are allowed.', 'bpu' ),
+                esc_html__( 'SSO Error', 'bpu' ),
+                array( 'response' => 403 )
+            );
+        }
+
+        if ( is_user_logged_in() ) {
+            // Generate a one-time token
+            $token   = bin2hex( random_bytes( 32 ) ); // 64-char hex
+            $user_id = get_current_user_id();
+
+            // Store with 5-minute TTL
+            $option_key = 'bpu_sso_token_' . $token;
+            update_option( $option_key, array(
+                'user_id'    => $user_id,
+                'expires_at' => time() + 300, // 5 minutes
+            ), false ); // autoload = false
+
+            // Append token to the redirect URL
+            $target_url = add_query_arg( 'token', $token, $redirect_to );
+            wp_safe_redirect( $target_url );
+            exit;
+        } else {
+            // Build the handoff URL to return to after login
+            $handoff_url = add_query_arg( array(
+                'bpu_sso_handoff' => '1',
+                'redirect_to'     => rawurlencode( $redirect_to ),
+            ), home_url( '/' ) );
+
+            $login_url = home_url( '/login' );
+            $login_url = add_query_arg( 'redirect_to', rawurlencode( $handoff_url ), $login_url );
+
+            wp_redirect( $login_url );
+            exit;
+        }
+    }
+
+    /**
+     * Validate a URL belongs to an allowed SSO origin.
+     */
+    private function is_allowed_sso_origin( $url ) {
+        if ( empty( $url ) ) {
+            return false;
+        }
+
+        $parsed = wp_parse_url( $url );
+        if ( empty( $parsed['host'] ) || empty( $parsed['scheme'] ) ) {
+            return false;
+        }
+
+        $origin = $parsed['scheme'] . '://' . $parsed['host'];
+
+        foreach ( $this->allowed_sso_origins as $allowed ) {
+            if ( strcasecmp( $origin, $allowed ) === 0 ) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * POST /sso/exchange — Exchange a one-time SSO token for user data + JWT.
+     */
+    public function exchange_sso_token( WP_REST_Request $request ) {
+        $token      = $request->get_param( 'token' );
+        $option_key = 'bpu_sso_token_' . $token;
+
+        $stored = get_option( $option_key );
+
+        if ( empty( $stored ) || ! is_array( $stored ) ) {
+            return new WP_Error(
+                'sso_invalid_token',
+                __( 'Invalid or expired SSO token.', 'bpu' ),
+                array( 'status' => 401 )
+            );
+        }
+
+        // Check TTL
+        if ( time() > intval( $stored['expires_at'] ) ) {
+            delete_option( $option_key );
+            return new WP_Error(
+                'sso_token_expired',
+                __( 'SSO token has expired. Please initiate login again.', 'bpu' ),
+                array( 'status' => 401 )
+            );
+        }
+
+        // Consume the token (one-time use)
+        delete_option( $option_key );
+
+        $user_id = intval( $stored['user_id'] );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error(
+                'sso_user_not_found',
+                __( 'User associated with this token no longer exists.', 'bpu' ),
+                array( 'status' => 404 )
+            );
+        }
+
+        // Build user profile payload
+        $acf_profile = array();
+        if ( function_exists( 'get_fields' ) ) {
+            $fields = get_fields( 'user_' . $user_id );
+            if ( $fields ) {
+                $acf_profile = $fields;
+            }
+        }
+
+        $cv_id  = get_user_meta( $user_id, '_bpu_member_cv_id', true );
+        $cv_url = $cv_id ? wp_get_attachment_url( $cv_id ) : '';
+
+        // Generate JWT
+        $now = time();
+        $jwt_payload = array(
+            'user_id'      => $user_id,
+            'email'        => $user->user_email,
+            'display_name' => $user->display_name,
+            'roles'        => $user->roles,
+            'iat'          => $now,
+            'exp'          => $now + DAY_IN_SECONDS, // 24 hours
+        );
+
+        $jwt = $this->generate_jwt( $jwt_payload );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'user'    => array(
+                'id'           => $user_id,
+                'username'     => $user->user_login,
+                'email'        => $user->user_email,
+                'display_name' => $user->display_name,
+                'roles'        => $user->roles,
+                'profile'      => $acf_profile,
+                'cv_url'       => $cv_url,
+            ),
+            'jwt'     => $jwt,
+        ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  JWT HELPERS (HMAC-SHA256, no external library)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Base64url-encode (RFC 7515).
+     */
+    private function base64url_encode( $data ) {
+        return rtrim( strtr( base64_encode( $data ), '+/', '-_' ), '=' );
+    }
+
+    /**
+     * Generate a signed JWT (HS256).
+     */
+    private function generate_jwt( array $payload ) {
+        $secret = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+
+        $header = $this->base64url_encode( wp_json_encode( array(
+            'alg' => 'HS256',
+            'typ' => 'JWT',
+        ) ) );
+
+        $body = $this->base64url_encode( wp_json_encode( $payload ) );
+
+        $signature = $this->base64url_encode(
+            hash_hmac( 'sha256', $header . '.' . $body, $secret, true )
+        );
+
+        return $header . '.' . $body . '.' . $signature;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MENTOR DIRECTORY ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /mentors — Paginated, filterable list of mentors.
+     */
+    public function get_mentors( WP_REST_Request $request ) {
+        $page     = max( 1, $request->get_param( 'page' ) );
+        $per_page = min( 100, max( 1, $request->get_param( 'per_page' ) ) );
+        $industry = $request->get_param( 'industry' );
+        $search   = $request->get_param( 'search' );
+
+        $user_args = array(
+            'role'   => 'mentor',
+            'number' => $per_page,
+            'paged'  => $page,
+            'orderby' => 'display_name',
+            'order'   => 'ASC',
+        );
+
+        if ( ! empty( $search ) ) {
+            $user_args['search']         = '*' . $search . '*';
+            $user_args['search_columns'] = array( 'display_name', 'user_login', 'user_email' );
+        }
+
+        // If filtering by industry via ACF meta
+        if ( ! empty( $industry ) ) {
+            $user_args['meta_query'] = array(
+                array(
+                    'key'     => 'industry',
+                    'value'   => $industry,
+                    'compare' => '=',
+                ),
+            );
+        }
+
+        $user_query = new WP_User_Query( $user_args );
+        $mentors    = array();
+
+        foreach ( $user_query->get_results() as $user ) {
+            $mentors[] = $this->format_mentor_summary( $user );
+        }
+
+        $total       = $user_query->get_total();
+        $total_pages = (int) ceil( $total / $per_page );
+
+        $response = new WP_REST_Response( array(
+            'success'     => true,
+            'mentors'     => $mentors,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        ), 200 );
+
+        // Standard pagination headers
+        $response->header( 'X-WP-Total', $total );
+        $response->header( 'X-WP-TotalPages', $total_pages );
+
+        return $response;
+    }
+
+    /**
+     * GET /mentors/{id} — Single mentor profile.
+     */
+    public function get_single_mentor( WP_REST_Request $request ) {
+        $user_id = $request->get_param( 'id' );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user || ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error(
+                'mentor_not_found',
+                __( 'Mentor not found.', 'bpu' ),
+                array( 'status' => 404 )
+            );
+        }
+
+        $profile = $this->format_mentor_detail( $user );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'mentor'  => $profile,
+        ), 200 );
+    }
+
+    /**
+     * Format a mentor user for list responses (summary).
+     */
+    private function format_mentor_summary( WP_User $user ) {
+        $acf = $this->get_mentor_acf_fields( $user->ID );
+
+        return array(
+            'id'                        => $user->ID,
+            'display_name'              => $user->display_name,
+            'avatar_url'                => get_avatar_url( $user->ID, array( 'size' => 256 ) ),
+            'industry'                  => isset( $acf['industry'] ) ? $acf['industry'] : '',
+            'years_of_experience'       => isset( $acf['years_of_experience'] ) ? $acf['years_of_experience'] : '',
+            'skills_separate'           => isset( $acf['skills_separate'] ) ? $acf['skills_separate'] : '',
+            'user_bio'                  => isset( $acf['user_bio'] ) ? $acf['user_bio'] : '',
+            'industryfield_of_expertise' => isset( $acf['industryfield_of_expertise'] ) ? $acf['industryfield_of_expertise'] : '',
+        );
+    }
+
+    /**
+     * Format a mentor user for detail responses (full profile).
+     */
+    private function format_mentor_detail( WP_User $user ) {
+        $acf = $this->get_mentor_acf_fields( $user->ID );
+
+        // Availability data (stored as user meta)
+        $availability = get_user_meta( $user->ID, '_bpu_mentor_availability', true );
+
+        return array(
+            'id'                        => $user->ID,
+            'display_name'              => $user->display_name,
+            'username'                  => $user->user_login,
+            'avatar_url'                => get_avatar_url( $user->ID, array( 'size' => 512 ) ),
+            'profile'                   => $acf,
+            'availability'              => ! empty( $availability ) ? $availability : array(),
+            'registered_date'           => $user->user_registered,
+        );
+    }
+
+    /**
+     * Retrieve relevant ACF fields for a mentor.
+     */
+    private function get_mentor_acf_fields( $user_id ) {
+        if ( ! function_exists( 'get_fields' ) ) {
+            // Fallback: return raw usermeta for known keys
+            $keys = array(
+                'industry',
+                'years_of_experience',
+                'skills_separate',
+                'user_bio',
+                'industryfield_of_expertise',
+                'first_name',
+                'last_name',
+                'phone_number',
+                'current_employment_status',
+                'level_of_education',
+            );
+            $fields = array();
+            foreach ( $keys as $key ) {
+                $val = get_user_meta( $user_id, $key, true );
+                if ( '' !== $val ) {
+                    $fields[ $key ] = $val;
+                }
+            }
+            return $fields;
+        }
+
+        $all_fields = get_fields( 'user_' . $user_id );
+        return is_array( $all_fields ) ? $all_fields : array();
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MENTORSHIP BOOKING ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * POST /bookings — Create a new mentorship booking.
+     */
+    public function create_booking( WP_REST_Request $request ) {
+        $user_id   = get_current_user_id();
+        $mentor_id = $request->get_param( 'mentor_id' );
+        $date      = $request->get_param( 'date' );
+        $time_slot = $request->get_param( 'time_slot' );
+        $notes     = $request->get_param( 'notes' );
+
+        // Verify the mentor exists and has the mentor role
+        $mentor = get_userdata( $mentor_id );
+        if ( ! $mentor || ! in_array( 'mentor', (array) $mentor->roles, true ) ) {
+            return new WP_Error(
+                'booking_invalid_mentor',
+                __( 'The specified mentor does not exist.', 'bpu' ),
+                array( 'status' => 400 )
+            );
+        }
+
+        // Prevent booking yourself
+        if ( $user_id === $mentor_id ) {
+            return new WP_Error(
+                'booking_self',
+                __( 'You cannot book a session with yourself.', 'bpu' ),
+                array( 'status' => 400 )
+            );
+        }
+
+        // Check for duplicate bookings (same mentee + mentor + date + time)
+        $duplicate_check = new WP_Query( array(
+            'post_type'   => 'mentorship_booking',
+            'post_status' => array( 'publish', 'pending' ),
+            'meta_query'  => array(
+                'relation' => 'AND',
+                array( 'key' => '_bpu_booking_mentee_id', 'value' => $user_id, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_mentor_id', 'value' => $mentor_id, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_date', 'value' => $date, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_time_slot', 'value' => $time_slot, 'compare' => '=' ),
+            ),
+        ) );
+
+        if ( $duplicate_check->found_posts > 0 ) {
+            wp_reset_postdata();
+            return new WP_Error(
+                'booking_duplicate',
+                __( 'You already have a booking for this slot.', 'bpu' ),
+                array( 'status' => 409 )
+            );
+        }
+        wp_reset_postdata();
+
+        // Create the booking post
+        $mentee = get_userdata( $user_id );
+        $title  = sprintf(
+            '%s → %s | %s %s',
+            $mentee->display_name,
+            $mentor->display_name,
+            $date,
+            $time_slot
+        );
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'mentorship_booking',
+            'post_title'  => sanitize_text_field( $title ),
+            'post_status' => 'pending', // Admin can approve / auto-publish
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        // Save booking metadata
+        update_post_meta( $post_id, '_bpu_booking_mentee_id', $user_id );
+        update_post_meta( $post_id, '_bpu_booking_mentor_id', $mentor_id );
+        update_post_meta( $post_id, '_bpu_booking_date', $date );
+        update_post_meta( $post_id, '_bpu_booking_time_slot', $time_slot );
+        update_post_meta( $post_id, '_bpu_booking_notes', $notes );
+        update_post_meta( $post_id, '_bpu_booking_status', 'pending' );
+        update_post_meta( $post_id, '_bpu_booking_created_at', current_time( 'mysql' ) );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'booking' => $this->format_booking( $post_id, $user_id ),
+        ), 201 );
+    }
+
+    /**
+     * GET /bookings — List the current user's bookings.
+     */
+    public function get_bookings( WP_REST_Request $request ) {
+        $user_id  = get_current_user_id();
+        $page     = max( 1, $request->get_param( 'page' ) );
+        $per_page = min( 100, max( 1, $request->get_param( 'per_page' ) ) );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_bpu_booking_date',
+            'order'          => 'ASC',
+            'meta_query'     => array(
+                'relation' => 'OR',
+                array( 'key' => '_bpu_booking_mentee_id', 'value' => $user_id, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_mentor_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+        ) );
+
+        $bookings = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $bookings[] = $this->format_booking( get_the_ID(), $user_id );
+            }
+            wp_reset_postdata();
+        }
+
+        $total       = $query->found_posts;
+        $total_pages = (int) ceil( $total / $per_page );
+
+        $response = new WP_REST_Response( array(
+            'success'     => true,
+            'bookings'    => $bookings,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        ), 200 );
+
+        $response->header( 'X-WP-Total', $total );
+        $response->header( 'X-WP-TotalPages', $total_pages );
+
+        return $response;
+    }
+
+    /**
+     * GET /bookings/{id} — Single booking detail.
+     */
+    public function get_single_booking( WP_REST_Request $request ) {
+        $user_id = get_current_user_id();
+        $post_id = $request->get_param( 'id' );
+
+        $post = get_post( $post_id );
+        if ( ! $post || 'mentorship_booking' !== $post->post_type ) {
+            return new WP_Error(
+                'booking_not_found',
+                __( 'Booking not found.', 'bpu' ),
+                array( 'status' => 404 )
+            );
+        }
+
+        // Ensure the current user is either the mentee or the mentor
+        $mentee_id = (int) get_post_meta( $post_id, '_bpu_booking_mentee_id', true );
+        $mentor_id = (int) get_post_meta( $post_id, '_bpu_booking_mentor_id', true );
+
+        if ( $user_id !== $mentee_id && $user_id !== $mentor_id ) {
+            return new WP_Error(
+                'booking_forbidden',
+                __( 'You do not have permission to view this booking.', 'bpu' ),
+                array( 'status' => 403 )
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'booking' => $this->format_booking( $post_id, $user_id ),
+        ), 200 );
+    }
+
+    /**
+     * Format a booking post into a structured response array.
+     */
+    private function format_booking( $post_id, $current_user_id ) {
+        $mentee_id = (int) get_post_meta( $post_id, '_bpu_booking_mentee_id', true );
+        $mentor_id = (int) get_post_meta( $post_id, '_bpu_booking_mentor_id', true );
+
+        $mentee = get_userdata( $mentee_id );
+        $mentor = get_userdata( $mentor_id );
+
+        return array(
+            'id'         => $post_id,
+            'date'       => get_post_meta( $post_id, '_bpu_booking_date', true ),
+            'time_slot'  => get_post_meta( $post_id, '_bpu_booking_time_slot', true ),
+            'notes'      => get_post_meta( $post_id, '_bpu_booking_notes', true ),
+            'status'     => get_post_meta( $post_id, '_bpu_booking_status', true ),
+            'created_at' => get_post_meta( $post_id, '_bpu_booking_created_at', true ),
+            'role'       => ( $current_user_id === $mentee_id ) ? 'mentee' : 'mentor',
+            'mentor'     => $mentor ? array(
+                'id'           => $mentor->ID,
+                'display_name' => $mentor->display_name,
+                'avatar_url'   => get_avatar_url( $mentor->ID, array( 'size' => 128 ) ),
+            ) : null,
+            'mentee'     => $mentee ? array(
+                'id'           => $mentee->ID,
+                'display_name' => $mentee->display_name,
+                'avatar_url'   => get_avatar_url( $mentee->ID, array( 'size' => 128 ) ),
+            ) : null,
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  CORS HEADERS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Add CORS headers for allowed BPU origins on REST API responses.
+     */
+    public function add_cors_headers( $served, $result, $request, $server ) {
+        $origin = isset( $_SERVER['HTTP_ORIGIN'] ) ? $_SERVER['HTTP_ORIGIN'] : '';
+
+        $allowed_origins = array(
+            'https://app.blackprofessionals.uk',
+            'https://pairedbybpu.uk',
+        );
+
+        if ( in_array( $origin, $allowed_origins, true ) ) {
+            header( 'Access-Control-Allow-Origin: ' . $origin );
+            header( 'Access-Control-Allow-Credentials: true' );
+            header( 'Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE' );
+            header( 'Access-Control-Allow-Headers: Authorization, Content-Type, X-WP-Nonce' );
+            header( 'Access-Control-Expose-Headers: X-WP-Total, X-WP-TotalPages' );
+            header( 'Vary: Origin' );
+        }
+
+        return $served;
+    }
+
     /**
      * Admin notice to assist the developer in configuring wp-config.php for SSO
      */
@@ -555,7 +1323,8 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
                 <pre style="background: #f4f4f4; padding: 10px; border-left: 4px solid #ffb900;">
 define( 'COOKIE_DOMAIN', '.blackprofessionals.uk' );
 define( 'COOKIEPATH', '/' );
-define( 'SITECOOKIEPATH', '/' );</pre>
+define( 'SITECOOKIEPATH', '/' );
+define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             </div>
             <?php
         }

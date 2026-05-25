@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { jwtVerify, JWTPayload } from 'jose';
 
 export interface ACFProfile {
     first_name: string;
@@ -44,48 +45,93 @@ export interface SessionResult {
     user: BPUUser | null;
 }
 
+/** JWT payload shape expected from WordPress SSO token */
+interface BPUJWTPayload extends JWTPayload {
+    user_id: number;
+    email: string;
+    display_name: string;
+    username?: string;
+    roles: string[];
+    profile?: ACFProfile;
+    cv_url?: string;
+}
+
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+const JWT_SECRET = process.env.BPU_JWT_SECRET || '';
 
 /**
- * Server-side SSO Authentication Checker
- * Reads standard WordPress logged-in cookies directly from incoming requests
- * and forwards them to the AWS WordPress backend to validate the session.
+ * Server-side JWT-based SSO Authentication
+ * Reads `bpu_session` httpOnly cookie, verifies the JWT signature using jose,
+ * and extracts user data from the payload. For full profile data, optionally
+ * fetches from WP REST API using the JWT as a Bearer token.
  */
 export async function getBPUSession(): Promise<SessionResult> {
     const cookieStore = await cookies();
-    
-    // Find standard WordPress logged-in cookie starting with "wordpress_logged_in_"
-    const allCookies = cookieStore.getAll();
-    const wpCookie = allCookies.find(c => c.name.startsWith('wordpress_logged_in_'));
+    const sessionCookie = cookieStore.get('bpu_session');
 
-    if (!wpCookie) {
+    if (!sessionCookie?.value) {
         return { authenticated: false, user: null };
     }
 
     try {
-        // Prepare Cookie Header String to forward directly to WordPress
-        const cookieHeader = `${wpCookie.name}=${wpCookie.value}`;
-
-        const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/sso/validate`, {
-            method: 'GET',
-            headers: {
-                'Cookie': cookieHeader,
-                'Cache-Control': 'no-store', // Always bypass HTTP cache for auth calls
-            },
-        });
-
-        if (!response.ok) {
+        if (!JWT_SECRET) {
+            console.error('BPU_JWT_SECRET environment variable is not set.');
             return { authenticated: false, user: null };
         }
 
-        const data = await response.json();
-        return {
-            authenticated: true,
-            user: data.user as BPUUser
+        // Verify and decode the JWT using jose
+        const secret = new TextEncoder().encode(JWT_SECRET);
+        const { payload } = await jwtVerify(sessionCookie.value, secret) as { payload: BPUJWTPayload };
+
+        // Build user from JWT payload
+        const user: BPUUser = {
+            id: payload.user_id,
+            username: payload.username || payload.email,
+            email: payload.email,
+            display_name: payload.display_name,
+            roles: payload.roles || [],
+            profile: payload.profile || {
+                first_name: payload.display_name?.split(' ')[0] || '',
+                last_name: payload.display_name?.split(' ').slice(1).join(' ') || '',
+                phone_number: '',
+            },
+            cv_url: payload.cv_url,
         };
 
+        // Optionally fetch full profile from WP REST API for complete ACF data
+        if (!payload.profile) {
+            try {
+                const profileResponse = await fetch(
+                    `${WP_BACKEND_URL}/wp-json/bpu/v1/sso/profile`,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${sessionCookie.value}`,
+                            'Cache-Control': 'no-store',
+                        },
+                    }
+                );
+
+                if (profileResponse.ok) {
+                    const profileData = await profileResponse.json();
+                    if (profileData.profile) {
+                        user.profile = profileData.profile;
+                    }
+                    if (profileData.cv_url) {
+                        user.cv_url = profileData.cv_url;
+                    }
+                }
+            } catch {
+                // Profile fetch is optional — proceed with JWT-extracted data
+                console.warn('Optional profile fetch from WP REST API failed; using JWT payload data.');
+            }
+        }
+
+        return {
+            authenticated: true,
+            user,
+        };
     } catch (error) {
-        console.error('SSO Session Validation Error:', error);
+        console.error('JWT Session Verification Error:', error);
         return { authenticated: false, user: null };
     }
 }

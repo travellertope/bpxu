@@ -24,6 +24,7 @@
   --color-accent-primary: var(--accent-primary);
   --color-accent-secondary: var(--accent-secondary);
   --color-text-muted: var(--text-muted);
+  --color-hover-bg: var(--hover-bg);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -58,10 +59,32 @@ body {
   color: var(--foreground);
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   min-height: 100vh;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.3s ease, transform 0.2s ease;
 }
 
-/* Micro-animations and custom utility styles */
+/* ==========================================
+   ANIMATIONS
+   ========================================== */
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeInUp {
+  animation: fadeInUp 0.6s ease-out both;
+}
+
+/* ==========================================
+   GRADIENT TEXT
+   ========================================== */
+
 .gradient-text {
   background: var(--accent-gradient);
   -webkit-background-clip: text;
@@ -69,18 +92,32 @@ body {
   background-clip: text;
 }
 
+/* ==========================================
+   PREMIUM CARD
+   ========================================== */
+
 .premium-card {
   background: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: 16px;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.03), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  box-shadow: 
+    0 4px 6px -1px rgba(0, 0, 0, 0.05),
+    0 2px 4px -2px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .premium-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 20px -8px rgba(0, 0, 0, 0.08), 0 4px 12px -2px rgba(0, 0, 0, 0.03);
+  box-shadow: 
+    0 16px 32px -8px rgba(0, 0, 0, 0.1),
+    0 8px 16px -4px rgba(0, 0, 0, 0.06),
+    0 0 0 1px rgba(0, 0, 0, 0.03);
 }
+
+/* ==========================================
+   BUTTONS
+   ========================================== */
 
 .button-primary {
   background: var(--accent-gradient);
@@ -88,6 +125,7 @@ body {
   font-weight: 600;
   border-radius: 8px;
   padding: 10px 20px;
+  min-height: 44px;
   border: none;
   cursor: pointer;
   display: inline-flex;
@@ -109,6 +147,7 @@ body {
   font-weight: 500;
   border-radius: 8px;
   padding: 10px 20px;
+  min-height: 44px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -121,7 +160,68 @@ body {
   background: var(--hover-bg);
 }
 
-/* Custom Scrollbar */
+/* ==========================================
+   LAYOUT UTILITIES
+   ========================================== */
+
+.section-spacing {
+  padding-top: 2.5rem;
+  padding-bottom: 2.5rem;
+}
+
+/* ==========================================
+   PAIRED (Indigo/Purple) Theme Utilities
+   ========================================== */
+
+.paired-gradient-text {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.paired-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: 
+    0 4px 6px -1px rgba(99, 102, 241, 0.06),
+    0 2px 4px -2px rgba(99, 102, 241, 0.04);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.paired-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 
+    0 20px 40px -8px rgba(99, 102, 241, 0.12),
+    0 8px 16px -4px rgba(139, 92, 246, 0.08);
+}
+
+.button-paired {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  color: #ffffff;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 10px 20px;
+  min-height: 44px;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.button-paired:hover {
+  opacity: 0.95;
+  transform: scale(1.02);
+}
+
+/* ==========================================
+   CUSTOM SCROLLBAR
+   ========================================== */
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
