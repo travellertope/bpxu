@@ -208,6 +208,24 @@ class BPU_Headless_Connector {
         ) );
 
         // ──────────────────────────────────────────────────────
+        // 6d. In-app Login (public — returns JWT)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/login', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_login' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 6e. In-app Register (public — creates account, returns JWT)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/register', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_register' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
         // 6b. SSO Profile (JWT Bearer auth — for Next.js profile refresh)
         // ──────────────────────────────────────────────────────
         register_rest_route( $this->namespace, '/sso/profile', array(
@@ -918,6 +936,147 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
     // ══════════════════════════════════════════════════════════════
     //  MEMBER PROFILE UPDATE
     // ══════════════════════════════════════════════════════════════
+
+    // ══════════════════════════════════════════════════════════════
+    //  IN-APP AUTH ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * POST /bpu/v1/auth/login — authenticate with username/password, return JWT.
+     *
+     * Rate-limited: 5 attempts per IP per 5 minutes.
+     */
+    public function handle_login( WP_REST_Request $request ) {
+        $ip       = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+        $rate_key = 'bpu_login_rate_' . md5( $ip );
+        $attempts = (int) get_transient( $rate_key );
+
+        if ( $attempts >= 5 ) {
+            return new WP_Error( 'too_many_attempts', __( 'Too many login attempts. Please wait 5 minutes.', 'bpu' ), array( 'status' => 429 ) );
+        }
+
+        $body     = $request->get_json_params();
+        $username = sanitize_text_field( $body['username'] ?? '' );
+        $password = $body['password'] ?? '';
+
+        if ( empty( $username ) || empty( $password ) ) {
+            return new WP_Error( 'missing_fields', __( 'Username and password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $user = wp_authenticate( $username, $password );
+
+        if ( is_wp_error( $user ) ) {
+            set_transient( $rate_key, $attempts + 1, 5 * MINUTE_IN_SECONDS );
+            return new WP_Error( 'invalid_credentials', __( 'Invalid username or password.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        // Clear rate-limit counter on success.
+        delete_transient( $rate_key );
+
+        $jwt = $this->generate_jwt( array(
+            'user_id'      => $user->ID,
+            'username'     => $user->user_login,
+            'email'        => $user->user_email,
+            'display_name' => $user->display_name,
+            'profile'      => get_field( 'profile_photo', 'user_' . $user->ID ) ?: '',
+            'cv_url'       => get_field( 'cv_file', 'user_' . $user->ID ) ?: '',
+            'iat'          => time(),
+            'exp'          => time() + DAY_IN_SECONDS,
+        ) );
+
+        return rest_ensure_response( array(
+            'jwt'          => $jwt,
+            'display_name' => $user->display_name,
+            'email'        => $user->user_email,
+        ) );
+    }
+
+    /**
+     * POST /bpu/v1/auth/register — create a WP user, save ACF fields, return JWT.
+     */
+    public function handle_register( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+
+        $username = sanitize_user( $body['username'] ?? '' );
+        $email    = sanitize_email( $body['email'] ?? '' );
+        $password = $body['password'] ?? '';
+
+        if ( empty( $username ) || empty( $email ) || empty( $password ) ) {
+            return new WP_Error( 'missing_fields', __( 'Username, email, and password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( username_exists( $username ) ) {
+            return new WP_Error( 'username_taken', __( 'That username is already taken.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        if ( email_exists( $email ) ) {
+            return new WP_Error( 'email_taken', __( 'An account with that email already exists.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $user_id = wp_create_user( $username, $password, $email );
+
+        if ( is_wp_error( $user_id ) ) {
+            return new WP_Error( 'register_failed', $user_id->get_error_message(), array( 'status' => 500 ) );
+        }
+
+        // Core WP display name fields.
+        $first = sanitize_text_field( $body['first_name'] ?? '' );
+        $last  = sanitize_text_field( $body['last_name'] ?? '' );
+        wp_update_user( array(
+            'ID'           => $user_id,
+            'first_name'   => $first,
+            'last_name'    => $last,
+            'display_name' => trim( "$first $last" ) ?: $username,
+        ) );
+
+        // ACF field mapping: form key => ACF field key.
+        $acf_map = array(
+            'phone_number'         => 'phone_number',
+            'birthday'             => 'birthday',
+            'gender'               => 'what_is_your_gender',
+            'sexuality'            => 'sexuality',
+            'education'            => 'level_of_education',
+            'ethnicity'            => 'ethnicity',
+            'first_gen_immigrant'  => 'first_generation_uk_immigrant',
+            'disability'           => 'do_you_have_a_disability',
+            'other_disability'     => 'if_yes_please_specify',
+            'employment_status'    => 'current_employment_status',
+            'industry'             => 'industry',
+            'field_of_expertise'   => 'industryfield_of_expertise',
+            'expertise_not_listed' => 'if_expertise_not_listed_please_enter_it_here',
+            'years_experience'     => 'years_of_experience',
+            'skills'               => 'skills_separate',
+            'country'              => 'country_location',
+            'where_in_uk'          => 'where_in_the_uk',
+            'city'                 => 'location_city',
+            'user_bio'             => 'user_bio',
+        );
+
+        foreach ( $acf_map as $form_key => $acf_key ) {
+            if ( isset( $body[ $form_key ] ) && $body[ $form_key ] !== '' ) {
+                update_field( $acf_key, sanitize_text_field( $body[ $form_key ] ), 'user_' . $user_id );
+            }
+        }
+
+        $user = get_userdata( $user_id );
+
+        $jwt = $this->generate_jwt( array(
+            'user_id'      => $user_id,
+            'username'     => $user->user_login,
+            'email'        => $user->user_email,
+            'display_name' => $user->display_name,
+            'profile'      => '',
+            'cv_url'       => '',
+            'iat'          => time(),
+            'exp'          => time() + DAY_IN_SECONDS,
+        ) );
+
+        return new WP_REST_Response( array(
+            'jwt'          => $jwt,
+            'display_name' => $user->display_name,
+            'email'        => $user->user_email,
+        ), 201 );
+    }
 
     /**
      * POST /bpu/v1/member/profile — update ACF profile fields for the JWT holder.
