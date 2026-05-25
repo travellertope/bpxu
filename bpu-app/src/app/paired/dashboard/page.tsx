@@ -23,7 +23,7 @@ export default async function PairedDashboard() {
   const user = session.user!;
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8 fade-up">
+    <div className="wrap py-10 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
       {/* ── Page header ─────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

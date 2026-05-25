@@ -43,17 +43,40 @@
 }
 
 /* ─────────────────────────────────────────
-   RESET
+   BODY
+   (Tailwind's @layer base already resets margin/padding/box-sizing.
+   Only set values that differ from browser defaults here.)
 ───────────────────────────────────────── */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: var(--font-sans, system-ui, sans-serif);
   font-feature-settings: "cv02","cv03","cv04","cv11";
-  -webkit-font-smoothing: antialiased;
-  min-height: 100vh;
+}
+
+/* ─────────────────────────────────────────
+   CENTERING UTILITY
+   Safe CSS-class centering so mx-auto never
+   has to compete with unlayered * resets.
+───────────────────────────────────────── */
+.wrap {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: 24px;
+  padding-right: 24px;
+}
+.wrap-md {
+  width: 100%;
+  max-width: 768px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.wrap-sm {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 /* ─────────────────────────────────────────

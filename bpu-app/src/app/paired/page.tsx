@@ -37,17 +37,17 @@ export default async function PairedHome() {
     <div>
 
       {/* ── Hero ─────────────────────────────────────────── */}
-      <section className="py-20 px-6 text-center" style={{ background: 'linear-gradient(160deg, #f5f3ff 0%, #fafafa 60%)' }}>
-        <div className="max-w-3xl mx-auto fade-up space-y-6">
+      <section style={{ background: 'linear-gradient(160deg, #f5f3ff 0%, #fafafa 60%)', padding: '80px 24px', textAlign: 'center' }}>
+        <div className="wrap-md fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center' }}>
           <span className="badge badge-purple text-sm">Now live · Free to join</span>
-          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight leading-tight" style={{ color: '#1e1b4b' }}>
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight leading-tight" style={{ color: '#1e1b4b', textAlign: 'center' }}>
             Find your perfect<br />
             <span style={{ color: 'var(--purple)' }}>mentor</span>
           </h1>
-          <p className="text-lg text-text-2 max-w-xl mx-auto leading-relaxed">
+          <p className="text-lg text-text-2 leading-relaxed" style={{ maxWidth: '520px', textAlign: 'center' }}>
             PAIRED connects ambitious Black professionals across the UK with experienced mentors who truly understand the journey.
           </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             {session.authenticated ? (
               <a href="/paired/dashboard" className="btn btn-purple btn-lg">
                 Go to my dashboard →
@@ -67,15 +67,15 @@ export default async function PairedHome() {
       </section>
 
       {/* ── Features ─────────────────────────────────────── */}
-      <section className="py-16 px-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
+      <section style={{ padding: '64px 24px' }}>
+        <div style={{ maxWidth: '1024px', marginLeft: 'auto', marginRight: 'auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
             <h2 className="text-3xl font-bold">Why PAIRED?</h2>
-            <p className="text-text-2 mt-2">Mentorship that actually fits your world.</p>
+            <p className="text-text-2" style={{ marginTop: '8px' }}>Mentorship that actually fits your world.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             {features.map(f => (
-              <div key={f.title} className="card card-p space-y-3 card-lift">
+              <div key={f.title} className="card card-p card-lift" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <div className="text-3xl">{f.icon}</div>
                 <p className="font-bold text-base">{f.title}</p>
                 <p className="text-sm text-text-2 leading-relaxed">{f.desc}</p>
@@ -86,14 +86,14 @@ export default async function PairedHome() {
       </section>
 
       {/* ── How it works ─────────────────────────────────── */}
-      <section className="py-16 px-6 bg-surface border-y border-border">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
+      <section style={{ padding: '64px 24px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: '896px', marginLeft: 'auto', marginRight: 'auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '48px' }}>
             <h2 className="text-3xl font-bold">How it works</h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {steps.map(s => (
-              <div key={s.num} className="text-center space-y-3">
+              <div key={s.num} style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
                 <div className="inline-flex items-center justify-center w-12 h-12 rounded-full font-extrabold text-lg" style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}>
                   {s.num}
                 </div>
@@ -106,8 +106,8 @@ export default async function PairedHome() {
       </section>
 
       {/* ── CTA ──────────────────────────────────────────── */}
-      <section className="py-20 px-6 text-center">
-        <div className="max-w-xl mx-auto space-y-6">
+      <section style={{ padding: '80px 24px', textAlign: 'center' }}>
+        <div style={{ maxWidth: '560px', marginLeft: 'auto', marginRight: 'auto', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <h2 className="text-3xl font-bold">Ready to find your mentor?</h2>
           <p className="text-text-2">Join hundreds of Black professionals already growing with PAIRED.</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">

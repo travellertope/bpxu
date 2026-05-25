@@ -141,7 +141,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       </div>
 
       {/* ── Page content ───────────────────────────────────── */}
-      <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 sm:px-6 py-8">
+      <main className="flex-1 wrap py-8">
 
         {/* ════ OVERVIEW ════════════════════════════════════ */}
         {tab === 'overview' && (
