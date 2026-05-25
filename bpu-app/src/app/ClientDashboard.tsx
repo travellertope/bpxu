@@ -219,7 +219,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
 
         {/* ════ CV CLINIC ═══════════════════════════════════ */}
         {tab === 'cv' && (
-          <div className="max-w-2xl space-y-6 fade-up">
+          <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
               <h2 className="text-xl font-bold">CV Clinic</h2>
               <p className="section-sub">Upload your CV as a PDF. Gemini Pro will parse it and auto-fill your profile.</p>
@@ -385,7 +385,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
 
         {/* ════ PROFILE ═════════════════════════════════════ */}
         {tab === 'profile' && (
-          <div className="max-w-2xl space-y-6 fade-up">
+          <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-bold">My Profile</h2>
