@@ -1,0 +1,328 @@
+
+.b2section:after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: url(../../../assets/images/blurry.png);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    left: 0;
+    bottom: 0px;
+    z-index: -1;
+    opacity: .8;
+}
+
+.resultbg:after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: url(../../../assets/images/bg22.png);
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center top;
+    left: 0;
+    bottom: 0px;
+    z-index: -1;
+    opacity: .5;
+}
+
+.resultbg1{
+    width: 100%;
+    height: 100%;
+    background-image: linear-gradient(to left, #fdcbf1 0%, #fdcbf1 1%, #a6c1ee 100%);
+/*    background-image: linear-gradient(to left, #fbc2eb 0%, #a6c1ee 100%);*/
+}
+
+.text-dblue{
+    color: #371378;
+}
+.svgc1{
+    fill: rgb(96, 93, 186);
+}
+
+.svgc2{
+    fill: rgb(172, 74, 215);
+}
+
+.svgc3{
+    fill: rgb(230, 104, 179);
+}
+
+.svgc4{
+    fill: rgb(250, 183, 88);
+}
+
+.bg-transparent{
+    background: transparent !important;
+}
+
+.mt--100{
+    padding-top: -0px !important;
+}
+
+.w-5{
+    width: 2%;
+}
+
+
+.w-6{
+    width: 3%;
+}
+
+
+.w-10{
+    width: 5%;
+}
+
+.round-1{
+    border-radius: 10px;
+}
+
+.round-2{
+    border-radius: 20px;
+}
+
+svg.tes {
+    vertical-align: middle;
+    overflow: hidden;
+    width: 100%;
+    position: absolute;
+    right: -380px;
+    top: -2px;
+    z-index: 9999;
+}
+
+.resultitem{
+    background: hsla(0,0%,100%,.5)
+}
+
+.owlstyle-3 {
+    background-color: rgba(235, 236, 237, 0.8);
+    color: #0d0c0c;
+    padding: 11px 12px;
+    border-radius: 50px;
+    font-size: 18px;
+}
+
+.owlstyle-3:hover {
+    background-color: #0d0c0c;
+    color: #fff;
+    padding: 11px 12px;
+    border-radius: 50px;    
+    font-size: 18px;
+}
+
+.shadow-lg {
+    box-shadow: 0 .25rem 1.75rem rgba(30,34,40,.07)!important;
+}
+
+
+.avatar-lg {
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  border-radius: 50%;
+  height: 100px;
+  width: 100px;
+  border: 1px solid #dfe1e2;
+  position: relative;
+}
+
+
+.verified-badge2 {
+    position: absolute !important;
+    top: 72px !important;
+    right: 7px !important;
+    background-color: #fbf9f9;
+    border-radius: 50px !important;
+    padding: 0px 4px !important;
+    font-size: 14px !important;
+    border: 1px solid #f2f2f2;
+}
+
+
+
+/* Style OR ----------------- */
+
+.or span {
+  text-align:center;
+ 
+  text-transform:uppercase;
+  font-size:14px; letter-spacing:1px;
+  
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  grid-template-rows: 12px 0;
+  grid-gap: 10px;
+}
+
+.or span:after,.or span:before {
+  content: " ";
+  display: block;
+  border-bottom: 1px solid #efefef;
+}
+
+
+
+.blur-md {
+    backdrop-filter: blur(2px) !important;
+    -webkit-backdrop-filter: saturate(100%) blur(2px)!important;
+    background: hsla(0,0%,100%,.30) !important;
+}
+
+.bg-transparent{
+    background-color: transparent !important;
+}
+
+.bg-transparent:hover{
+    background-color: transparent !important;
+}
+
+
+.form-control.isearch:focus {
+    color: #060606 !important;
+    background-color: transparent !important;
+    border-color: transparent !important;
+    outline: 0;
+    box-shadow: none !important;
+}
+
+
+.footer-07 {
+    background: #fbfbfb;
+    border-top: 1px solid #f1f1f1; 
+    padding: 3em 0; 
+}
+.footer-07 a {
+    color: #222; 
+}
+.footer-07 p {
+    color: #777; 
+}
+.footer-07 .footer-heading {
+    font-size: 30px;
+    color: #000;
+    font-weight: 700;
+    margin-bottom: 30px; 
+}
+.footer-07 .footer-heading .logo {
+    color: #000; 
+}
+.footer-07 .menu {
+    margin-bottom: 30px; 
+}
+.footer-07 .menu a {
+      color: #777;
+      margin: 0 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px; 
+      transition: all .1s ease-in-out !important;
+}
+.footer-07 .menu a:hover {
+      color: #222;
+}
+.footer-07 .ftco-footer-social li a {
+    background: transparent;
+    border: 1px solid #a3de83; 
+}
+
+.circle{
+    border-radius: 50% !important;
+}
+
+
+.social-icon33 li{
+    display: inline-block !important;
+    margin-right: 10px;
+}
+
+.social-icon33 li a {
+    width: 35px;
+    height: 35px;
+    line-height: 35px;
+    border: 1px solid #ddd !important;
+    text-align: center;
+    border-radius: 50px !important;
+    font-size: 15px;
+    display: inline-block !important;
+    color: #666;
+}
+
+.social-icon33 li a:hover {
+    width: 35px;
+    height: 35px;
+    line-height: 35px;
+    border: 1px solid #121212 !important;
+    color: #fff;
+    background: #121212;
+    text-align: center;
+    border-radius: 50px !important;
+    font-size: 15px;
+    display: inline-block !important;
+}
+
+.btn{
+    padding: .6rem 1rem !important;
+}
+
+
+.btn-lg{
+    padding: .8rem 1.2rem !important;
+}
+
+.btn-sm {
+    padding: .6rem .9rem !important;
+    font-size: 14px;
+}
+
+.btn-outline-secondary, .btn-light-secondary {
+    color: #333338;
+}
+
+.btn-outline-secondary:hover, .btn-light-secondary:hover {
+    color: #fff;
+    background-color: #05051b !important;
+    border-color: #05051b !important;
+}
+
+.btn-black {
+    color: #fff;
+    background-color: #05051b !important;
+    border-color: #05051b !important;
+}
+
+.zi-1{
+    z-index: -1 !important;
+}
+
+
+.btn-grad {
+/*background-image: linear-gradient(to right, #F7BB97 0%, #DD5E89  51%, #F7BB97  100%);*/
+background-image: linear-gradient(to right, #ff66be, #9733ee 51%, #ff66be);
+    margin: 10px;
+    padding: 19px 38px !important;
+    text-align: center;
+    transition: 0.5s;
+    background-size: 200% auto;
+    color: white;            
+    box-shadow: 0 0 20px #eee;
+    border-radius: 50px;
+    display: block;
+}
+
+.btn-grad:hover {
+    background-position: right center; /* change the direction of the change here */
+    color: #fff;
+    text-decoration: none;
+}
+
+
+.home-search form {
+    background: #fff;
+    border-radius: 50px !important;
+    box-shadow: rgba(142, 151, 158, 0.15) 0px 4px 19px;
+    border: 1px solid #f1f1f1;
+}

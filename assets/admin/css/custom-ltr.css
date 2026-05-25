@@ -1,0 +1,74 @@
+.home-image-1{
+    position: absolute;
+    top: 5px;
+    right: 210px;
+}
+
+.home-image-2{
+    position: absolute;
+    bottom: 100px;
+    right: -270px;
+}
+
+.home-image-3{
+    position: absolute;
+    top: -60px;
+    right: -230px;
+}
+
+.home-image-4{
+    position: absolute;
+    bottom: 0px;
+    right: 60px;
+}
+
+.home-image-5{
+    position: absolute;
+    bottom: 185px;
+    right: 260px;
+}
+
+.home-image-6{
+    position: absolute;
+    top: 150px;
+    right: 0px;
+}
+
+.home-icon-1{
+    position: absolute;
+    top: -20px;
+    right: 25px;
+    font-size: 40px;
+}
+
+.home-icon-2{
+    position: absolute;
+    top: 150px;
+    right: -185px;
+    font-size: 40px;
+}
+.home-icon-3{
+    position: absolute;
+    bottom: 100px;
+    right: 120px;
+    font-size: 40px;
+}
+.home-icon-4{
+    position: absolute;
+    bottom: 135px;
+    right: 70px;
+    font-size: 40px;
+}
+
+
+.navTopRight  .owl-nav {
+    position: absolute;
+    top: -83px;
+    right: 0;
+}
+
+.navTopLeft  .owl-nav {
+    position: absolute;
+    top: -54px;
+    right: 0;
+}

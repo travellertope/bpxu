@@ -1,0 +1,29 @@
+# Composer dependencies
+/vendor/
+
+# User uploads and backups
+/uploads/
+/old/
+*.zip
+*.tar.gz
+*.tgz
+
+# CodeIgniter temp directories
+/application/cache/*
+/application/logs/*
+/application/session/*
+
+# Allow index.html files inside CodeIgniter system/temp directories to prevent direct directory browsing
+!/application/cache/index.html
+!/application/logs/index.html
+!/application/session/index.html
+
+# OS and IDE configuration files
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# Server temporary/flag files
+.litespeed_flag
+.hcflag

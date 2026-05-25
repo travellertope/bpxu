@@ -1,0 +1,11 @@
+{
+    "require": {
+        "phpmailer/phpmailer": "^6.5",
+        "google/apiclient": "^2.0",
+        "orhanerday/open-ai": "^3.5",
+        "mpdf/mpdf": "^8.1",
+        "phpoffice/phpword": "^1.0",
+        "ezyang/htmlpurifier": "^4.16",
+        "mercadopago/dx-php": "2.5.0"
+    }
+}
