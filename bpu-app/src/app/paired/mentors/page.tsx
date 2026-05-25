@@ -9,18 +9,18 @@ const mockMentors = [
 
 export default function MentorDirectory() {
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12 space-y-8 fade-up">
+    <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
       {/* Header */}
-      <div className="text-center space-y-3">
+      <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h1 className="text-4xl font-extrabold tracking-tight">Browse mentors</h1>
-        <p className="text-text-2 max-w-lg mx-auto">
+        <p className="text-text-2" style={{ maxWidth: '480px', marginLeft: 'auto', marginRight: 'auto' }}>
           Connect with experienced Black professionals ready to guide your career.
         </p>
       </div>
 
       {/* Search bar */}
-      <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto">
+      <div className="flex flex-col sm:flex-row gap-3" style={{ maxWidth: '640px', marginLeft: 'auto', marginRight: 'auto', width: '100%' }}>
         <input
           type="text"
           placeholder="Search by name, role or skill…"

@@ -23,7 +23,7 @@ export default async function MentorProfile({
   await params;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-8 fade-up">
+    <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
       {/* ── Profile header ──────────────────────────────── */}
       <div className="card card-p-lg">
