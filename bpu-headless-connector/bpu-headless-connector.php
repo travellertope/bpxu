@@ -775,9 +775,13 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
                 'expires_at' => time() + 300, // 5 minutes
             ), false ); // autoload = false
 
-            // Append token to the redirect URL
+            // Append token to the redirect URL.
+            // wp_redirect() is intentional — wp_safe_redirect() only allows
+            // redirects to the WordPress host and would block the SSO callback
+            // on app.blackprofessionals.uk / pairedbybpu.uk. The target has
+            // already been validated against $this->allowed_sso_origins above.
             $target_url = add_query_arg( 'token', $token, $redirect_to );
-            wp_safe_redirect( $target_url );
+            wp_redirect( $target_url );
             exit;
         } else {
             // Build the handoff URL to return to after login
