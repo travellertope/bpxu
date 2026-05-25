@@ -1,129 +1,100 @@
 import { getBPUSession } from '@/lib/auth';
-import { BPUApi, JobListing, CourseItem, CVReview } from '@/lib/api';
+import { BPUApi } from '@/lib/api';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import ClientDashboard from './ClientDashboard';
 
-const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.blackprofessionals.uk';
 
 export default async function MemberPortal({
-    searchParams,
+  searchParams,
 }: {
-    searchParams: Promise<{ auth_error?: string; logged_out?: string }>;
+  searchParams: Promise<{ auth_error?: string; logged_out?: string }>;
 }) {
-    const session = await getBPUSession();
-    const params = await searchParams;
+  const session = await getBPUSession();
+  const params = await searchParams;
 
-    // ----------------------------------------------------
-    // GUEST VIEW: If user is not authenticated in BPU ecosystem
-    // ----------------------------------------------------
-    if (!session.authenticated || !session.user) {
-        const loginUrl = `${WP_BACKEND_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${APP_URL}/api/auth/callback`)}`;
-        const registerUrl = `${WP_BACKEND_URL}/register`;
+  if (!session.authenticated || !session.user) {
+    const ssoUrl = `${WP_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${APP_URL}/api/auth/callback`)}`;
 
-        // Auto-trigger SSO: if the user hasn't explicitly logged out and there's
-        // no auth error from a previous attempt, bounce straight to WordPress SSO.
-        // If already logged into WordPress they get back immediately with a session;
-        // if not, they land on the WordPress login page.
-        if (!params.auth_error && !params.logged_out) {
-            redirect(loginUrl);
-        }
-
-        return (
-            <div className="flex-1 flex flex-col justify-center items-center px-6 py-20 lg:py-28 transition-all duration-300">
-                {/* Spacious max-w-3xl container for premium feel */}
-                <div className="w-full max-w-3xl flex flex-col gap-12 text-center animate-fadeInUp">
-                    {params.auth_error && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                            Sign-in failed ({params.auth_error}). Please try again or register below.
-                        </div>
-                    )}
-                    <div className="flex flex-col gap-6 items-center">
-                        <span className="inline-flex items-center rounded-full bg-amber-500/10 px-4 py-1.5 text-sm font-semibold text-amber-500 ring-1 ring-inset ring-amber-500/20">
-                            BPU Unified App
-                        </span>
-                        <h1 className="text-5xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl leading-tight">
-                            Unlock Your <span className="gradient-text">Potential</span>
-                        </h1>
-                        <p className="mt-4 text-base sm:text-lg text-text-muted max-w-xl mx-auto leading-relaxed">
-                            Empowering Black professionals in the UK with elite career resources, manual CV audits, courses, and semantic mentor-mentee pairing.
-                        </p>
-                    </div>
-
-                    {/* Benefit Cards with generous spacing */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 text-left">
-                        <div id="benefit-cv" className="p-6 premium-card border-l-4 border-l-amber-500">
-                            <div className="text-amber-500 text-lg mb-2 font-bold">📄 CV Clinic</div>
-                            <div className="text-sm text-text-muted leading-relaxed">Gemini Pro parsing &amp; manual BPU professional critiques to sharpen your resume.</div>
-                        </div>
-                        <div id="benefit-jobs" className="p-6 premium-card border-l-4 border-l-amber-500">
-                            <div className="text-amber-500 text-lg mb-2 font-bold">💼 Job Boards</div>
-                            <div className="text-sm text-text-muted leading-relaxed">Direct partner posts &amp; daily automated AI-powered recommendations.</div>
-                        </div>
-                        <div id="benefit-courses" className="p-6 premium-card border-l-4 border-l-amber-500">
-                            <div className="text-amber-500 text-lg mb-2 font-bold">🎓 Courses</div>
-                            <div className="text-sm text-text-muted leading-relaxed">Accredited Tutor LMS courses &amp; career placement support.</div>
-                        </div>
-                        <div id="benefit-paired" className="p-6 premium-card border-l-4 border-l-amber-500">
-                            <div className="text-amber-500 text-lg mb-2 font-bold">🤝 PAIRED</div>
-                            <div className="text-sm text-text-muted leading-relaxed">Smart automated mentor compatibility matching powered by AI.</div>
-                        </div>
-                    </div>
-
-                    {/* SSO Access Card */}
-                    <div className="w-full mt-8">
-                        <div id="sso-card" className="premium-card p-8 border-amber-500/20" style={{ backgroundColor: 'rgba(245, 158, 11, 0.05)' }}>
-                            <h3 className="text-base font-bold mb-3">Single Sign-On (SSO) Active</h3>
-                            <p className="text-sm text-text-muted mb-6 leading-relaxed max-w-lg mx-auto">
-                                app.blackprofessionals.uk shares sessions with your main WordPress account. Logging in below instantly activates your portal.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                                <a 
-                                    id="sso-login-btn"
-                                    href={loginUrl}
-                                    className="button-primary text-sm shadow-md min-h-[48px]"
-                                >
-                                    Login with BPU Account
-                                </a>
-                                <a 
-                                    id="sso-register-btn"
-                                    href={registerUrl}
-                                    className="button-secondary text-sm min-h-[48px]"
-                                >
-                                    Register Free Account
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
+    // Auto-bounce to WordPress SSO unless the user just logged out or a
+    // previous attempt failed (prevents an infinite redirect loop).
+    if (!params.auth_error && !params.logged_out) {
+      redirect(ssoUrl);
     }
 
-    // ----------------------------------------------------
-    // MEMBER PORTAL VIEW: Fetch backend resources server-side
-    // ----------------------------------------------------
-    const user = session.user;
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('bpu_session');
-    const jwtToken = sessionCookie?.value || '';
-
-    // Parallel Server-Side Fetching (using JWT Bearer token instead of WP cookies)
-    const [jobs, courses, reviews] = await Promise.all([
-        BPUApi.getJobRecommendations(user.id, jwtToken),
-        BPUApi.getCourses(jwtToken),
-        BPUApi.getCVClinicReviews(jwtToken)
-    ]);
-
     return (
-        <ClientDashboard 
-            user={user}
-            initialJobs={jobs}
-            initialCourses={courses}
-            initialReviews={reviews}
-            wpCookieHeader={jwtToken}
-            wpBackendUrl={WP_BACKEND_URL}
-        />
+      <main className="min-h-screen flex items-center justify-center p-6 bg-bg">
+        <div className="w-full max-w-sm fade-up">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center gap-2 text-2xl font-extrabold tracking-tight">
+              <span className="text-brand">BPU</span>
+              <span className="text-text"> Portal</span>
+            </div>
+            <p className="mt-2 text-sm text-text-2">Black Professionals United</p>
+          </div>
+
+          <div className="card card-p space-y-4">
+            {params.auth_error && (
+              <div className="alert alert-red text-sm">
+                Sign-in failed — please try again.
+              </div>
+            )}
+            {params.logged_out && (
+              <div className="alert alert-green text-sm">
+                You have been signed out.
+              </div>
+            )}
+
+            <div className="text-center space-y-1">
+              <h1 className="text-xl font-bold">Sign in to your account</h1>
+              <p className="text-sm text-text-2">
+                Uses your BPU WordPress account via secure SSO.
+              </p>
+            </div>
+
+            <div className="divider" />
+
+            <a href={ssoUrl} className="btn btn-amber btn-lg w-full justify-center">
+              Sign in with BPU Account
+            </a>
+
+            <p className="text-center text-sm text-text-2">
+              No account?{' '}
+              <a href={`${WP_URL}/register`} className="font-semibold text-brand-dark hover:underline">
+                Register free
+              </a>
+            </p>
+          </div>
+
+          <p className="mt-6 text-center text-xs text-text-3">
+            Empowering Black professionals in the UK
+          </p>
+        </div>
+      </main>
     );
+  }
+
+  // ── Authenticated: fetch data server-side ──────────────────
+  const user = session.user;
+  const cookieStore = await cookies();
+  const jwt = cookieStore.get('bpu_session')?.value || '';
+
+  const [jobs, courses, reviews] = await Promise.all([
+    BPUApi.getJobRecommendations(user.id, jwt),
+    BPUApi.getCourses(jwt),
+    BPUApi.getCVClinicReviews(jwt),
+  ]);
+
+  return (
+    <ClientDashboard
+      user={user}
+      initialJobs={jobs}
+      initialCourses={courses}
+      initialReviews={reviews}
+      jwt={jwt}
+    />
+  );
 }

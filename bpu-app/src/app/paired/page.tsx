@@ -1,78 +1,143 @@
-import React from 'react';
+import { getBPUSession } from '@/lib/auth';
+import { headers } from 'next/headers';
 
-const mockMentors = [
-  { id: 1, name: 'Sarah Jenkins', title: 'Senior Product Manager', industry: 'Technology', experience: '8 years', skills: ['Product Strategy', 'Agile', 'UX'], initial: 'S', color: 'bg-indigo-500' },
-  { id: 2, name: 'Marcus Adebayo', title: 'VP of Engineering', industry: 'Fintech', experience: '12 years', skills: ['System Design', 'Leadership', 'Go'], initial: 'M', color: 'bg-purple-500' },
-  { id: 3, name: 'Chloe Okafor', title: 'Marketing Director', industry: 'E-commerce', experience: '10 years', skills: ['Growth Marketing', 'SEO', 'Brand'], initial: 'C', color: 'bg-pink-500' },
-  { id: 4, name: 'David Smith', title: 'Data Scientist', industry: 'Healthcare', experience: '5 years', skills: ['Machine Learning', 'Python', 'SQL'], initial: 'D', color: 'bg-blue-500' },
-  { id: 5, name: 'Amira Hassan', title: 'UX Researcher', industry: 'Consulting', experience: '7 years', skills: ['User Interviews', 'Prototyping'], initial: 'A', color: 'bg-teal-500' },
-  { id: 6, name: 'Elias Ndiaye', title: 'Financial Analyst', industry: 'Banking', experience: '6 years', skills: ['Financial Modeling', 'Excel', 'Risk'], initial: 'E', color: 'bg-indigo-600' }
+const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+
+const features = [
+  {
+    icon: '🤝',
+    title: 'AI-powered matching',
+    desc: 'Our semantic engine analyses your BPU profile to surface mentors whose experience genuinely aligns with where you want to go.',
+  },
+  {
+    icon: '📅',
+    title: 'Easy scheduling',
+    desc: 'Book free 1-on-1 video sessions directly from a mentor\'s profile. No back-and-forth emails.',
+  },
+  {
+    icon: '🌍',
+    title: 'UK-wide community',
+    desc: 'Every mentor is a verified Black professional in the UK — people who have navigated the same spaces you are entering.',
+  },
+  {
+    icon: '🎯',
+    title: 'Career-specific guidance',
+    desc: 'Filter by industry, role, and skills so every conversation moves your career forward.',
+  },
 ];
 
-export default function PairedDirectory() {
+const steps = [
+  { num: '01', title: 'Create your BPU account', desc: 'Free to join. Your BPU profile powers the matching.' },
+  { num: '02', title: 'Browse or get matched',   desc: 'Search the directory or let the AI suggest your top 3 mentors.' },
+  { num: '03', title: 'Book a free session',     desc: 'Pick a time that works and get a calendar invite instantly.' },
+  { num: '04', title: 'Grow your career',        desc: 'Walk away with actionable advice from someone who has been there.' },
+];
+
+export default async function PairedHome() {
+  const session = await getBPUSession();
+
+  const headersList = await headers();
+  const rawHost = headersList.get('host') || 'app.blackprofessionals.uk';
+  const host = rawHost.split(':')[0];
+  const origin = `https://${host}`;
+  const loginUrl = `${WP_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${origin}/api/auth/callback?from=paired`)}`;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      
-      {/* Hero Section */}
-      <div className="text-center mb-16 space-y-6 animate-fadeInUp">
-        <h1 className="text-5xl font-extrabold tracking-tight text-indigo-900 sm:text-6xl">
-          Find Your Perfect <span className="paired-gradient-text">Mentor</span>
-        </h1>
-        <p className="mt-4 text-lg text-indigo-700/80 max-w-2xl mx-auto leading-relaxed">
-          Connect with experienced Black professionals across industries who are ready to guide you on your career journey.
-        </p>
-        
-        {/* Search & Filter */}
-        <div className="max-w-3xl mx-auto mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-          <input 
-            type="text" 
-            placeholder="Search by name, role, or skill..." 
-            className="flex-1 px-5 py-3 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-sm"
-          />
-          <select className="px-5 py-3 rounded-xl border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white shadow-sm text-indigo-900">
-            <option value="">All Industries</option>
-            <option value="Technology">Technology</option>
-            <option value="Finance">Finance</option>
-            <option value="Healthcare">Healthcare</option>
-          </select>
-          <button className="button-paired shadow-lg shadow-indigo-500/30 min-h-[48px]">
-            Search
-          </button>
-        </div>
-      </div>
+    <div>
 
-      {/* Mentors Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-        {mockMentors.map((mentor) => (
-          <div key={mentor.id} className="paired-card p-6 flex flex-col items-center text-center space-y-5 bg-white relative overflow-hidden group">
-            {/* Background decorative blob */}
-            <div className={`absolute -top-10 -right-10 w-32 h-32 rounded-full ${mentor.color} opacity-5 group-hover:scale-150 transition-transform duration-500`}></div>
-            
-            <div className={`w-24 h-24 rounded-full flex items-center justify-center text-3xl font-bold text-white shadow-md ${mentor.color}`}>
-              {mentor.initial}
-            </div>
-            
-            <div className="space-y-1 w-full">
-              <h3 className="text-xl font-bold text-indigo-900">{mentor.name}</h3>
-              <p className="text-sm font-medium text-indigo-600">{mentor.title}</p>
-              <p className="text-xs text-indigo-400">{mentor.industry} • {mentor.experience}</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2 justify-center pt-2">
-              {mentor.skills.map(skill => (
-                <span key={skill} className="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-semibold border border-indigo-100">
-                  {skill}
-                </span>
-              ))}
-            </div>
-
-            <a href={`/paired/mentors/${mentor.id}`} className="mt-4 w-full px-4 py-2.5 text-sm font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100">
-              View Profile
-            </a>
+      {/* ── Hero ─────────────────────────────────────────── */}
+      <section className="py-20 px-6 text-center" style={{ background: 'linear-gradient(160deg, #f5f3ff 0%, #fafafa 60%)' }}>
+        <div className="max-w-3xl mx-auto fade-up space-y-6">
+          <span className="badge badge-purple text-sm">Now live · Free to join</span>
+          <h1 className="text-5xl sm:text-6xl font-extrabold tracking-tight leading-tight" style={{ color: '#1e1b4b' }}>
+            Find your perfect<br />
+            <span style={{ color: 'var(--purple)' }}>mentor</span>
+          </h1>
+          <p className="text-lg text-text-2 max-w-xl mx-auto leading-relaxed">
+            PAIRED connects ambitious Black professionals across the UK with experienced mentors who truly understand the journey.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+            {session.authenticated ? (
+              <a href="/paired/dashboard" className="btn btn-purple btn-lg">
+                Go to my dashboard →
+              </a>
+            ) : (
+              <>
+                <a href={loginUrl} className="btn btn-purple btn-lg">
+                  Get started — it&apos;s free
+                </a>
+                <a href="/paired/mentors" className="btn btn-outline btn-lg">
+                  Browse mentors
+                </a>
+              </>
+            )}
           </div>
-        ))}
-      </div>
-      
+        </div>
+      </section>
+
+      {/* ── Features ─────────────────────────────────────── */}
+      <section className="py-16 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">Why PAIRED?</h2>
+            <p className="text-text-2 mt-2">Mentorship that actually fits your world.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {features.map(f => (
+              <div key={f.title} className="card card-p space-y-3 card-lift">
+                <div className="text-3xl">{f.icon}</div>
+                <p className="font-bold text-base">{f.title}</p>
+                <p className="text-sm text-text-2 leading-relaxed">{f.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── How it works ─────────────────────────────────── */}
+      <section className="py-16 px-6 bg-surface border-y border-border">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold">How it works</h2>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {steps.map(s => (
+              <div key={s.num} className="text-center space-y-3">
+                <div className="inline-flex items-center justify-center w-12 h-12 rounded-full font-extrabold text-lg" style={{ background: 'var(--purple-bg)', color: 'var(--purple)' }}>
+                  {s.num}
+                </div>
+                <p className="font-bold">{s.title}</p>
+                <p className="text-sm text-text-2 leading-relaxed">{s.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── CTA ──────────────────────────────────────────── */}
+      <section className="py-20 px-6 text-center">
+        <div className="max-w-xl mx-auto space-y-6">
+          <h2 className="text-3xl font-bold">Ready to find your mentor?</h2>
+          <p className="text-text-2">Join hundreds of Black professionals already growing with PAIRED.</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            {session.authenticated ? (
+              <a href="/paired/dashboard" className="btn btn-purple btn-lg">
+                Open my dashboard →
+              </a>
+            ) : (
+              <>
+                <a href={loginUrl} className="btn btn-purple btn-lg">
+                  Sign in with BPU
+                </a>
+                <a href="/paired/mentors" className="btn btn-outline btn-lg">
+                  Browse mentors first
+                </a>
+              </>
+            )}
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }
