@@ -9,8 +9,9 @@ export async function GET(request: NextRequest) {
     // Clear the BPU session cookie
     cookieStore.delete('bpu_session');
 
-    // Redirect to WordPress logout with return parameter
-    const returnUrl = encodeURIComponent(request.nextUrl.origin);
+    // Redirect to WordPress logout. The return URL includes ?logged_out=1 so
+    // the app skips the auto-SSO bounce and shows the guest view instead.
+    const returnUrl = encodeURIComponent(`${request.nextUrl.origin}/?logged_out=1`);
     const wpLogoutUrl = `${WP_BACKEND_URL}/wp-login.php?action=logout&redirect_to=${returnUrl}`;
 
     return NextResponse.redirect(wpLogoutUrl);

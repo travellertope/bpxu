@@ -198,6 +198,15 @@ class BPU_Headless_Connector {
         ) );
 
         // ──────────────────────────────────────────────────────
+        // 6b. SSO Profile (JWT Bearer auth — for Next.js profile refresh)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/sso/profile', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_sso_profile' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
         // 7. Mentor Directory (public)
         // ──────────────────────────────────────────────────────
         register_rest_route( $this->namespace, '/mentors', array(
@@ -766,9 +775,13 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
                 'expires_at' => time() + 300, // 5 minutes
             ), false ); // autoload = false
 
-            // Append token to the redirect URL
+            // Append token to the redirect URL.
+            // wp_redirect() is intentional — wp_safe_redirect() only allows
+            // redirects to the WordPress host and would block the SSO callback
+            // on app.blackprofessionals.uk / pairedbybpu.uk. The target has
+            // already been validated against $this->allowed_sso_origins above.
             $target_url = add_query_arg( 'token', $token, $redirect_to );
-            wp_safe_redirect( $target_url );
+            wp_redirect( $target_url );
             exit;
         } else {
             // Build the handoff URL to return to after login
@@ -777,8 +790,7 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
                 'redirect_to'     => rawurlencode( $redirect_to ),
             ), home_url( '/' ) );
 
-            $login_url = home_url( '/login' );
-            $login_url = add_query_arg( 'redirect_to', rawurlencode( $handoff_url ), $login_url );
+            $login_url = add_query_arg( 'redirect_to', rawurlencode( $handoff_url ), wp_login_url() );
 
             wp_redirect( $login_url );
             exit;
@@ -862,13 +874,16 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
         $cv_id  = get_user_meta( $user_id, '_bpu_member_cv_id', true );
         $cv_url = $cv_id ? wp_get_attachment_url( $cv_id ) : '';
 
-        // Generate JWT
+        // Generate JWT — embed profile so the Next.js app needs no extra API call
         $now = time();
         $jwt_payload = array(
             'user_id'      => $user_id,
+            'username'     => $user->user_login,
             'email'        => $user->user_email,
             'display_name' => $user->display_name,
             'roles'        => $user->roles,
+            'profile'      => $acf_profile ?: null,
+            'cv_url'       => $cv_url ?: null,
             'iat'          => $now,
             'exp'          => $now + DAY_IN_SECONDS, // 24 hours
         );
@@ -888,6 +903,82 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             ),
             'jwt'     => $jwt,
         ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  SSO PROFILE ENDPOINT
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Verify a BPU JWT from the Authorization: Bearer header.
+     * Returns the decoded payload array on success, WP_Error on failure.
+     */
+    private function verify_jwt_bearer( WP_REST_Request $request ) {
+        $auth = $request->get_header( 'Authorization' );
+        if ( ! $auth || ! preg_match( '/^Bearer\s+(.+)$/i', $auth, $m ) ) {
+            return false;
+        }
+
+        $parts = explode( '.', trim( $m[1] ) );
+        if ( count( $parts ) !== 3 ) {
+            return false;
+        }
+
+        $secret   = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        $expected = $this->base64url_encode(
+            hash_hmac( 'sha256', $parts[0] . '.' . $parts[1], $secret, true )
+        );
+
+        if ( ! hash_equals( $expected, $parts[2] ) ) {
+            return false;
+        }
+
+        $payload = json_decode( $this->base64url_decode( $parts[1] ), true );
+        if ( ! $payload || empty( $payload['exp'] ) || time() > intval( $payload['exp'] ) ) {
+            return false;
+        }
+
+        return $payload;
+    }
+
+    /** Permission callback for JWT-authenticated routes. */
+    public function check_jwt_bearer_auth( WP_REST_Request $request ) {
+        return $this->verify_jwt_bearer( $request ) !== false;
+    }
+
+    /** GET /bpu/v1/sso/profile — returns fresh profile data for a JWT holder. */
+    public function get_sso_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'sso_user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $acf_profile = array();
+        if ( function_exists( 'get_fields' ) ) {
+            $fields = get_fields( 'user_' . $user_id );
+            if ( $fields ) {
+                $acf_profile = $fields;
+            }
+        }
+
+        $cv_id  = get_user_meta( $user_id, '_bpu_member_cv_id', true );
+        $cv_url = $cv_id ? wp_get_attachment_url( $cv_id ) : '';
+
+        return new WP_REST_Response( array(
+            'profile' => $acf_profile,
+            'cv_url'  => $cv_url,
+        ), 200 );
+    }
+
+    /** Base64url-decode (RFC 7515). */
+    private function base64url_decode( $data ) {
+        return base64_decode( strtr( $data, '-_', '+/' ) . str_repeat( '=', 3 - ( 3 + strlen( $data ) ) % 4 ) );
     }
 
     // ══════════════════════════════════════════════════════════════
