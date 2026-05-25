@@ -786,8 +786,7 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
                 'redirect_to'     => rawurlencode( $redirect_to ),
             ), home_url( '/' ) );
 
-            $login_url = home_url( '/login' );
-            $login_url = add_query_arg( 'redirect_to', rawurlencode( $handoff_url ), $login_url );
+            $login_url = add_query_arg( 'redirect_to', rawurlencode( $handoff_url ), wp_login_url() );
 
             wp_redirect( $login_url );
             exit;
