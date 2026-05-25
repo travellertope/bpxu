@@ -1,10 +1,10 @@
 import { Inter } from 'next/font/google';
+import { headers } from 'next/headers';
 import { getBPUSession } from '@/lib/auth';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.blackprofessionals.uk';
 
 export default async function PairedLayout({
   children,
@@ -12,16 +12,16 @@ export default async function PairedLayout({
   children: React.ReactNode;
 }) {
   const session = await getBPUSession();
-  
-  const loginUrl = `${WP_BACKEND_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${APP_URL}/api/auth/callback?from=paired`)}`;
+
+  // Derive the current origin from the request host so that the SSO callback
+  // cookie is set on the correct domain (pairedbybpu.uk vs app.blackprofessionals.uk).
+  const headersList = await headers();
+  const host = headersList.get('host') || 'app.blackprofessionals.uk';
+  const currentOrigin = `https://${host}`;
+  const loginUrl = `${WP_BACKEND_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${currentOrigin}/api/auth/callback?from=paired`)}`;
 
   return (
-    <div className={`${inter.variable} font-sans min-h-screen flex flex-col`} style={{
-      '--background': '#f5f3ff',
-      '--foreground': '#1e1b4b',
-      '--card-bg': '#ffffff',
-      '--card-border': '#e0e7ff',
-    } as React.CSSProperties}>
+    <div className={`${inter.variable} font-sans min-h-screen flex flex-col paired-page-bg`}>
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-indigo-100 transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
           <div className="flex items-center gap-4">

@@ -1,18 +1,20 @@
 import { getBPUSession } from '@/lib/auth';
 import { BPUApi, JobListing, CourseItem, CVReview } from '@/lib/api';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import ClientDashboard from './ClientDashboard';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.blackprofessionals.uk';
 
-/**
- * Main Portal Page (app.blackprofessionals.uk)
- * Implements Server-Side JWT SSO session validation and fetches initial profile/job/course states.
- */
-export default async function MemberPortal() {
+export default async function MemberPortal({
+    searchParams,
+}: {
+    searchParams: Promise<{ auth_error?: string; logged_out?: string }>;
+}) {
     const session = await getBPUSession();
-    
+    const params = await searchParams;
+
     // ----------------------------------------------------
     // GUEST VIEW: If user is not authenticated in BPU ecosystem
     // ----------------------------------------------------
@@ -20,10 +22,23 @@ export default async function MemberPortal() {
         const loginUrl = `${WP_BACKEND_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${APP_URL}/api/auth/callback`)}`;
         const registerUrl = `${WP_BACKEND_URL}/register`;
 
+        // Auto-trigger SSO: if the user hasn't explicitly logged out and there's
+        // no auth error from a previous attempt, bounce straight to WordPress SSO.
+        // If already logged into WordPress they get back immediately with a session;
+        // if not, they land on the WordPress login page.
+        if (!params.auth_error && !params.logged_out) {
+            redirect(loginUrl);
+        }
+
         return (
             <div className="flex-1 flex flex-col justify-center items-center px-6 py-20 lg:py-28 transition-all duration-300">
                 {/* Spacious max-w-3xl container for premium feel */}
                 <div className="w-full max-w-3xl flex flex-col gap-12 text-center animate-fadeInUp">
+                    {params.auth_error && (
+                        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                            Sign-in failed ({params.auth_error}). Please try again or register below.
+                        </div>
+                    )}
                     <div className="flex flex-col gap-6 items-center">
                         <span className="inline-flex items-center rounded-full bg-amber-500/10 px-4 py-1.5 text-sm font-semibold text-amber-500 ring-1 ring-inset ring-amber-500/20">
                             BPU Unified App
