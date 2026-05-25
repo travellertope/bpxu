@@ -1,131 +1,143 @@
-import React from 'react';
 import { getBPUSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
+
+const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+
+const upcomingSessions = [
+  { mentor: 'Sarah Jenkins', role: 'Senior Product Manager', when: 'Tomorrow, 14:00 – 15:00 GMT', initial: 'S', color: '#6366f1' },
+];
+const pastSessions = [
+  { mentor: 'Marcus Adebayo', role: 'VP of Engineering',      date: '10 Oct 2026', initial: 'M', color: '#8b5cf6' },
+  { mentor: 'Sarah Jenkins',  role: 'Senior Product Manager', date: '28 Sep 2026', initial: 'S', color: '#6366f1' },
+];
+const aiMatches = [
+  { name: 'Chloe Okafor', role: 'Marketing Director', match: '98%', color: '#ec4899' },
+  { name: 'David Smith',  role: 'Data Scientist',      match: '94%', color: '#3b82f6' },
+];
 
 export default async function PairedDashboard() {
   const session = await getBPUSession();
-  
+
   if (!session.authenticated || !session.user) {
-    const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
-    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://app.blackprofessionals.uk';
-    const loginUrl = `${WP_BACKEND_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${APP_URL}/api/auth/callback?from=paired`)}`;
-    redirect(loginUrl);
+    const headersList = await headers();
+    const rawHost = headersList.get('host') || 'app.blackprofessionals.uk';
+    const host = rawHost.split(':')[0];
+    const origin = `https://${host}`;
+    redirect(`${WP_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${origin}/api/auth/callback?from=paired`)}`);
   }
 
+  const user = session.user!;
+
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10 animate-fadeInUp">
-      
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8 fade-up">
+
+      {/* ── Page header ─────────────────────────────────── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-indigo-900">My Mentorship Dashboard</h1>
-          <p className="text-sm text-indigo-600 mt-1">Welcome back, {session.user.display_name}. Track your sessions and find your next mentor.</p>
+          <h1 className="text-2xl font-bold">My sessions</h1>
+          <p className="text-sm text-text-2 mt-1">Welcome back, {user.display_name}</p>
         </div>
-        <a href="/paired" className="button-paired shadow-md">
-          Find a Mentor
+        <a href="/paired/mentors" className="btn btn-purple btn-sm shrink-0">
+          Find a mentor
         </a>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="paired-card p-6 bg-white">
-          <div className="text-sm font-semibold text-indigo-400 uppercase tracking-wide">Upcoming Sessions</div>
-          <div className="text-4xl font-extrabold text-indigo-900 mt-2">1</div>
-        </div>
-        <div className="paired-card p-6 bg-white">
-          <div className="text-sm font-semibold text-indigo-400 uppercase tracking-wide">Past Sessions</div>
-          <div className="text-4xl font-extrabold text-indigo-900 mt-2">3</div>
-        </div>
-        <div className="paired-card p-6 bg-white">
-          <div className="text-sm font-semibold text-indigo-400 uppercase tracking-wide">Hours Mentored</div>
-          <div className="text-4xl font-extrabold text-indigo-900 mt-2">4.5</div>
-        </div>
+      {/* ── Stats ───────────────────────────────────────── */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { val: 1,   label: 'Upcoming'      },
+          { val: 3,   label: 'Past sessions' },
+          { val: 4.5, label: 'Hours mentored' },
+        ].map(s => (
+          <div key={s.label} className="card card-p text-center">
+            <div className="stat-val">{s.val}</div>
+            <div className="stat-label">{s.label}</div>
+          </div>
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        
-        {/* Left Col: Sessions */}
-        <div className="lg:col-span-2 space-y-8">
-          
-          <section className="paired-card p-8 bg-white space-y-6">
-            <h2 className="text-xl font-bold text-indigo-900">Upcoming Sessions</h2>
-            
-            <div className="border border-indigo-100 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-indigo-50/50">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-xl shrink-0 shadow-sm">
-                  S
-                </div>
-                <div>
-                  <h3 className="font-bold text-indigo-900">Sarah Jenkins</h3>
-                  <p className="text-xs font-medium text-indigo-600">Senior Product Manager</p>
-                  <p className="text-xs text-indigo-400 mt-1">Tomorrow, 14:00 - 15:00 GMT</p>
-                </div>
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button className="px-4 py-2 text-xs font-bold text-indigo-600 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition">Reschedule</button>
-                <button className="px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-lg shadow hover:bg-indigo-700 transition">Join Call</button>
-              </div>
-            </div>
-          </section>
+      {/* ── Main grid ───────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-          <section className="paired-card p-8 bg-white space-y-6">
-            <h2 className="text-xl font-bold text-indigo-900">Past Sessions</h2>
-            
-            <div className="space-y-4">
-              {[
-                { name: 'Marcus Adebayo', title: 'VP of Engineering', date: 'Oct 10, 2026', initial: 'M', color: 'bg-purple-500' },
-                { name: 'Sarah Jenkins', title: 'Senior Product Manager', date: 'Sep 28, 2026', initial: 'S', color: 'bg-indigo-500' }
-              ].map((past, i) => (
-                <div key={i} className="border border-indigo-100 rounded-xl p-4 flex items-center justify-between hover:bg-indigo-50/50 transition">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-10 h-10 rounded-full ${past.color} flex items-center justify-center text-white font-bold text-sm shrink-0`}>
-                      {past.initial}
-                    </div>
+        {/* Left: sessions */}
+        <div className="lg:col-span-2 space-y-6">
+
+          {/* Upcoming */}
+          <div className="card card-p space-y-4">
+            <p className="section-title">Upcoming sessions</p>
+            {upcomingSessions.map(s => (
+              <div key={s.mentor} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg" style={{ background: 'var(--purple-bg)' }}>
+                <div className="flex items-center gap-3">
+                  <div className="avatar avatar-md" style={{ background: s.color }}>{s.initial}</div>
+                  <div>
+                    <p className="font-bold text-sm">{s.mentor}</p>
+                    <p className="text-xs text-text-2">{s.role}</p>
+                    <p className="text-xs text-text-3 mt-0.5">{s.when}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  <button className="btn btn-outline btn-sm">Reschedule</button>
+                  <button className="btn btn-purple btn-sm">Join call</button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Past */}
+          <div className="card card-p space-y-4">
+            <p className="section-title">Past sessions</p>
+            <div className="space-y-2">
+              {pastSessions.map(s => (
+                <div key={s.date} className="flex items-center justify-between p-3 rounded-lg hover:bg-bg transition-colors">
+                  <div className="flex items-center gap-3">
+                    <div className="avatar avatar-sm" style={{ background: s.color }}>{s.initial}</div>
                     <div>
-                      <h3 className="font-bold text-sm text-indigo-900">{past.name}</h3>
-                      <p className="text-xs text-indigo-500">{past.date}</p>
+                      <p className="text-sm font-semibold">{s.mentor}</p>
+                      <p className="text-xs text-text-3">{s.date}</p>
                     </div>
                   </div>
-                  <button className="text-xs font-semibold text-indigo-600 hover:underline">Book Again</button>
+                  <button className="btn btn-ghost btn-sm text-xs">Book again</button>
                 </div>
               ))}
             </div>
-          </section>
-
+          </div>
         </div>
 
-        {/* Right Col: AI Matches */}
-        <div className="space-y-6">
-          <section className="paired-card p-6 bg-gradient-to-b from-indigo-900 to-indigo-950 text-white border-none shadow-xl">
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg">✨</span>
-              <h3 className="font-bold text-white">AI Mentor Matches</h3>
+        {/* Right: AI matches */}
+        <div>
+          <div className="card card-p space-y-4" style={{ background: '#1e1b4b', borderColor: '#312e81', color: '#fff' }}>
+            <div className="space-y-1">
+              <p className="font-bold">✨ AI matches</p>
+              <p className="text-xs" style={{ color: '#c4b5fd' }}>
+                Based on your BPU profile, our engine recommends these mentors.
+              </p>
             </div>
-            <p className="text-xs text-indigo-200 mb-6 leading-relaxed">
-              Based on your BPU profile, our semantic engine recommends these mentors for you.
-            </p>
-            
-            <div className="space-y-4">
-              {[
-                { name: 'Chloe Okafor', title: 'Marketing Director', match: '98%', initial: 'C', color: 'bg-pink-500' },
-                { name: 'David Smith', title: 'Data Scientist', match: '94%', initial: 'D', color: 'bg-blue-500' }
-              ].map((match, i) => (
-                <a href="#" key={i} className="block p-4 rounded-xl bg-white/10 hover:bg-white/20 transition border border-white/10 group">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full ${match.color} flex items-center justify-center text-white font-bold text-sm shrink-0 shadow-md`}>
-                        {match.initial}
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-sm text-white group-hover:text-indigo-100">{match.name}</h4>
-                        <p className="text-xs text-indigo-300">{match.title}</p>
-                      </div>
+            <div className="space-y-3">
+              {aiMatches.map(m => (
+                <a
+                  key={m.name}
+                  href={`/paired/mentors/1`}
+                  className="flex items-center justify-between p-3 rounded-lg transition-colors"
+                  style={{ background: 'rgba(255,255,255,0.08)' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.14)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="avatar avatar-sm" style={{ background: m.color }}>{m.name[0]}</div>
+                    <div>
+                      <p className="text-sm font-bold text-white">{m.name}</p>
+                      <p className="text-xs" style={{ color: '#c4b5fd' }}>{m.role}</p>
                     </div>
-                    <span className="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded-md">{match.match}</span>
                   </div>
+                  <span className="badge badge-green text-xs">{m.match}</span>
                 </a>
               ))}
             </div>
-          </section>
+            <a href="/paired/mentors" className="btn btn-sm w-full justify-center" style={{ background: 'rgba(255,255,255,0.12)', color: '#e9d5ff', border: '1px solid rgba(255,255,255,0.15)' }}>
+              Browse all mentors
+            </a>
+          </div>
         </div>
 
       </div>

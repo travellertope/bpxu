@@ -23,6 +23,7 @@ class BPU_Headless_Connector {
     private $allowed_sso_origins = array(
         'https://app.blackprofessionals.uk',
         'https://pairedbybpu.uk',
+        'https://www.pairedbybpu.uk',
     );
 
     public function __construct() {
@@ -195,6 +196,15 @@ class BPU_Headless_Connector {
                     },
                 ),
             ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 6c. Member Profile Update (JWT Bearer auth)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/profile', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'update_member_profile' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
         // ──────────────────────────────────────────────────────
@@ -903,6 +913,47 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             ),
             'jwt'     => $jwt,
         ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MEMBER PROFILE UPDATE
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * POST /bpu/v1/member/profile — update ACF profile fields for the JWT holder.
+     */
+    public function update_member_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $body    = $request->get_json_params();
+
+        $allowed = array(
+            'first_name', 'last_name', 'phone_number', 'age_range',
+            'what_is_your_gender', 'level_of_education', 'industry',
+            'country_location', 'where_in_the_uk', 'location_city',
+            'current_employment_status', 'industryfield_of_expertise',
+            'years_of_experience', 'skills_separate', 'user_bio',
+        );
+
+        if ( ! function_exists( 'update_field' ) ) {
+            return new WP_Error(
+                'acf_missing',
+                __( 'Advanced Custom Fields is not active.', 'bpu' ),
+                array( 'status' => 500 )
+            );
+        }
+
+        foreach ( $allowed as $field ) {
+            if ( isset( $body[ $field ] ) ) {
+                update_field( $field, sanitize_textarea_field( (string) $body[ $field ] ), 'user_' . $user_id );
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════

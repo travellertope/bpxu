@@ -4,396 +4,519 @@ import React, { useState } from 'react';
 import { BPUUser, ACFProfile } from '@/lib/auth';
 import { JobListing, CourseItem, CVReview, BPUApi } from '@/lib/api';
 
-interface ClientDashboardProps {
-    user: BPUUser;
-    initialJobs: JobListing[];
-    initialCourses: CourseItem[];
-    initialReviews: CVReview[];
-    wpCookieHeader: string;
-    wpBackendUrl: string;
+type Tab = 'overview' | 'cv' | 'jobs' | 'courses' | 'profile';
+
+interface Props {
+  user: BPUUser;
+  initialJobs: JobListing[];
+  initialCourses: CourseItem[];
+  initialReviews: CVReview[];
+  jwt: string;
 }
 
-export default function ClientDashboard({
-    user,
-    initialJobs,
-    initialCourses,
-    initialReviews,
-    wpCookieHeader,
-    wpBackendUrl
-}: ClientDashboardProps) {
-    const [profile, setProfile] = useState<ACFProfile>(user.profile);
-    const [cvUrl, setCvUrl] = useState<string>(user.cv_url || '');
-    const [jobs] = useState<JobListing[]>(initialJobs);
-    const [courses, setCourses] = useState<CourseItem[]>(initialCourses);
-    const [reviews] = useState<CVReview[]>(initialReviews);
+export default function ClientDashboard({ user, initialJobs, initialCourses, initialReviews, jwt }: Props) {
+  const [tab, setTab] = useState<Tab>('overview');
+  const [profile, setProfile] = useState<ACFProfile>(user.profile);
+  const [cvUrl, setCvUrl] = useState(user.cv_url || '');
+  const [jobs] = useState<JobListing[]>(initialJobs);
+  const [courses, setCourses] = useState<CourseItem[]>(initialCourses);
+  const [reviews] = useState<CVReview[]>(initialReviews);
 
-    // CV Upload State
-    const [uploading, setUploading] = useState(false);
-    const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
-    const [uploadError, setUploadError] = useState<string | null>(null);
+  // CV upload
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-    // Accordion Toggle for CV reviews
-    const [activeReviewId, setActiveReviewId] = useState<number | null>(null);
+  // CV review accordion
+  const [openReview, setOpenReview] = useState<number | null>(null);
 
-    /**
-     * Handle CV upload multipart to Next serverless proxy API
-     */
-    const handleCVUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const fileList = event.target.files;
-        if (!fileList || fileList.length === 0) return;
+  // Profile edit
+  const [editForm, setEditForm] = useState<Partial<ACFProfile>>(profile);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-        const file = fileList[0];
-        if (file.type !== 'application/pdf') {
-            setUploadError('Only PDF files are supported for automated CV parsing.');
-            return;
-        }
+  const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type !== 'application/pdf') {
+      setUploadMsg({ type: 'err', text: 'Only PDF files are supported.' });
+      return;
+    }
+    setUploading(true);
+    setUploadMsg(null);
+    const form = new FormData();
+    form.append('cv_file', file);
+    try {
+      const res = await fetch('/api/member/cv-upload', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed.');
+      setCvUrl(data.cv_url);
+      setProfile(data.parsed_data);
+      setEditForm(data.parsed_data);
+      setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated by Gemini Pro.' });
+    } catch (err: unknown) {
+      setUploadMsg({ type: 'err', text: err instanceof Error ? err.message : 'Upload error.' });
+    } finally {
+      setUploading(false);
+    }
+  };
 
-        setUploading(true);
-        setUploadSuccess(null);
-        setUploadError(null);
+  const handleCourseOpen = async (course: CourseItem) => {
+    setCourses(prev => prev.map(c => c.id === course.id ? { ...c, status: 'In Progress' } : c));
+    BPUApi.trackCourseProgress(course.id, jwt).catch(() => {});
+    window.open(course.learn_more_url, '_blank', 'noopener,noreferrer');
+  };
 
-        const formData = new FormData();
-        formData.append('cv_file', file);
+  const handleProfileSave = async () => {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const res = await fetch('/api/member/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed.');
+      setProfile({ ...profile, ...editForm });
+      setSaveMsg({ type: 'ok', text: 'Profile saved successfully.' });
+    } catch (err: unknown) {
+      setSaveMsg({ type: 'err', text: err instanceof Error ? err.message : 'Could not save profile.' });
+    } finally {
+      setSaving(false);
+    }
+  };
 
-        try {
-            const response = await fetch('/api/member/cv-upload', {
-                method: 'POST',
-                body: formData,
-            });
+  const firstName = profile.first_name || user.display_name.split(' ')[0];
 
-            const data = await response.json();
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'cv',       label: 'CV Clinic' },
+    { id: 'jobs',     label: `Jobs${jobs.length ? ` (${jobs.length})` : ''}` },
+    { id: 'courses',  label: `Courses${courses.length ? ` (${courses.length})` : ''}` },
+    { id: 'profile',  label: 'My Profile' },
+  ];
 
-            if (!response.ok) {
-                throw new Error(data.error || 'Failed to parse resume.');
-            }
+  return (
+    <div className="min-h-screen flex flex-col">
 
-            // Successfully parsed CV and filled out profile
-            setCvUrl(data.cv_url);
-            setProfile(data.parsed_data);
-            setUploadSuccess('Your CV was successfully uploaded! Vertex AI (Gemini Pro) has parsed your resume and automatically updated your BPU profile fields below.');
-        } catch (error: any) {
-            console.error(error);
-            setUploadError(error.message || 'Error occurred while connecting to Vertex AI.');
-        } finally {
-            setUploading(false);
-        }
-    };
+      {/* ── Topbar ─────────────────────────────────────────── */}
+      <header className="topbar">
+        <div className="topbar-inner">
+          <a href="/" className="topbar-brand">
+            <span>BPU</span> Portal
+          </a>
 
-    /**
-     * Track Course Progress and redirect to provider
-     */
-    const handleCourseRedirect = async (course: CourseItem) => {
-        // Optimistically set to "In Progress"
-        setCourses(prev => prev.map(c => c.id === course.id ? { ...c, status: 'In Progress' } : c));
-        
-        // Asynchronously track progress in Tutor LMS
-        BPUApi.trackCourseProgress(course.id, wpCookieHeader).catch(err => {
-            console.error('Course Progress Error:', err);
-        });
-
-        // Open provider website
-        window.open(course.learn_more_url, '_blank', 'noopener,noreferrer');
-    };
-
-    return (
-        <div className="flex-1 flex flex-col min-h-screen">
-            {/* 1. Header Navigation — increased height for breathing room */}
-            <header id="dashboard-header" className="sticky top-0 z-40 bg-card-bg border-b border-card-border backdrop-blur-md bg-opacity-80 transition-all duration-300">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <span className="font-extrabold text-xl tracking-tight"><span className="text-amber-500">BPU</span> App</span>
-                        <span className="text-xs px-2.5 py-1 rounded bg-amber-500/10 text-amber-500 font-medium hidden sm:inline">Member Portal</span>
-                    </div>
-
-                    <div className="flex items-center gap-5">
-                        {/* Standalone Mentorship Portal link */}
-                        <a 
-                            id="nav-paired-link"
-                            href="https://pairedbybpu.uk" 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-xs sm:text-sm font-semibold text-amber-500 hover:underline flex items-center gap-1.5"
-                        >
-                            🤝 Visit PAIRED Mentorship
-                        </a>
-                        <div className="h-5 w-px bg-card-border" />
-                        <span className="text-sm font-medium hidden md:inline">Hello, {user.display_name}</span>
-                        <a 
-                            id="nav-logout-btn"
-                            href="/api/auth/logout"
-                            className="text-xs button-secondary py-2 px-4"
-                        >
-                            Sign Out
-                        </a>
-                    </div>
-                </div>
-            </header>
-
-            {/* 2. Main Content Grid — generous vertical padding */}
-            <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-                
-                {/* Intro Summary card — increased padding and text sizes */}
-                <div id="welcome-card" className="premium-card p-8 border-amber-500/20 bg-amber-500/5 flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="space-y-3">
-                        <h2 className="text-3xl font-bold tracking-tight">Welcome to your BPU Dashboard, {profile.first_name || user.display_name}!</h2>
-                        <p className="text-sm text-text-muted leading-relaxed">
-                            {profile.industryfield_of_expertise ? `Expert in ${profile.industryfield_of_expertise}` : 'Complete your profile to unlock tailored recommendations'}
-                            {profile.years_of_experience ? ` with ${profile.years_of_experience} years of experience.` : ''}
-                        </p>
-                        {/* Stats row */}
-                        <div className="flex flex-wrap gap-4 pt-1">
-                            <div className="text-xs text-text-muted">
-                                <span className="font-bold text-foreground">{jobs.length}</span> Job Matches
-                            </div>
-                            <div className="text-xs text-text-muted">
-                                <span className="font-bold text-foreground">{courses.length}</span> Courses
-                            </div>
-                            <div className="text-xs text-text-muted">
-                                <span className="font-bold text-foreground">{reviews.length}</span> CV Reviews
-                            </div>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <a 
-                            id="edit-wp-profile-btn"
-                            href={`${wpBackendUrl}/wp-admin/profile.php`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="button-secondary text-sm"
-                        >
-                            Edit WordPress Profile
-                        </a>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                    
-                    {/* LEFT COLUMN: Profile Data & CV Clinic */}
-                    <div className="lg:col-span-2 space-y-10">
-                        
-                        {/* A. CV Clinic Uploader */}
-                        <section id="cv-clinic-section" className="premium-card p-8 space-y-6">
-                            <div>
-                                <h3 className="text-lg font-bold">📄 AI CV Clinic</h3>
-                                <p className="text-sm text-text-muted mt-1">Upload your CV to automatically fill your profile fields using Vertex AI (Gemini Pro).</p>
-                            </div>
-
-                            {/* CV Attachment details */}
-                            {cvUrl && (
-                                <div className="p-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 text-sm flex items-center justify-between">
-                                    <span className="truncate">Attached Resume: <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="text-emerald-500 underline font-semibold">Download CV File</a></span>
-                                    <span className="text-emerald-500 font-medium">✓ Active</span>
-                                </div>
-                            )}
-
-                            {/* Drag Drop / Selector Area — much larger padding */}
-                            <div className="border-2 border-dashed border-card-border hover:border-amber-500/40 rounded-xl p-12 text-center transition-colors duration-200">
-                                <input 
-                                    type="file" 
-                                    id="cv-upload-input" 
-                                    className="hidden" 
-                                    accept=".pdf"
-                                    onChange={handleCVUpload}
-                                    disabled={uploading}
-                                />
-                                <label htmlFor="cv-upload-input" className="cursor-pointer space-y-3 block">
-                                    <div className="text-4xl">📥</div>
-                                    <div className="text-base font-semibold">
-                                        {uploading ? 'Processing CV with Vertex AI...' : 'Select your PDF Resume'}
-                                    </div>
-                                    <p className="text-sm text-text-muted">
-                                        Click to browse files. Supports PDF format only.
-                                    </p>
-                                </label>
-                            </div>
-
-                            {uploading && (
-                                <div className="space-y-2">
-                                    <div className="h-1.5 w-full bg-card-border rounded-full overflow-hidden">
-                                        <div className="h-full bg-amber-500 rounded-full animate-pulse w-3/4" />
-                                    </div>
-                                    <div className="text-xs text-center text-text-muted">Gemini Pro is extracting skills and experience structures...</div>
-                                </div>
-                            )}
-
-                            {uploadSuccess && <div className="p-4 rounded bg-emerald-500/10 text-emerald-500 text-sm">{uploadSuccess}</div>}
-                            {uploadError && <div className="p-4 rounded bg-red-500/10 text-red-500 text-sm">{uploadError}</div>}
-                        </section>
-
-                        {/* B. Professional Profile Fields */}
-                        <section id="profile-section" className="premium-card p-8 space-y-6">
-                            <div>
-                                <h3 className="text-lg font-bold">👤 Profile Information</h3>
-                                <p className="text-sm text-text-muted mt-1">These details are stored securely as custom fields (ACF) on your BPU account.</p>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                <div id="field-first-name" className="border border-card-border p-5 rounded-lg bg-background">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">First Name</div>
-                                    <div className="font-semibold mt-1">{profile.first_name || 'Not filled'}</div>
-                                </div>
-                                <div id="field-last-name" className="border border-card-border p-5 rounded-lg bg-background">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">Last Name</div>
-                                    <div className="font-semibold mt-1">{profile.last_name || 'Not filled'}</div>
-                                </div>
-                                <div id="field-country" className="border border-card-border p-5 rounded-lg bg-background">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">Country</div>
-                                    <div className="font-semibold mt-1">{profile.country_location || 'Not filled'}</div>
-                                </div>
-                                <div id="field-city" className="border border-card-border p-5 rounded-lg bg-background">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">City / Location</div>
-                                    <div className="font-semibold mt-1">{profile.location_city || 'Not filled'}</div>
-                                </div>
-                                <div id="field-employment" className="border border-card-border p-5 rounded-lg bg-background">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">Employment Status</div>
-                                    <div className="font-semibold mt-1">{profile.current_employment_status || 'Not filled'}</div>
-                                </div>
-                                <div id="field-expertise" className="border border-card-border p-5 rounded-lg bg-background">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">Field of Expertise</div>
-                                    <div className="font-semibold mt-1">{profile.industryfield_of_expertise || 'Not filled'}</div>
-                                </div>
-                                <div id="field-skills" className="border border-card-border p-5 rounded-lg bg-background md:col-span-2">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">Skills</div>
-                                    <div className="font-semibold mt-1">{profile.skills_separate || 'No skills listed'}</div>
-                                </div>
-                                <div id="field-bio" className="border border-card-border p-5 rounded-lg bg-background md:col-span-2">
-                                    <div className="text-xs text-text-muted uppercase font-bold tracking-wide">Professional Biography</div>
-                                    <div className="font-semibold whitespace-pre-line text-sm mt-1">{profile.user_bio || 'No bio written yet. Upload a CV to generate.'}</div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* C. Manual CV Clinic Critique Reviews */}
-                        <section id="cv-reviews-section" className="premium-card p-8 space-y-6">
-                            <div>
-                                <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-bold">📋 BPU CV Clinic Reviews</h3>
-                                    <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-500">Pro Feature</span>
-                                </div>
-                                <p className="text-sm text-text-muted mt-1">Manual critique reports written by BPU professional recruiters. Upgrade to the Pro membership tier to request a manual review.</p>
-                            </div>
-
-                            {reviews.length === 0 ? (
-                                <div className="text-center py-8 border border-dashed border-card-border rounded-lg text-sm text-text-muted">
-                                    No manual reviews found. Upload your resume and upgrade to the Pro Tier to request a professional CV review.
-                                </div>
-                            ) : (
-                                <div className="space-y-3">
-                                    {reviews.map((review) => (
-                                        <div key={review.id} id={`review-${review.id}`} className="border border-card-border rounded-lg overflow-hidden">
-                                            <button 
-                                                onClick={() => setActiveReviewId(activeReviewId === review.id ? null : review.id)}
-                                                className="w-full px-5 py-4 flex items-center justify-between bg-hover-bg/30 text-left font-semibold text-sm"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <span>{review.title}</span>
-                                                    {review.score && (
-                                                        <span className="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">
-                                                            Score: {review.score}/100
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                <span>{activeReviewId === review.id ? '▲' : '▼'}</span>
-                                            </button>
-                                            
-                                            {activeReviewId === review.id && (
-                                                <div className="p-5 border-t border-card-border bg-card-bg text-sm space-y-4">
-                                                    <div className="whitespace-pre-line leading-relaxed">{review.critique}</div>
-                                                    <div className="flex items-center justify-between text-xs text-text-muted pt-3 border-t border-card-border">
-                                                        <span>Reviewer: {review.reviewer}</span>
-                                                        <span>Date: {new Date(review.date).toLocaleDateString()}</span>
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </section>
-                    </div>
-
-                    {/* RIGHT COLUMN: Jobs & Courses */}
-                    <div className="space-y-10">
-                        
-                        {/* A. AI Job Recommendations */}
-                        <section id="jobs-section" className="premium-card p-6 space-y-5">
-                            <div>
-                                <h3 className="text-lg font-bold">💼 Recommended Jobs</h3>
-                                <p className="text-xs text-text-muted mt-1">Custom daily recommendations semantic-matched with your profile fields.</p>
-                            </div>
-
-                            <div className="space-y-4">
-                                {jobs.length === 0 ? (
-                                    <div className="text-sm text-text-muted py-6 text-center">No matching job listings found today. Check back tomorrow!</div>
-                                ) : (
-                                    jobs.map((job) => (
-                                        <div key={job.id} id={`job-${job.id}`} className="border border-card-border rounded-lg p-4 space-y-3 hover:bg-hover-bg/25 transition-colors">
-                                            <div className="flex justify-between items-start gap-3">
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="text-sm font-bold leading-snug">{job.title}</h4>
-                                                    <p className="text-xs text-text-muted mt-0.5">{job.company} • {job.location}</p>
-                                                </div>
-                                                {job.match_score && (
-                                                    <span className="text-xs font-bold px-2 py-1 rounded bg-amber-500/10 text-amber-500 shrink-0">
-                                                        {job.match_score}% Match
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex justify-between items-center text-xs pt-1">
-                                                <span className="text-text-muted">Posted: {job.date_posted}</span>
-                                                {/* Link runs through our Next click-tracker route handler */}
-                                                <a 
-                                                    href={`/api/jobs/track-click?jobId=${job.id}&url=${encodeURIComponent(job.apply_url)}`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="font-bold text-amber-500 hover:underline"
-                                                >
-                                                    Apply Partner Site →
-                                                </a>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        </section>
-
-                        {/* B. Tutor LMS Click-Through Courses */}
-                        <section id="courses-section" className="premium-card p-6 space-y-5">
-                            <div>
-                                <h3 className="text-lg font-bold">🎓 Accredited Courses</h3>
-                                <p className="text-xs text-text-muted mt-1">Accredited training modules by BPU partners. Links redirect to providers.</p>
-                            </div>
-
-                            <div className="space-y-4">
-                                {courses.map((course) => (
-                                    <div key={course.id} id={`course-${course.id}`} className="border border-card-border rounded-lg p-4 space-y-3 flex flex-col justify-between">
-                                        <div className="space-y-2">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-xs uppercase tracking-wider text-text-muted">{course.category}</span>
-                                                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${
-                                                    course.status === 'In Progress' ? 'bg-amber-500/10 text-amber-500' : 'bg-card-border text-text-muted'
-                                                }`}>
-                                                    {course.status}
-                                                </span>
-                                            </div>
-                                            <h4 className="text-sm font-bold leading-snug">{course.title}</h4>
-                                            <p className="text-xs text-text-muted">Provider: {course.provider}</p>
-                                        </div>
-                                        
-                                        {/* Logs start trigger in Tutor LMS and opens link */}
-                                        <button 
-                                            onClick={() => handleCourseRedirect(course)}
-                                            className="w-full text-center text-xs button-secondary py-2 px-3 font-bold justify-center"
-                                        >
-                                            Learn More & Redirect →
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-                    </div>
-                </div>
-            </main>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://pairedbybpu.uk"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn btn-outline btn-sm hidden sm:inline-flex"
+            >
+              PAIRED ↗
+            </a>
+            <span className="text-sm text-text-2 hidden md:inline">
+              {user.display_name}
+            </span>
+            <a href="/api/auth/logout" className="btn btn-ghost btn-sm">
+              Sign out
+            </a>
+          </div>
         </div>
-    );
+      </header>
+
+      {/* ── Tab bar ────────────────────────────────────────── */}
+      <div className="tab-bar" style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            className={`tab-item${tab === t.id ? ' active' : ''}`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Page content ───────────────────────────────────── */}
+      <main className="flex-1 max-w-[1280px] mx-auto w-full px-4 sm:px-6 py-8">
+
+        {/* ════ OVERVIEW ════════════════════════════════════ */}
+        {tab === 'overview' && (
+          <div className="space-y-6 fade-up">
+            {/* Welcome banner */}
+            <div className="card card-p flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold">Welcome back, {firstName}</h1>
+                <p className="text-sm text-text-2 mt-1">
+                  {profile.industryfield_of_expertise
+                    ? `${profile.industryfield_of_expertise}${profile.years_of_experience ? ` · ${profile.years_of_experience} yrs exp` : ''}`
+                    : 'Complete your profile to unlock personalised recommendations.'}
+                </p>
+              </div>
+              <button onClick={() => setTab('profile')} className="btn btn-outline btn-sm shrink-0">
+                Edit profile
+              </button>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-4">
+              {[
+                { val: jobs.length,    label: 'Job matches'  },
+                { val: courses.length, label: 'Courses'      },
+                { val: reviews.length, label: 'CV reviews'   },
+              ].map(s => (
+                <div key={s.label} className="card card-p text-center">
+                  <div className="stat-val">{s.val}</div>
+                  <div className="stat-label">{s.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Quick previews */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Top jobs */}
+              <div className="card card-p space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="section-title">Top job matches</p>
+                  <button onClick={() => setTab('jobs')} className="text-xs text-brand-dark font-semibold hover:underline">View all</button>
+                </div>
+                {jobs.length === 0
+                  ? <div className="empty">No matches today — check back tomorrow.</div>
+                  : jobs.slice(0, 3).map(j => (
+                    <div key={j.id} className="flex items-start justify-between gap-3 py-2 border-b border-border last:border-0">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold truncate">{j.title}</p>
+                        <p className="text-xs text-text-2 mt-0.5">{j.company} · {j.location}</p>
+                      </div>
+                      {j.match_score && (
+                        <span className="badge badge-amber shrink-0">{j.match_score}%</span>
+                      )}
+                    </div>
+                  ))
+                }
+              </div>
+
+              {/* CV status */}
+              <div className="card card-p space-y-4">
+                <p className="section-title">CV Clinic</p>
+                {cvUrl
+                  ? <div className="alert alert-green text-sm">CV on file — <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Download</a></div>
+                  : <div className="alert alert-amber text-sm">No CV uploaded yet. Upload a PDF to auto-fill your profile.</div>
+                }
+                <button onClick={() => setTab('cv')} className="btn btn-outline btn-sm">
+                  Go to CV Clinic
+                </button>
+                {reviews.length > 0 && (
+                  <p className="text-sm text-text-2">You have <span className="font-bold text-text">{reviews.length}</span> professional review{reviews.length !== 1 ? 's' : ''}.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════ CV CLINIC ═══════════════════════════════════ */}
+        {tab === 'cv' && (
+          <div className="max-w-2xl space-y-6 fade-up">
+            <div>
+              <h2 className="text-xl font-bold">CV Clinic</h2>
+              <p className="section-sub">Upload your CV as a PDF. Gemini Pro will parse it and auto-fill your profile.</p>
+            </div>
+
+            {/* Current CV */}
+            {cvUrl && (
+              <div className="alert alert-green flex items-center justify-between gap-4">
+                <span className="text-sm">CV on file</span>
+                <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
+                  Download
+                </a>
+              </div>
+            )}
+
+            {/* Upload area */}
+            <div className="card" style={{ borderStyle: 'dashed' }}>
+              <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
+                <p className="text-base font-semibold">
+                  {uploading ? 'Processing with Gemini Pro…' : 'Click to upload your CV'}
+                </p>
+                <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
+                <input
+                  id="cv-file"
+                  type="file"
+                  accept=".pdf"
+                  className="sr-only"
+                  onChange={handleCVUpload}
+                  disabled={uploading}
+                />
+              </label>
+            </div>
+
+            {uploading && (
+              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '70%' }} />
+              </div>
+            )}
+
+            {uploadMsg && (
+              <div className={`alert ${uploadMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                {uploadMsg.text}
+              </div>
+            )}
+
+            {/* Manual reviews */}
+            <div className="divider" />
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="section-title">Professional reviews</p>
+                <span className="badge badge-amber">Pro feature</span>
+              </div>
+              <p className="text-sm text-text-2">Manual critiques from BPU recruiters. Upgrade to Pro to request one.</p>
+
+              {reviews.length === 0
+                ? <div className="empty">No reviews yet.</div>
+                : reviews.map(r => (
+                  <div key={r.id} className="card overflow-hidden">
+                    <button
+                      className="w-full flex items-center justify-between px-5 py-4 text-left text-sm font-semibold hover:bg-bg transition-colors"
+                      onClick={() => setOpenReview(openReview === r.id ? null : r.id)}
+                    >
+                      <span className="flex items-center gap-3">
+                        {r.title}
+                        {r.score && <span className="badge badge-green">Score: {r.score}/100</span>}
+                      </span>
+                      <span className="text-text-3">{openReview === r.id ? '▲' : '▼'}</span>
+                    </button>
+                    {openReview === r.id && (
+                      <div className="px-5 pb-5 pt-2 border-t border-border text-sm space-y-3">
+                        <p className="whitespace-pre-line leading-relaxed text-text-2">{r.critique}</p>
+                        <div className="flex justify-between text-xs text-text-3 pt-2 border-t border-border">
+                          <span>Reviewer: {r.reviewer}</span>
+                          <span>{new Date(r.date).toLocaleDateString('en-GB')}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              }
+            </div>
+          </div>
+        )}
+
+        {/* ════ JOBS ════════════════════════════════════════ */}
+        {tab === 'jobs' && (
+          <div className="space-y-4 fade-up">
+            <div>
+              <h2 className="text-xl font-bold">Job matches</h2>
+              <p className="section-sub">Daily recommendations semantically matched to your profile.</p>
+            </div>
+
+            {jobs.length === 0
+              ? <div className="empty">No matching jobs today. Check back tomorrow.</div>
+              : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {jobs.map(j => (
+                    <div key={j.id} className="card card-p card-lift flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm leading-snug">{j.title}</p>
+                          <p className="text-xs text-text-2 mt-0.5">{j.company}</p>
+                        </div>
+                        {j.match_score && <span className="badge badge-amber shrink-0">{j.match_score}%</span>}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-text-3">
+                        <span>{j.location}</span>
+                        <span>·</span>
+                        <span>{j.date_posted}</span>
+                      </div>
+                      <a
+                        href={`/api/jobs/track-click?jobId=${j.id}&url=${encodeURIComponent(j.apply_url)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-amber btn-sm mt-auto"
+                      >
+                        Apply →
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
+        )}
+
+        {/* ════ COURSES ═════════════════════════════════════ */}
+        {tab === 'courses' && (
+          <div className="space-y-4 fade-up">
+            <div>
+              <h2 className="text-xl font-bold">Accredited courses</h2>
+              <p className="section-sub">Courses by BPU partner providers. Progress is tracked in Tutor LMS.</p>
+            </div>
+
+            {courses.length === 0
+              ? <div className="empty">No courses available right now.</div>
+              : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {courses.map(c => (
+                    <div key={c.id} className="card card-p card-lift flex flex-col gap-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">{c.category}</span>
+                        <span className={`badge ${c.status === 'In Progress' ? 'badge-amber' : 'badge-gray'}`}>
+                          {c.status}
+                        </span>
+                      </div>
+                      <p className="font-semibold text-sm leading-snug">{c.title}</p>
+                      <p className="text-xs text-text-2">by {c.provider}</p>
+                      <button
+                        onClick={() => handleCourseOpen(c)}
+                        className="btn btn-outline btn-sm mt-auto"
+                      >
+                        Start learning →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
+        )}
+
+        {/* ════ PROFILE ═════════════════════════════════════ */}
+        {tab === 'profile' && (
+          <div className="max-w-2xl space-y-6 fade-up">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">My Profile</h2>
+                <p className="section-sub">This information is used for job matching and mentor pairing.</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleProfileSave}
+                  disabled={saving}
+                  className="btn btn-amber btn-sm"
+                >
+                  {saving ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+
+            {saveMsg && (
+              <div className={`alert ${saveMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                {saveMsg.text}
+              </div>
+            )}
+
+            <div className="card card-p space-y-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Account</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="field-label">Display name</label>
+                  <input className="field-input bg-bg" value={user.display_name} disabled readOnly />
+                </div>
+                <div>
+                  <label className="field-label">Email</label>
+                  <input className="field-input bg-bg" value={user.email} disabled readOnly />
+                </div>
+              </div>
+            </div>
+
+            <div className="card card-p space-y-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Personal details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([
+                  ['First name',   'first_name'],
+                  ['Last name',    'last_name'],
+                  ['Phone',        'phone_number'],
+                  ['Age range',    'age_range'],
+                ] as [string, keyof ACFProfile][]).map(([label, key]) => (
+                  <div key={key}>
+                    <label className="field-label">{label}</label>
+                    <input
+                      className="field-input"
+                      value={(editForm[key] as string) || ''}
+                      onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card card-p space-y-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Location</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([
+                  ['Country',      'country_location'],
+                  ['City',         'location_city'],
+                  ['UK region',    'where_in_the_uk'],
+                ] as [string, keyof ACFProfile][]).map(([label, key]) => (
+                  <div key={key}>
+                    <label className="field-label">{label}</label>
+                    <input
+                      className="field-input"
+                      value={(editForm[key] as string) || ''}
+                      onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="card card-p space-y-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Career</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([
+                  ['Employment status',   'current_employment_status'],
+                  ['Industry / expertise','industryfield_of_expertise'],
+                  ['Years of experience', 'years_of_experience'],
+                  ['Education level',     'level_of_education'],
+                ] as [string, keyof ACFProfile][]).map(([label, key]) => (
+                  <div key={key}>
+                    <label className="field-label">{label}</label>
+                    <input
+                      className="field-input"
+                      value={(editForm[key] as string) || ''}
+                      onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+                <div className="sm:col-span-2">
+                  <label className="field-label">Skills (comma-separated)</label>
+                  <input
+                    className="field-input"
+                    placeholder="e.g. React, Product Strategy, SQL"
+                    value={(editForm.skills_separate as string) || ''}
+                    onChange={e => setEditForm(f => ({ ...f, skills_separate: e.target.value }))}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="card card-p space-y-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Bio</p>
+              <div>
+                <label className="field-label">Professional biography</label>
+                <textarea
+                  className="field-input field-textarea"
+                  placeholder="Write a short professional bio…"
+                  value={(editForm.user_bio as string) || ''}
+                  onChange={e => setEditForm(f => ({ ...f, user_bio: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleProfileSave}
+                disabled={saving}
+                className="btn btn-amber"
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        )}
+
+      </main>
+    </div>
+  );
 }
