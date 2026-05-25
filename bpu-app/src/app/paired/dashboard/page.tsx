@@ -111,10 +111,7 @@ export default async function PairedDashboard() {
                 <a
                   key={m.name}
                   href={`/paired/mentors/1`}
-                  className="flex items-center justify-between p-3 rounded-lg transition-colors"
-                  style={{ background: 'rgba(255,255,255,0.08)' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.14)')}
-                  onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.08)')}
+                  className="ai-match-item flex items-center justify-between p-3 rounded-lg"
                 >
                   <div className="flex items-center gap-3">
                     <div className="avatar avatar-sm" style={{ background: m.color }}>{m.name[0]}</div>
