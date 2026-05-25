@@ -1,6 +1,0 @@
-{
-  "rewrites": [
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "pairedbybpu.uk" }], "destination": "/paired/$1" },
-    { "source": "/(.*)", "has": [{ "type": "host", "value": "www.pairedbybpu.uk" }], "destination": "/paired/$1" }
-  ]
-}

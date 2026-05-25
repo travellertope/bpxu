@@ -23,8 +23,8 @@ export default async function MemberPortal() {
         return (
             <div className="flex-1 flex flex-col justify-center items-center px-6 py-20 lg:py-28 transition-all duration-300">
                 {/* Spacious max-w-3xl container for premium feel */}
-                <div className="w-full max-w-3xl space-y-12 text-center animate-fadeInUp">
-                    <div className="space-y-6">
+                <div className="w-full max-w-3xl flex flex-col gap-12 text-center animate-fadeInUp">
+                    <div className="flex flex-col gap-6 items-center">
                         <span className="inline-flex items-center rounded-full bg-amber-500/10 px-4 py-1.5 text-sm font-semibold text-amber-500 ring-1 ring-inset ring-amber-500/20">
                             BPU Unified App
                         </span>
@@ -57,8 +57,8 @@ export default async function MemberPortal() {
                     </div>
 
                     {/* SSO Access Card */}
-                    <div className="space-y-6 pt-2">
-                        <div id="sso-card" className="premium-card p-8 border-amber-500/20 bg-amber-500/5">
+                    <div className="w-full mt-8">
+                        <div id="sso-card" className="premium-card p-8 border-amber-500/20" style={{ backgroundColor: 'rgba(245, 158, 11, 0.05)' }}>
                             <h3 className="text-base font-bold mb-3">Single Sign-On (SSO) Active</h3>
                             <p className="text-sm text-text-muted mb-6 leading-relaxed max-w-lg mx-auto">
                                 app.blackprofessionals.uk shares sessions with your main WordPress account. Logging in below instantly activates your portal.
