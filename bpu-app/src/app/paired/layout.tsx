@@ -1,22 +1,12 @@
 import { Inter } from 'next/font/google';
-import { headers } from 'next/headers';
 import { getBPUSession } from '@/lib/auth';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
-const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
-
 export default async function PairedLayout({ children }: { children: React.ReactNode }) {
   const session = await getBPUSession();
 
-  // Derive the origin from the live request host so the SSO callback cookie
-  // is set on the correct domain. Strip any port suffix (e.g. :443) that some
-  // proxies include — otherwise the origin check in the WP plugin fails.
-  const headersList = await headers();
-  const rawHost = headersList.get('host') || 'app.blackprofessionals.uk';
-  const host = rawHost.split(':')[0];
-  const origin = `https://${host}`;
-  const loginUrl = `${WP_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${origin}/api/auth/callback?from=paired`)}`;
+  const loginUrl = `/login?returnTo=/paired`;
 
   return (
     <div className={`${inter.variable} font-sans min-h-screen flex flex-col bg-bg text-text`}>

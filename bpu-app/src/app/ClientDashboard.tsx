@@ -126,16 +126,18 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       </header>
 
       {/* ── Tab bar ────────────────────────────────────────── */}
-      <div className="tab-bar" style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
-        {tabs.map(t => (
-          <button
-            key={t.id}
-            className={`tab-item${tab === t.id ? ' active' : ''}`}
-            onClick={() => setTab(t.id)}
-          >
-            {t.label}
-          </button>
-        ))}
+      <div className="tab-bar">
+        <div className="tab-bar-inner">
+          {tabs.map(t => (
+            <button
+              key={t.id}
+              className={`tab-item${tab === t.id ? ' active' : ''}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Page content ───────────────────────────────────── */}

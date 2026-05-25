@@ -1,7 +1,4 @@
 import { getBPUSession } from '@/lib/auth';
-import { headers } from 'next/headers';
-
-const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
 const features = [
   {
@@ -36,12 +33,6 @@ const steps = [
 export default async function PairedHome() {
   const session = await getBPUSession();
 
-  const headersList = await headers();
-  const rawHost = headersList.get('host') || 'app.blackprofessionals.uk';
-  const host = rawHost.split(':')[0];
-  const origin = `https://${host}`;
-  const loginUrl = `${WP_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${origin}/api/auth/callback?from=paired`)}`;
-
   return (
     <div>
 
@@ -63,7 +54,7 @@ export default async function PairedHome() {
               </a>
             ) : (
               <>
-                <a href={loginUrl} className="btn btn-purple btn-lg">
+                <a href="/register?returnTo=/paired/dashboard" className="btn btn-purple btn-lg">
                   Get started — it&apos;s free
                 </a>
                 <a href="/paired/mentors" className="btn btn-outline btn-lg">
@@ -126,11 +117,11 @@ export default async function PairedHome() {
               </a>
             ) : (
               <>
-                <a href={loginUrl} className="btn btn-purple btn-lg">
-                  Sign in with BPU
+                <a href="/login?returnTo=/paired/dashboard" className="btn btn-purple btn-lg">
+                  Sign in to PAIRED
                 </a>
-                <a href="/paired/mentors" className="btn btn-outline btn-lg">
-                  Browse mentors first
+                <a href="/register?returnTo=/paired/dashboard" className="btn btn-outline btn-lg">
+                  Create free account
                 </a>
               </>
             )}

@@ -1,8 +1,5 @@
 import { getBPUSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-
-const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
 const upcomingSessions = [
   { mentor: 'Sarah Jenkins', role: 'Senior Product Manager', when: 'Tomorrow, 14:00 – 15:00 GMT', initial: 'S', color: '#6366f1' },
@@ -20,11 +17,7 @@ export default async function PairedDashboard() {
   const session = await getBPUSession();
 
   if (!session.authenticated || !session.user) {
-    const headersList = await headers();
-    const rawHost = headersList.get('host') || 'app.blackprofessionals.uk';
-    const host = rawHost.split(':')[0];
-    const origin = `https://${host}`;
-    redirect(`${WP_URL}/?bpu_sso_handoff=1&redirect_to=${encodeURIComponent(`${origin}/api/auth/callback?from=paired`)}`);
+    redirect('/login?returnTo=/paired/dashboard');
   }
 
   const user = session.user!;
