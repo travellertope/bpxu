@@ -2,25 +2,27 @@
 
 import React, { useState } from 'react';
 import { BPUUser, ACFProfile } from '@/lib/auth';
-import { JobListing, CourseItem, CVReview, BPUApi } from '@/lib/api';
+import { JobListing, CourseItem, CVReview, EventItem, BPUApi } from '@/lib/api';
 
-type Tab = 'overview' | 'cv' | 'jobs' | 'courses' | 'profile';
+type Tab = 'overview' | 'cv' | 'jobs' | 'courses' | 'events' | 'profile';
 
 interface Props {
   user: BPUUser;
   initialJobs: JobListing[];
   initialCourses: CourseItem[];
   initialReviews: CVReview[];
+  initialEvents: EventItem[];
   jwt: string;
 }
 
-export default function ClientDashboard({ user, initialJobs, initialCourses, initialReviews, jwt }: Props) {
+export default function ClientDashboard({ user, initialJobs, initialCourses, initialReviews, initialEvents, jwt }: Props) {
   const [tab, setTab] = useState<Tab>('overview');
   const [profile, setProfile] = useState<ACFProfile>(user.profile);
   const [cvUrl, setCvUrl] = useState(user.cv_url || '');
   const [jobs] = useState<JobListing[]>(initialJobs);
   const [courses, setCourses] = useState<CourseItem[]>(initialCourses);
   const [reviews] = useState<CVReview[]>(initialReviews);
+  const [events] = useState<EventItem[]>(initialEvents);
 
   // CV upload
   const [uploading, setUploading] = useState(false);
@@ -93,6 +95,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
     { id: 'cv',       label: 'CV Clinic' },
     { id: 'jobs',     label: `Jobs${jobs.length ? ` (${jobs.length})` : ''}` },
     { id: 'courses',  label: `Courses${courses.length ? ` (${courses.length})` : ''}` },
+    { id: 'events',   label: `Events${events.length ? ` (${events.length})` : ''}` },
     { id: 'profile',  label: 'My Profile' },
   ];
 
@@ -377,6 +380,82 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                       </button>
                     </div>
                   ))}
+                </div>
+              )
+            }
+          </div>
+        )}
+
+        {/* ════ EVENTS ══════════════════════════════════════ */}
+        {tab === 'events' && (
+          <div className="space-y-4 fade-up">
+            <div>
+              <h2 className="text-xl font-bold">Upcoming events</h2>
+              <p className="section-sub">BPU networking events, workshops, and community meetups.</p>
+            </div>
+
+            {events.length === 0
+              ? (
+                <div className="empty">
+                  No upcoming events right now — check back soon.
+                </div>
+              )
+              : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {events.map(ev => {
+                    const start = ev.start_date
+                      ? new Date(ev.start_date).toLocaleDateString('en-GB', {
+                          weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+                        })
+                      : '';
+                    const time = ev.start_date
+                      ? new Date(ev.start_date).toLocaleTimeString('en-GB', {
+                          hour: '2-digit', minute: '2-digit',
+                        })
+                      : '';
+                    return (
+                      <div key={ev.id} className="card card-p card-lift flex flex-col gap-3">
+                        {ev.image && (
+                          <img
+                            src={ev.image}
+                            alt={ev.title}
+                            className="w-full rounded-lg object-cover"
+                            style={{ height: '140px' }}
+                          />
+                        )}
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="badge badge-purple text-xs">
+                            {ev.is_virtual ? 'Online' : 'In Person'}
+                          </span>
+                          <span className="text-xs font-semibold text-brand">
+                            {ev.cost === 'Free' || !ev.cost ? 'Free' : ev.cost}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-sm leading-snug">{ev.title}</p>
+                        {start && (
+                          <p className="text-xs text-text-2">
+                            {start}{time ? ` · ${time}` : ''}
+                          </p>
+                        )}
+                        {ev.venue && (
+                          <p className="text-xs text-text-3 truncate">{ev.venue}</p>
+                        )}
+                        {ev.description && (
+                          <p className="text-xs text-text-2 leading-relaxed line-clamp-2">
+                            {ev.description}
+                          </p>
+                        )}
+                        <a
+                          href={ev.register_url || ev.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-amber btn-sm mt-auto"
+                        >
+                          Register →
+                        </a>
+                      </div>
+                    );
+                  })}
                 </div>
               )
             }

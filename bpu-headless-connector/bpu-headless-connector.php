@@ -156,12 +156,23 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/courses/progress', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'track_course_progress' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ), 
+            'permission_callback' => array( $this, 'check_auth_permissions' ),
             'args'                => array(
                 'course_id' => array(
                     'required'          => true,
                     'sanitize_callback' => 'absint',
                 ),
+            ),
+        ) );
+
+        // 3b. Course listing (always-public, works with or without Tutor LMS REST API)
+        register_rest_route( $this->namespace, '/courses', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_courses' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
             ),
         ) );
 
@@ -176,7 +187,7 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/cv-reviews', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_member_cv_reviews' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
         // ──────────────────────────────────────────────────────
@@ -346,6 +357,19 @@ class BPU_Headless_Connector {
                 ),
             ),
         ) );
+
+        // ──────────────────────────────────────────────────────
+        // 9. Events (The Events Calendar — public)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/events', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_events' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
+            ),
+        ) );
     }
 
     /**
@@ -447,6 +471,64 @@ class BPU_Headless_Connector {
             'total_meta_clicks' => $current_clicks + 1,
             'legacy_db_logged'  => $inserted,
         ), 200 );
+    }
+
+    /**
+     * GET /courses — Paginated course listing sourced directly from Tutor LMS post type.
+     * Works regardless of whether Tutor LMS exposes its own REST routes.
+     */
+    public function get_courses( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
+        $page     = max( 1, $request->get_param( 'page' ) );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'courses',   // Tutor LMS post type
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $courses = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id = get_the_ID();
+                $courses[] = array(
+                    'id'            => $post_id,
+                    'title'         => get_the_title(),
+                    'excerpt'       => wp_strip_all_tags( get_the_excerpt() ),
+                    'provider'      => get_post_meta( $post_id, '_tutor_course_instructor', true )
+                        ? get_userdata( (int) get_post_meta( $post_id, '_tutor_course_instructor', true ) )->display_name ?? 'BPU Partner'
+                        : 'BPU Partner',
+                    'category'      => wp_get_post_terms( $post_id, 'course-category', array( 'fields' => 'names' ) )[0] ?? 'Professional Development',
+                    'learn_more_url' => get_the_permalink(),
+                    'image'         => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'duration'      => get_post_meta( $post_id, '_course_duration', true ) ?: '',
+                    'level'         => get_post_meta( $post_id, '_tutor_course_level', true ) ?: '',
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        $total       = $query->found_posts;
+        $total_pages = (int) ceil( $total / $per_page );
+
+        $response = new WP_REST_Response( array(
+            'success'     => true,
+            'courses'     => $courses,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        ), 200 );
+
+        $response->header( 'X-WP-Total',      $total );
+        $response->header( 'X-WP-TotalPages', $total_pages );
+
+        return $response;
     }
 
     /**
@@ -678,7 +760,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * Retrieves all manual critique reviews published by BPU professionals for this user.
      */
     public function get_member_cv_reviews( WP_REST_Request $request ) {
-        $user_id = wp_get_current_user()->ID;
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
 
         $query = new WP_Query( array(
             'post_type'      => 'cv_clinic_review',
@@ -756,6 +842,77 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
 
             wp_mail( $to, $subject, $message, $headers );
         }
+    }
+
+    /**
+     * Send a welcome email to a newly registered member.
+     */
+    private function send_welcome_email( WP_User $user ) {
+        $to      = $user->user_email;
+        $subject = __( 'Welcome to Black Professionals United!', 'bpu' );
+
+        $message  = sprintf( __( 'Hi %s,', 'bpu' ), $user->display_name ) . "\r\n\r\n";
+        $message .= __( 'Welcome to the Black Professionals United community — we are thrilled to have you.', 'bpu' ) . "\r\n\r\n";
+        $message .= __( 'Here is what you can do next:', 'bpu' ) . "\r\n";
+        $message .= '• ' . __( 'Complete your profile so we can match you with the right jobs and mentors', 'bpu' ) . "\r\n";
+        $message .= '• ' . __( 'Upload your CV to our AI-powered CV Clinic for personalised feedback', 'bpu' ) . "\r\n";
+        $message .= '• ' . __( 'Browse PAIRED — our free 1-on-1 mentorship platform', 'bpu' ) . "\r\n\r\n";
+        $message .= __( 'Your member portal:', 'bpu' ) . ' https://app.blackprofessionals.uk' . "\r\n";
+        $message .= __( 'Find a mentor:', 'bpu' ) . ' https://pairedbybpu.uk/mentors' . "\r\n\r\n";
+        $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
+        $message .= __( 'The BPU Team', 'bpu' );
+
+        wp_mail( $to, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+    }
+
+    /**
+     * Send confirmation email to mentee and notification email to mentor on booking creation.
+     */
+    private function send_booking_emails( WP_User $mentee, WP_User $mentor, string $date, string $time_slot, string $notes ) {
+        $headers  = array( 'Content-Type: text/plain; charset=UTF-8' );
+        $portal   = 'https://pairedbybpu.uk/dashboard';
+        $readable_date = date_i18n( get_option( 'date_format' ), strtotime( $date ) );
+        $readable_time = str_replace( '-', ' – ', $time_slot ) . ' GMT';
+
+        // 1. Mentee confirmation
+        $mentee_subject = sprintf(
+            __( 'Booking requested with %s — PAIRED by BPU', 'bpu' ),
+            $mentor->display_name
+        );
+        $mentee_msg  = sprintf( __( 'Hi %s,', 'bpu' ), $mentee->display_name ) . "\r\n\r\n";
+        $mentee_msg .= sprintf(
+            __( 'Your session request with %s has been sent. They will confirm shortly.', 'bpu' ),
+            $mentor->display_name
+        ) . "\r\n\r\n";
+        $mentee_msg .= sprintf( __( 'Date:      %s', 'bpu' ), $readable_date ) . "\r\n";
+        $mentee_msg .= sprintf( __( 'Time:      %s', 'bpu' ), $readable_time ) . "\r\n";
+        if ( ! empty( $notes ) ) {
+            $mentee_msg .= sprintf( __( 'Your notes: %s', 'bpu' ), $notes ) . "\r\n";
+        }
+        $mentee_msg .= "\r\n" . __( 'View your sessions:', 'bpu' ) . ' ' . $portal . "\r\n\r\n";
+        $mentee_msg .= __( 'The PAIRED Team', 'bpu' );
+
+        wp_mail( $mentee->user_email, $mentee_subject, $mentee_msg, $headers );
+
+        // 2. Mentor notification
+        $mentor_subject = sprintf(
+            __( 'New session request from %s — PAIRED by BPU', 'bpu' ),
+            $mentee->display_name
+        );
+        $mentor_msg  = sprintf( __( 'Hi %s,', 'bpu' ), $mentor->display_name ) . "\r\n\r\n";
+        $mentor_msg .= sprintf(
+            __( '%s has requested a 1-on-1 session with you.', 'bpu' ),
+            $mentee->display_name
+        ) . "\r\n\r\n";
+        $mentor_msg .= sprintf( __( 'Date:      %s', 'bpu' ), $readable_date ) . "\r\n";
+        $mentor_msg .= sprintf( __( 'Time:      %s', 'bpu' ), $readable_time ) . "\r\n";
+        if ( ! empty( $notes ) ) {
+            $mentor_msg .= sprintf( __( 'Their notes: %s', 'bpu' ), $notes ) . "\r\n";
+        }
+        $mentor_msg .= "\r\n" . __( 'Log in to confirm or reschedule:', 'bpu' ) . ' ' . $portal . "\r\n\r\n";
+        $mentor_msg .= __( 'The PAIRED Team', 'bpu' );
+
+        wp_mail( $mentor->user_email, $mentor_subject, $mentor_msg, $headers );
     }
 
     /**
@@ -1070,6 +1227,8 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'iat'          => time(),
             'exp'          => time() + DAY_IN_SECONDS,
         ) );
+
+        $this->send_welcome_email( $user );
 
         return new WP_REST_Response( array(
             'jwt'          => $jwt,
@@ -1476,6 +1635,8 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
         update_post_meta( $post_id, '_bpu_booking_status', 'pending' );
         update_post_meta( $post_id, '_bpu_booking_created_at', current_time( 'mysql' ) );
 
+        $this->send_booking_emails( $mentee, $mentor, $date, $time_slot, $notes );
+
         return new WP_REST_Response( array(
             'success' => true,
             'booking' => $this->format_booking( $post_id, $user_id ),
@@ -1572,6 +1733,84 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'success' => true,
             'booking' => $this->format_booking( $post_id, $user_id ),
         ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  EVENTS (THE EVENTS CALENDAR)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /events — Paginated upcoming event list using The Events Calendar.
+     */
+    public function get_events( WP_REST_Request $request ) {
+        $page     = max( 1, $request->get_param( 'page' ) );
+        $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
+
+        // The Events Calendar stores events as the 'tribe_events' post type.
+        $today = date( 'Y-m-d' );
+
+        $query_args = array(
+            'post_type'      => 'tribe_events',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_EventStartDate',
+            'order'          => 'ASC',
+            'meta_query'     => array(
+                array(
+                    'key'     => '_EventStartDate',
+                    'value'   => $today,
+                    'compare' => '>=',
+                    'type'    => 'DATETIME',
+                ),
+            ),
+        );
+
+        $query  = new WP_Query( $query_args );
+        $events = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id = get_the_ID();
+                $events[] = array(
+                    'id'          => $post_id,
+                    'title'       => get_the_title(),
+                    'description' => wp_strip_all_tags( get_the_excerpt() ),
+                    'start_date'  => get_post_meta( $post_id, '_EventStartDate',    true ),
+                    'end_date'    => get_post_meta( $post_id, '_EventEndDate',      true ),
+                    'venue'       => get_post_meta( $post_id, '_EventVenueID',      true )
+                        ? tribe_get_venue( $post_id )
+                        : '',
+                    'cost'        => get_post_meta( $post_id, '_EventCost',         true ) ?: 'Free',
+                    'url'         => get_the_permalink(),
+                    'image'       => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'is_virtual'  => (bool) get_post_meta( $post_id, '_tribe_events_venue_show_map', true ),
+                    'register_url' => function_exists( 'tribe_get_tickets_link' )
+                        ? tribe_get_tickets_link( $post_id )
+                        : get_the_permalink(),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        $total       = $query->found_posts;
+        $total_pages = (int) ceil( $total / $per_page );
+
+        $response = new WP_REST_Response( array(
+            'success'     => true,
+            'events'      => $events,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        ), 200 );
+
+        $response->header( 'X-WP-Total',      $total );
+        $response->header( 'X-WP-TotalPages', $total_pages );
+
+        return $response;
     }
 
     /**
