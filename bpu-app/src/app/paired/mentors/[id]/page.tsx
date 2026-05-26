@@ -143,6 +143,7 @@ export default async function MentorProfile({
                         mentorId={mentorId}
                         mentorName={name}
                         isAuthenticated={session.authenticated}
+                        isPro={isPro}
                     />
                 </div>
 

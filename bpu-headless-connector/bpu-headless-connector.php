@@ -58,6 +58,12 @@ class BPU_Headless_Connector {
         // Weekly job digest (WP Cron)
         add_filter( 'cron_schedules', array( $this, 'add_weekly_cron_schedule' ) );
         add_action( 'bpu_weekly_job_digest', array( $this, 'send_weekly_job_digests' ) );
+
+        // Sync bpu_pro role with WooCommerce Subscription status
+        add_action( 'woocommerce_subscription_status_active',     array( $this, 'on_subscription_activated' ) );
+        add_action( 'woocommerce_subscription_status_cancelled',  array( $this, 'on_subscription_deactivated' ) );
+        add_action( 'woocommerce_subscription_status_expired',    array( $this, 'on_subscription_deactivated' ) );
+        add_action( 'woocommerce_subscription_status_on-hold',    array( $this, 'on_subscription_deactivated' ) );
     }
 
     /**
@@ -146,7 +152,8 @@ class BPU_Headless_Connector {
     }
 
     /**
-     * Returns true if user_id holds the bpu_pro or administrator role.
+     * Returns true if user_id is a Pro member.
+     * Checks (in order): administrator role, bpu_pro role, active WooCommerce Subscription.
      */
     private function is_pro_member( int $user_id ): bool {
         $user = get_userdata( $user_id );
@@ -154,7 +161,43 @@ class BPU_Headless_Connector {
             return false;
         }
         $roles = (array) $user->roles;
-        return in_array( 'bpu_pro', $roles, true ) || in_array( 'administrator', $roles, true );
+        if ( in_array( 'administrator', $roles, true ) ) {
+            return true;
+        }
+        if ( in_array( 'bpu_pro', $roles, true ) ) {
+            return true;
+        }
+        // Check WooCommerce Subscriptions if available
+        if ( function_exists( 'wcs_user_has_subscription' ) ) {
+            return (bool) wcs_user_has_subscription( $user_id, '', 'active' );
+        }
+        return false;
+    }
+
+    /** Auto-assign bpu_pro role when a WooCommerce Subscription becomes active. */
+    public function on_subscription_activated( $subscription ) {
+        $user_id = is_callable( array( $subscription, 'get_user_id' ) )
+            ? $subscription->get_user_id()
+            : ( $subscription->user_id ?? 0 );
+        if ( $user_id ) {
+            $user = new WP_User( $user_id );
+            $user->add_role( 'bpu_pro' );
+        }
+    }
+
+    /** Remove bpu_pro role when all WooCommerce Subscriptions are inactive. */
+    public function on_subscription_deactivated( $subscription ) {
+        $user_id = is_callable( array( $subscription, 'get_user_id' ) )
+            ? $subscription->get_user_id()
+            : ( $subscription->user_id ?? 0 );
+        if ( ! $user_id ) {
+            return;
+        }
+        // Only strip role if no remaining active subscriptions
+        if ( function_exists( 'wcs_user_has_subscription' ) && ! wcs_user_has_subscription( $user_id, '', 'active' ) ) {
+            $user = new WP_User( $user_id );
+            $user->remove_role( 'bpu_pro' );
+        }
     }
 
     /**
