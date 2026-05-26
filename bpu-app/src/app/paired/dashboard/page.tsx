@@ -1,4 +1,5 @@
 import { getBPUSession } from '@/lib/auth';
+import { BPUApi } from '@/lib/api';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -19,6 +20,8 @@ interface MentorSummary {
     display_name: string;
     industry: string;
     industryfield_of_expertise: string;
+    profile?: Record<string, string>;
+    match_score?: number;
 }
 
 function mentorColor(id: number): string {
@@ -48,12 +51,16 @@ export default async function PairedDashboard() {
         redirect('/login?returnTo=/paired/dashboard');
     }
     const user = session.user!;
+    const isPro = user.is_pro;
 
     const cookieStore = await cookies();
     const jwt = cookieStore.get('bpu_session')?.value || '';
 
     let bookings: Booking[] = [];
     let suggested: MentorSummary[] = [];
+
+    // For pro users, fetch more mentors so we can rank by AI score
+    const mentorPerPage = isPro ? 12 : 3;
 
     await Promise.all([
         fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/bookings?per_page=50`, {
@@ -63,11 +70,32 @@ export default async function PairedDashboard() {
             .then(d => { if (d?.bookings) bookings = d.bookings; })
             .catch(() => {}),
 
-        fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=3`, {
+        fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=${mentorPerPage}`, {
             headers: { 'Cache-Control': 'no-store' },
         })
             .then(r => r.ok ? r.json() : null)
-            .then(d => { if (d?.mentors) suggested = d.mentors; })
+            .then(d => {
+                if (d?.mentors) {
+                    let mentors: MentorSummary[] = d.mentors;
+                    if (isPro && user.profile) {
+                        // Score and sort by AI compatibility
+                        const memberProfile = user.profile as unknown as Record<string, string>;
+                        mentors = mentors
+                            .map(m => ({
+                                ...m,
+                                match_score: BPUApi.scoreMentorMatch(memberProfile, m.profile || {
+                                    industry: m.industry,
+                                    industryfield_of_expertise: m.industryfield_of_expertise,
+                                }),
+                            }))
+                            .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
+                            .slice(0, 3);
+                    } else {
+                        mentors = mentors.slice(0, 3);
+                    }
+                    suggested = mentors;
+                }
+            })
             .catch(() => {}),
     ]);
 
@@ -191,16 +219,20 @@ export default async function PairedDashboard() {
                     )}
                 </div>
 
-                {/* Right: suggested mentors */}
+                {/* Right: suggested / matched mentors */}
                 <div>
                     <div
                         className="card card-p space-y-4"
                         style={{ background: '#1e1b4b', borderColor: '#312e81', color: '#fff' }}
                     >
                         <div className="space-y-1">
-                            <p className="font-bold">✨ Suggested mentors</p>
+                            <p className="font-bold">
+                                {isPro ? '🤖 Matched mentors' : '✨ Suggested mentors'}
+                            </p>
                             <p className="text-xs" style={{ color: '#c4b5fd' }}>
-                                Experienced Black professionals ready to guide you.
+                                {isPro
+                                    ? 'Ranked by AI compatibility with your profile.'
+                                    : 'Experienced Black professionals ready to guide you.'}
                             </p>
                         </div>
 
@@ -230,6 +262,14 @@ export default async function PairedDashboard() {
                                                 </p>
                                             </div>
                                         </div>
+                                        {isPro && m.match_score != null && m.match_score > 0 && (
+                                            <span
+                                                className="text-xs font-bold shrink-0"
+                                                style={{ color: '#fbbf24' }}
+                                            >
+                                                {m.match_score}%
+                                            </span>
+                                        )}
                                     </a>
                                 ))}
                             </div>

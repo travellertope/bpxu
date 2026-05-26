@@ -4,6 +4,18 @@ import React, { useState } from 'react';
 import { BPUUser, ACFProfile } from '@/lib/auth';
 import { JobListing, CourseItem, CVReview, EventItem, BPUApi } from '@/lib/api';
 
+function ProGate({ children, isPro, feature }: { children: React.ReactNode; isPro: boolean; feature: string }) {
+    if (isPro) return <>{children}</>;
+    return (
+        <div className="card card-p space-y-3 text-center py-10">
+            <p className="text-2xl">★</p>
+            <p className="font-semibold">{feature} is a Pro feature</p>
+            <p className="text-sm text-text-2">Upgrade to BPU Pro to unlock AI-powered career tools.</p>
+            <a href="/upgrade" className="btn btn-amber btn-sm inline-flex mx-auto">Upgrade to Pro →</a>
+        </div>
+    );
+}
+
 type Tab = 'overview' | 'cv' | 'jobs' | 'courses' | 'events' | 'profile';
 
 interface Props {
@@ -16,6 +28,7 @@ interface Props {
 }
 
 export default function ClientDashboard({ user, initialJobs, initialCourses, initialReviews, initialEvents, jwt }: Props) {
+  const isPro = user.is_pro;
   const [tab, setTab] = useState<Tab>('overview');
   const [profile, setProfile] = useState<ACFProfile>(user.profile);
   const [cvUrl, setCvUrl] = useState(user.cv_url || '');
@@ -28,6 +41,10 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
+  // CV review request
+  const [requestingReview, setRequestingReview] = useState(false);
+  const [reviewRequestMsg, setReviewRequestMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
   // CV review accordion
   const [openReview, setOpenReview] = useState<number | null>(null);
 
@@ -35,6 +52,11 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
   const [editForm, setEditForm] = useState<Partial<ACFProfile>>(profile);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  // Email preferences (pro)
+  const [weeklyEmails, setWeeklyEmails] = useState(false);
+  const [prefSaving, setPrefSaving] = useState(false);
+  const [prefMsg, setPrefMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -86,6 +108,27 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleRequestReview = async () => {
+    setRequestingReview(true);
+    setReviewRequestMsg(null);
+    const result = await BPUApi.requestCVReview();
+    setReviewRequestMsg(result.success
+      ? { type: 'ok', text: 'Review requested — our team will be in touch within 5 working days.' }
+      : { type: 'err', text: result.error || 'Could not submit request.' }
+    );
+    setRequestingReview(false);
+  };
+
+  const handlePrefSave = async () => {
+    setPrefSaving(true);
+    const ok = await BPUApi.updatePreferences({ weekly_emails: weeklyEmails });
+    setPrefMsg(ok
+      ? { type: 'ok', text: 'Preferences saved.' }
+      : { type: 'err', text: 'Could not save preferences.' }
+    );
+    setPrefSaving(false);
   };
 
   const firstName = profile.first_name || user.display_name.split(' ')[0];
@@ -159,10 +202,22 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                     : 'Complete your profile to unlock personalised recommendations.'}
                 </p>
               </div>
-              <button onClick={() => setTab('profile')} className="btn btn-outline btn-sm shrink-0">
-                Edit profile
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                {isPro && <span className="badge badge-green">Pro</span>}
+                <button onClick={() => setTab('profile')} className="btn btn-outline btn-sm">Edit profile</button>
+              </div>
             </div>
+
+            {/* Pro upgrade prompt for free members */}
+            {!isPro && (
+              <div className="card card-p flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ borderColor: 'var(--brand)' }}>
+                <div>
+                  <p className="font-semibold">Unlock AI-powered career tools</p>
+                  <p className="text-sm text-text-2 mt-1">CV parsing, job matching, mentor compatibility scores, and weekly career digests.</p>
+                </div>
+                <a href="/upgrade" className="btn btn-amber btn-sm shrink-0">Upgrade to Pro →</a>
+              </div>
+            )}
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
@@ -194,9 +249,10 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                         <p className="text-sm font-semibold truncate">{j.title}</p>
                         <p className="text-xs text-text-2 mt-0.5">{j.company} · {j.location}</p>
                       </div>
-                      {j.match_score && (
-                        <span className="badge badge-amber shrink-0">{j.match_score}%</span>
-                      )}
+                      {isPro && j.match_score
+                        ? <span className="badge badge-amber shrink-0">{j.match_score}%</span>
+                        : <span className="badge badge-gray shrink-0 cursor-default" title="Upgrade to Pro">Pro</span>
+                      }
                     </div>
                   ))
                 }
@@ -228,82 +284,107 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
               <p className="section-sub">Upload your CV as a PDF. Gemini Pro will parse it and auto-fill your profile.</p>
             </div>
 
-            {/* Current CV */}
-            {cvUrl && (
-              <div className="alert alert-green flex items-center justify-between gap-4">
-                <span className="text-sm">CV on file</span>
-                <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
-                  Download
-                </a>
-              </div>
-            )}
+            <ProGate isPro={isPro} feature="CV upload &amp; AI parsing">
+              {/* Current CV */}
+              {cvUrl && (
+                <div className="alert alert-green flex items-center justify-between gap-4">
+                  <span className="text-sm">CV on file</span>
+                  <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
+                    Download
+                  </a>
+                </div>
+              )}
 
-            {/* Upload area */}
-            <div className="card" style={{ borderStyle: 'dashed' }}>
-              <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
-                <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
-                <p className="text-base font-semibold">
-                  {uploading ? 'Processing with Gemini Pro…' : 'Click to upload your CV'}
-                </p>
-                <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
-                <input
-                  id="cv-file"
-                  type="file"
-                  accept=".pdf"
-                  className="sr-only"
-                  onChange={handleCVUpload}
-                  disabled={uploading}
-                />
-              </label>
-            </div>
-
-            {uploading && (
-              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '70%' }} />
+              {/* Upload area */}
+              <div className="card" style={{ borderStyle: 'dashed' }}>
+                <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                  <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
+                  <p className="text-base font-semibold">
+                    {uploading ? 'Processing with Gemini Pro…' : 'Click to upload your CV'}
+                  </p>
+                  <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
+                  <input
+                    id="cv-file"
+                    type="file"
+                    accept=".pdf"
+                    className="sr-only"
+                    onChange={handleCVUpload}
+                    disabled={uploading}
+                  />
+                </label>
               </div>
-            )}
 
-            {uploadMsg && (
-              <div className={`alert ${uploadMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
-                {uploadMsg.text}
-              </div>
-            )}
+              {uploading && (
+                <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                  <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '70%' }} />
+                </div>
+              )}
+
+              {uploadMsg && (
+                <div className={`alert ${uploadMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                  {uploadMsg.text}
+                </div>
+              )}
+            </ProGate>
 
             {/* Manual reviews */}
             <div className="divider" />
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <p className="section-title">Professional reviews</p>
-                <span className="badge badge-amber">Pro feature</span>
+                {!isPro && <span className="badge badge-amber">Pro feature</span>}
               </div>
-              <p className="text-sm text-text-2">Manual critiques from BPU recruiters. Upgrade to Pro to request one.</p>
 
-              {reviews.length === 0
-                ? <div className="empty">No reviews yet.</div>
-                : reviews.map(r => (
-                  <div key={r.id} className="card overflow-hidden">
+              {isPro ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm text-text-2">Request a written critique from a BPU recruiter.</p>
                     <button
-                      className="w-full flex items-center justify-between px-5 py-4 text-left text-sm font-semibold hover:bg-bg transition-colors"
-                      onClick={() => setOpenReview(openReview === r.id ? null : r.id)}
+                      onClick={handleRequestReview}
+                      disabled={requestingReview}
+                      className="btn btn-amber btn-sm shrink-0"
                     >
-                      <span className="flex items-center gap-3">
-                        {r.title}
-                        {r.score && <span className="badge badge-green">Score: {r.score}/100</span>}
-                      </span>
-                      <span className="text-text-3">{openReview === r.id ? '▲' : '▼'}</span>
+                      {requestingReview ? 'Submitting…' : 'Request review'}
                     </button>
-                    {openReview === r.id && (
-                      <div className="px-5 pb-5 pt-2 border-t border-border text-sm space-y-3">
-                        <p className="whitespace-pre-line leading-relaxed text-text-2">{r.critique}</p>
-                        <div className="flex justify-between text-xs text-text-3 pt-2 border-t border-border">
-                          <span>Reviewer: {r.reviewer}</span>
-                          <span>{new Date(r.date).toLocaleDateString('en-GB')}</span>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                ))
-              }
+                  {reviewRequestMsg && (
+                    <div className={`alert ${reviewRequestMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                      {reviewRequestMsg.text}
+                    </div>
+                  )}
+                  {reviews.length === 0
+                    ? <div className="empty">No reviews yet.</div>
+                    : reviews.map(r => (
+                      <div key={r.id} className="card overflow-hidden">
+                        <button
+                          className="w-full flex items-center justify-between px-5 py-4 text-left text-sm font-semibold hover:bg-bg transition-colors"
+                          onClick={() => setOpenReview(openReview === r.id ? null : r.id)}
+                        >
+                          <span className="flex items-center gap-3">
+                            {r.title}
+                            {r.score && <span className="badge badge-green">Score: {r.score}/100</span>}
+                          </span>
+                          <span className="text-text-3">{openReview === r.id ? '▲' : '▼'}</span>
+                        </button>
+                        {openReview === r.id && (
+                          <div className="px-5 pb-5 pt-2 border-t border-border text-sm space-y-3">
+                            <p className="whitespace-pre-line leading-relaxed text-text-2">{r.critique}</p>
+                            <div className="flex justify-between text-xs text-text-3 pt-2 border-t border-border">
+                              <span>Reviewer: {r.reviewer}</span>
+                              <span>{new Date(r.date).toLocaleDateString('en-GB')}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  }
+                </>
+              ) : (
+                <div className="card card-p text-center py-8 space-y-3">
+                  <p className="text-sm text-text-2">Get written feedback from a BPU recruiter with a Pro membership.</p>
+                  <a href="/upgrade" className="btn btn-amber btn-sm inline-flex mx-auto">Upgrade to Pro →</a>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -311,9 +392,18 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
         {/* ════ JOBS ════════════════════════════════════════ */}
         {tab === 'jobs' && (
           <div className="space-y-4 fade-up">
-            <div>
-              <h2 className="text-xl font-bold">Job matches</h2>
-              <p className="section-sub">Daily recommendations semantically matched to your profile.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">Job matches</h2>
+                <p className="section-sub">
+                  {isPro
+                    ? 'Daily recommendations matched to your profile by AI.'
+                    : 'Latest jobs from BPU partners. Upgrade to Pro for AI match scores.'}
+                </p>
+              </div>
+              {!isPro && (
+                <a href="/upgrade" className="btn btn-amber btn-sm shrink-0">Unlock AI scores →</a>
+              )}
             </div>
 
             {jobs.length === 0
@@ -327,7 +417,14 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                           <p className="font-semibold text-sm leading-snug">{j.title}</p>
                           <p className="text-xs text-text-2 mt-0.5">{j.company}</p>
                         </div>
-                        {j.match_score && <span className="badge badge-amber shrink-0">{j.match_score}%</span>}
+                        {isPro && j.match_score
+                          ? <span className="badge badge-amber shrink-0">{j.match_score}%</span>
+                          : (
+                            <span className="badge badge-gray shrink-0" style={{ filter: 'blur(4px)', userSelect: 'none' }}>
+                              {j.match_score ?? 75}%
+                            </span>
+                          )
+                        }
                       </div>
                       <div className="flex items-center gap-2 text-xs text-text-3">
                         <span>{j.location}</span>
@@ -746,6 +843,41 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
               >
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
+            </div>
+
+            {/* Email preferences — Pro only */}
+            <div className="divider" />
+            <div className="card card-p space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wide text-text-3">Email Preferences</p>
+                {!isPro && <span className="badge badge-amber">Pro</span>}
+              </div>
+              {isPro ? (
+                <>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={weeklyEmails}
+                      onChange={e => setWeeklyEmails(e.target.checked)}
+                      className="w-4 h-4"
+                    />
+                    <span className="text-sm">Weekly job digest — top matches every Monday</span>
+                  </label>
+                  {prefMsg && (
+                    <div className={`alert ${prefMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                      {prefMsg.text}
+                    </div>
+                  )}
+                  <button onClick={handlePrefSave} disabled={prefSaving} className="btn btn-outline btn-sm">
+                    {prefSaving ? 'Saving…' : 'Save preferences'}
+                  </button>
+                </>
+              ) : (
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-sm text-text-2">Weekly job digest and notification controls are available with Pro.</p>
+                  <a href="/upgrade" className="btn btn-amber btn-sm shrink-0">Upgrade →</a>
+                </div>
+              )}
             </div>
           </div>
         )}

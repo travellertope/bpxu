@@ -5,10 +5,10 @@ const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessio
 
 export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
-    const wpCookie = cookieStore.getAll().find(c => c.name.startsWith('wordpress_logged_in_'));
+    const jwt = cookieStore.get('bpu_session')?.value;
 
-    if (!wpCookie) {
-        return NextResponse.json({ error: 'Unauthorized. No session cookie found.' }, { status: 401 });
+    if (!jwt) {
+        return NextResponse.json({ error: 'Unauthorized. Please log in.' }, { status: 401 });
     }
 
     try {
@@ -19,31 +19,27 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'No CV file uploaded.' }, { status: 400 });
         }
 
-        // Re-construct Multipart Form Data for WordPress fetch call
         const wpFormData = new FormData();
         wpFormData.append('cv_file', file, file.name);
-
-        const wpCookieHeader = `${wpCookie.name}=${wpCookie.value}`;
 
         const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/cv-upload`, {
             method: 'POST',
             headers: {
-                'Cookie': wpCookieHeader
-                // Fetch automatically configures the boundary header for FormData
+                'Authorization': `Bearer ${jwt}`,
             },
-            body: wpFormData
+            body: wpFormData,
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-            return NextResponse.json({ error: data.message || 'Failed to parse resume.' }, { status: response.status });
+            return NextResponse.json({ error: data.message || 'Failed to parse CV.' }, { status: response.status });
         }
 
         return NextResponse.json(data, { status: 200 });
 
     } catch (error) {
-        console.error('Next.js CV Proxy Upload Error:', error);
-        return NextResponse.json({ error: 'Internal server error occurred.' }, { status: 500 });
+        console.error('CV upload proxy error:', error);
+        return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
     }
 }

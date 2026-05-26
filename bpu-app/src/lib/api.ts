@@ -100,6 +100,32 @@ export class BPUApi {
         }
     }
 
+    static scoreMentorMatch(
+        memberProfile: Record<string, string>,
+        mentorProfile: Record<string, string>,
+    ): number {
+        let score = 0;
+        const uInd = (memberProfile.industry || '').toLowerCase();
+        const uField = (memberProfile.industryfield_of_expertise || '').toLowerCase();
+        const uSkills = (memberProfile.skills_separate || '').toLowerCase();
+        const mInd = (mentorProfile.industry || '').toLowerCase();
+        const mField = (mentorProfile.industryfield_of_expertise || '').toLowerCase();
+        const mSkills = (mentorProfile.skills_separate || '').toLowerCase();
+
+        if (uInd && mInd && uInd === mInd) score += 30;
+        if (uField && mField && uField === mField) score += 20;
+
+        const userSkillWords = uSkills.split(/[,\s]+/).filter(w => w.length > 2);
+        const mentorSkillWords = new Set(mSkills.split(/[,\s]+/).filter(w => w.length > 2));
+        let skillScore = 0;
+        for (const w of userSkillWords) {
+            if (mentorSkillWords.has(w)) skillScore += 5;
+        }
+        score += Math.min(20, skillScore);
+
+        return Math.min(99, Math.max(0, score));
+    }
+
     private static scoreJobMatch(
         profile: Record<string, string>,
         jobType: string,
@@ -235,6 +261,36 @@ export class BPUApi {
         } catch (error) {
             console.error('Failed to fetch events:', error);
             return [];
+        }
+    }
+
+    /**
+     * Save Pro member email preferences (weekly digest opt-in, target role).
+     */
+    static async updatePreferences(prefs: { weekly_emails?: boolean; target_role?: string }): Promise<boolean> {
+        try {
+            const res = await fetch('/api/member/preferences', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(prefs),
+            });
+            return res.ok;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * Submit a Pro CV review request to the BPU team.
+     */
+    static async requestCVReview(): Promise<{ success: boolean; request_id?: number; error?: string }> {
+        try {
+            const res = await fetch('/api/member/request-cv-review', { method: 'POST' });
+            const data = await res.json();
+            if (!res.ok) return { success: false, error: data.message || data.error || 'Request failed.' };
+            return { success: true, request_id: data.request_id };
+        } catch {
+            return { success: false, error: 'Network error.' };
         }
     }
 }

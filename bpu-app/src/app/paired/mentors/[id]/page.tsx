@@ -1,4 +1,5 @@
 import { getBPUSession } from '@/lib/auth';
+import { BPUApi } from '@/lib/api';
 import BookingForm from './BookingForm';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
@@ -51,6 +52,14 @@ export default async function MentorProfile({
     const profile = (mentor.profile as Record<string, string>) || {};
     const color = mentorColor(mentorId);
     const title = profile.industryfield_of_expertise || profile.industry || 'Professional';
+
+    const isPro = session.user?.is_pro ?? false;
+    const compatScore = isPro && session.user?.profile
+        ? BPUApi.scoreMentorMatch(
+            session.user.profile as unknown as Record<string, string>,
+            profile,
+          )
+        : null;
     const industry = profile.industry || '';
     const exp = profile.years_of_experience ? `${profile.years_of_experience} yrs experience` : '';
     const bio = profile.user_bio || '';
@@ -94,8 +103,14 @@ export default async function MentorProfile({
                         )}
                     </div>
 
-                    <div className="shrink-0 w-full md:w-auto text-center">
-                        <p className="text-xs text-text-3 mt-1">Responds within 24 h</p>
+                    <div className="shrink-0 w-full md:w-auto text-center space-y-2">
+                        {compatScore !== null && compatScore > 0 && (
+                            <div className="card card-p text-center space-y-1 min-w-[80px]">
+                                <p className="text-2xl font-extrabold" style={{ color: 'var(--brand)' }}>{compatScore}%</p>
+                                <p className="text-xs text-text-3">AI match</p>
+                            </div>
+                        )}
+                        <p className="text-xs text-text-3">Responds within 24 h</p>
                     </div>
                 </div>
             </div>
