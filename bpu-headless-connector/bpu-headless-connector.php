@@ -45,6 +45,12 @@ class BPU_Headless_Connector {
 
         // Hook when manual CV review is published to trigger alerts
         add_action( 'publish_cv_clinic_review', array( $this, 'notify_candidate_of_cv_review' ), 10, 2 );
+
+        // Notify matched members when a new job is published
+        add_action( 'publish_job_listing', array( $this, 'notify_matched_members_of_new_job' ), 10, 2 );
+
+        // Notify matched mentees when a user is promoted to the mentor role
+        add_action( 'set_user_role', array( $this, 'notify_matched_mentees_of_new_mentor' ), 10, 3 );
     }
 
     /**
@@ -842,6 +848,195 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
 
             wp_mail( $to, $subject, $message, $headers );
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MATCH-BASED EMAIL NOTIFICATIONS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Fires when a job_listing post transitions to 'publish'.
+     * Scores every member profile against the new job and emails those
+     * whose match score is >= 70. Deduped via post meta flag.
+     */
+    public function notify_matched_members_of_new_job( $post_id, $post ) {
+        if ( get_post_meta( $post_id, '_bpu_job_notified', true ) ) {
+            return;
+        }
+
+        $job_title = $post->post_title;
+        $job_type  = get_post_meta( $post_id, '_job_type', true );
+        $company   = get_post_meta( $post_id, '_company_name', true ) ?: 'A partner organisation';
+        $location  = get_post_meta( $post_id, '_job_location', true ) ?: 'United Kingdom';
+
+        $members  = $this->get_members_with_profiles( 150 );
+        $notified = 0;
+
+        foreach ( $members as $member ) {
+            $profile = function_exists( 'get_fields' )
+                ? ( get_fields( 'user_' . $member->ID ) ?: array() )
+                : array();
+
+            $score = $this->score_job_match( $profile, $job_title, $job_type );
+            if ( $score < 70 ) {
+                continue;
+            }
+
+            $subject  = sprintf( __( 'New job match (%d%%): %s — BPU', 'bpu' ), $score, $job_title );
+            $message  = sprintf( __( 'Hi %s,', 'bpu' ), $member->display_name ) . "\r\n\r\n";
+            $message .= __( 'A new job has been posted that matches your BPU profile.', 'bpu' ) . "\r\n\r\n";
+            $message .= sprintf( __( 'Role:     %s', 'bpu' ), $job_title ) . "\r\n";
+            $message .= sprintf( __( 'Company:  %s', 'bpu' ), $company ) . "\r\n";
+            $message .= sprintf( __( 'Location: %s', 'bpu' ), $location ) . "\r\n";
+            $message .= sprintf( __( 'Match:    %d%%', 'bpu' ), $score ) . "\r\n\r\n";
+            $message .= __( 'View and apply in your member portal:', 'bpu' ) . "\r\n";
+            $message .= 'https://app.blackprofessionals.uk' . "\r\n\r\n";
+            $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
+            $message .= __( 'The BPU Team', 'bpu' );
+
+            wp_mail( $member->user_email, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+            $notified++;
+        }
+
+        update_post_meta( $post_id, '_bpu_job_notified', 1 );
+        update_post_meta( $post_id, '_bpu_job_notified_count', $notified );
+    }
+
+    /**
+     * Fires when a WordPress user's role is changed via WP_User::set_role().
+     * If the new role is 'mentor', scores every member profile against the
+     * mentor's profile and emails those with a match score >= 60.
+     * Deduped via user meta flag so the mentor only triggers one round.
+     */
+    public function notify_matched_mentees_of_new_mentor( $user_id, $new_role, $old_roles ) {
+        if ( $new_role !== 'mentor' ) {
+            return;
+        }
+        if ( get_user_meta( $user_id, '_bpu_mentor_notified', true ) ) {
+            return;
+        }
+
+        $mentor = get_userdata( $user_id );
+        if ( ! $mentor ) {
+            return;
+        }
+
+        $mentor_profile = function_exists( 'get_fields' )
+            ? ( get_fields( 'user_' . $user_id ) ?: array() )
+            : array();
+
+        $mentor_industry = $mentor_profile['industry'] ?? '';
+        $mentor_field    = $mentor_profile['industryfield_of_expertise'] ?? '';
+
+        $members  = $this->get_members_with_profiles( 150 );
+        $notified = 0;
+
+        foreach ( $members as $member ) {
+            if ( $member->ID === $user_id ) {
+                continue;
+            }
+
+            $member_profile = function_exists( 'get_fields' )
+                ? ( get_fields( 'user_' . $member->ID ) ?: array() )
+                : array();
+
+            $score = $this->score_mentor_match( $member_profile, $mentor_profile );
+            if ( $score < 60 ) {
+                continue;
+            }
+
+            $subject  = sprintf( __( 'New mentor match on PAIRED: %s', 'bpu' ), $mentor->display_name );
+            $message  = sprintf( __( 'Hi %s,', 'bpu' ), $member->display_name ) . "\r\n\r\n";
+            $message .= __( 'A new mentor has joined PAIRED who looks like a great fit for your career goals.', 'bpu' ) . "\r\n\r\n";
+            $message .= sprintf( __( 'Mentor:   %s', 'bpu' ), $mentor->display_name ) . "\r\n";
+            if ( $mentor_industry ) {
+                $message .= sprintf( __( 'Industry: %s', 'bpu' ), $mentor_industry ) . "\r\n";
+            }
+            if ( $mentor_field ) {
+                $message .= sprintf( __( 'Field:    %s', 'bpu' ), $mentor_field ) . "\r\n";
+            }
+            $message .= "\r\n" . __( 'View their profile and book a free session:', 'bpu' ) . "\r\n";
+            $message .= 'https://pairedbybpu.uk/mentors/' . $user_id . "\r\n\r\n";
+            $message .= __( 'The PAIRED Team', 'bpu' );
+
+            wp_mail( $member->user_email, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+            $notified++;
+        }
+
+        update_user_meta( $user_id, '_bpu_mentor_notified', 1 );
+    }
+
+    /**
+     * Query members who have at least a partial profile (industry or skills set).
+     * Excludes admins, editors, and mentors. Capped at $limit to avoid timeouts.
+     */
+    private function get_members_with_profiles( int $limit = 150 ): array {
+        return ( new WP_User_Query( array(
+            'role__not_in' => array( 'administrator', 'editor', 'author', 'contributor', 'mentor' ),
+            'number'       => $limit,
+            'orderby'      => 'registered',
+            'order'        => 'DESC',
+            'meta_query'   => array(
+                'relation' => 'OR',
+                array( 'key' => 'industry',        'value' => '', 'compare' => '!=' ),
+                array( 'key' => 'skills_separate', 'value' => '', 'compare' => '!=' ),
+            ),
+        ) ) )->get_results();
+    }
+
+    /**
+     * Score a member's ACF profile against a job title and type.
+     * Returns an integer from 50–99. Mirrors the scoring logic in lib/api.ts.
+     */
+    private function score_job_match( array $profile, string $job_title, string $job_type ): int {
+        $score       = 60;
+        $u_industry  = strtolower( $profile['industry'] ?? '' );
+        $u_field     = strtolower( $profile['industryfield_of_expertise'] ?? '' );
+        $u_skills    = strtolower( $profile['skills_separate'] ?? '' );
+        $u_status    = strtolower( $profile['current_employment_status'] ?? '' );
+        $u_exp       = intval( $profile['years_of_experience'] ?? 0 );
+        $target      = strtolower( "$job_type $job_title" );
+
+        foreach ( (array) preg_split( '/\W+/', $u_industry ) as $w ) {
+            if ( strlen( $w ) > 3 && strpos( $target, $w ) !== false ) $score += 8;
+        }
+        foreach ( (array) preg_split( '/\W+/', $u_field ) as $w ) {
+            if ( strlen( $w ) > 3 && strpos( $target, $w ) !== false ) $score += 6;
+        }
+        foreach ( (array) preg_split( '/[,\s]+/', $u_skills ) as $w ) {
+            if ( strlen( $w ) > 2 && strpos( $target, $w ) !== false ) $score += 4;
+        }
+
+        if ( $u_exp >= 5 )  $score += 6;
+        if ( $u_exp >= 10 ) $score += 4;
+        if ( strpos( $u_status, 'looking' ) !== false || strpos( $u_status, 'student' ) !== false ) {
+            $score += 5;
+        }
+
+        return min( 99, max( 50, $score ) );
+    }
+
+    /**
+     * Score a member's profile against a mentor's profile.
+     * Returns an integer from 0–99. Shared industry = +30, shared field = +20,
+     * overlapping skills = up to +20 (5 pts per shared skill).
+     */
+    private function score_mentor_match( array $member_profile, array $mentor_profile ): int {
+        $score    = 40;
+        $m_ind    = strtolower( $member_profile['industry'] ?? '' );
+        $m_field  = strtolower( $member_profile['industryfield_of_expertise'] ?? '' );
+        $m_skills = array_filter( array_map( 'trim', explode( ',', strtolower( $member_profile['skills_separate'] ?? '' ) ) ) );
+        $t_ind    = strtolower( $mentor_profile['industry'] ?? '' );
+        $t_field  = strtolower( $mentor_profile['industryfield_of_expertise'] ?? '' );
+        $t_skills = array_filter( array_map( 'trim', explode( ',', strtolower( $mentor_profile['skills_separate'] ?? '' ) ) ) );
+
+        if ( $m_ind   && $t_ind   && $m_ind   === $t_ind   ) $score += 30;
+        if ( $m_field && $t_field && $m_field === $t_field ) $score += 20;
+
+        $overlap = count( array_intersect( $m_skills, $t_skills ) );
+        $score  += min( 20, $overlap * 5 );
+
+        return min( 99, $score );
     }
 
     /**
