@@ -59,9 +59,6 @@ export default async function PairedDashboard() {
     let bookings: Booking[] = [];
     let suggested: MentorSummary[] = [];
 
-    // For pro users, fetch more mentors so we can rank by AI score
-    const mentorPerPage = isPro ? 12 : 3;
-
     await Promise.all([
         fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/bookings?per_page=50`, {
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
@@ -70,17 +67,15 @@ export default async function PairedDashboard() {
             .then(d => { if (d?.bookings) bookings = d.bookings; })
             .catch(() => {}),
 
-        fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=${mentorPerPage}`, {
-            headers: { 'Cache-Control': 'no-store' },
-        })
-            .then(r => r.ok ? r.json() : null)
-            .then(d => {
-                if (d?.mentors) {
-                    let mentors: MentorSummary[] = d.mentors;
-                    if (isPro && user.profile) {
-                        // Score and sort by AI compatibility
+        isPro
+            ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=12`, {
+                headers: { 'Cache-Control': 'no-store' },
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(d => {
+                    if (d?.mentors && user.profile) {
                         const memberProfile = user.profile as unknown as Record<string, string>;
-                        mentors = mentors
+                        suggested = (d.mentors as MentorSummary[])
                             .map(m => ({
                                 ...m,
                                 match_score: BPUApi.scoreMentorMatch(memberProfile, m.profile || {
@@ -90,13 +85,10 @@ export default async function PairedDashboard() {
                             }))
                             .sort((a, b) => (b.match_score ?? 0) - (a.match_score ?? 0))
                             .slice(0, 3);
-                    } else {
-                        mentors = mentors.slice(0, 3);
                     }
-                    suggested = mentors;
-                }
-            })
-            .catch(() => {}),
+                })
+                .catch(() => {})
+            : Promise.resolve(),
     ]);
 
     const today = new Date().toISOString().split('T')[0];
@@ -219,76 +211,108 @@ export default async function PairedDashboard() {
                     )}
                 </div>
 
-                {/* Right: suggested / matched mentors */}
+                {/* Right: AI matched mentors (Pro) or upgrade CTA (Free) */}
                 <div>
-                    <div
-                        className="card card-p space-y-4"
-                        style={{ background: '#1e1b4b', borderColor: '#312e81', color: '#fff' }}
-                    >
-                        <div className="space-y-1">
-                            <p className="font-bold">
-                                {isPro ? '🤖 Matched mentors' : '✨ Suggested mentors'}
-                            </p>
-                            <p className="text-xs" style={{ color: '#c4b5fd' }}>
-                                {isPro
-                                    ? 'Ranked by AI compatibility with your profile.'
-                                    : 'Experienced Black professionals ready to guide you.'}
-                            </p>
-                        </div>
-
-                        {suggested.length === 0 ? (
-                            <p className="text-xs" style={{ color: '#c4b5fd' }}>
-                                Mentors are being onboarded — check back soon.
-                            </p>
-                        ) : (
-                            <div className="space-y-3">
-                                {suggested.map(m => (
-                                    <a
-                                        key={m.id}
-                                        href={`/paired/mentors/${m.id}`}
-                                        className="ai-match-item flex items-center justify-between p-3 rounded-lg"
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <div
-                                                className="avatar avatar-sm"
-                                                style={{ background: mentorColor(m.id) }}
-                                            >
-                                                {m.display_name[0]}
-                                            </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-white">{m.display_name}</p>
-                                                <p className="text-xs" style={{ color: '#c4b5fd' }}>
-                                                    {m.industryfield_of_expertise || m.industry || 'Professional'}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        {isPro && m.match_score != null && m.match_score > 0 && (
-                                            <span
-                                                className="text-xs font-bold shrink-0"
-                                                style={{ color: '#fbbf24' }}
-                                            >
-                                                {m.match_score}%
-                                            </span>
-                                        )}
-                                    </a>
-                                ))}
-                            </div>
-                        )}
-
-                        <a
-                            href="/paired/mentors"
-                            className="btn btn-sm w-full"
-                            style={{
-                                display: 'block',
-                                textAlign: 'center',
-                                background: 'rgba(255,255,255,0.12)',
-                                color: '#e9d5ff',
-                                border: '1px solid rgba(255,255,255,0.15)',
-                            }}
+                    {isPro ? (
+                        <div
+                            className="card card-p space-y-4"
+                            style={{ background: '#1e1b4b', borderColor: '#312e81', color: '#fff' }}
                         >
-                            Browse all mentors
-                        </a>
-                    </div>
+                            <div className="space-y-1">
+                                <p className="font-bold">AI matched mentors</p>
+                                <p className="text-xs" style={{ color: '#c4b5fd' }}>
+                                    Ranked by AI compatibility with your profile.
+                                </p>
+                            </div>
+
+                            {suggested.length === 0 ? (
+                                <p className="text-xs" style={{ color: '#c4b5fd' }}>
+                                    Mentors are being onboarded — check back soon.
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {suggested.map(m => (
+                                        <a
+                                            key={m.id}
+                                            href={`/paired/mentors/${m.id}`}
+                                            className="ai-match-item flex items-center justify-between p-3 rounded-lg"
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div
+                                                    className="avatar avatar-sm"
+                                                    style={{ background: mentorColor(m.id) }}
+                                                >
+                                                    {m.display_name[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-bold text-white">{m.display_name}</p>
+                                                    <p className="text-xs" style={{ color: '#c4b5fd' }}>
+                                                        {m.industryfield_of_expertise || m.industry || 'Professional'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            {m.match_score != null && m.match_score > 0 && (
+                                                <span
+                                                    className="text-xs font-bold shrink-0"
+                                                    style={{ color: '#fbbf24' }}
+                                                >
+                                                    {m.match_score}%
+                                                </span>
+                                            )}
+                                        </a>
+                                    ))}
+                                </div>
+                            )}
+
+                            <a
+                                href="/paired/mentors"
+                                className="btn btn-sm w-full"
+                                style={{
+                                    display: 'block',
+                                    textAlign: 'center',
+                                    background: 'rgba(255,255,255,0.12)',
+                                    color: '#e9d5ff',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                }}
+                            >
+                                Browse all mentors
+                            </a>
+                        </div>
+                    ) : (
+                        <div
+                            className="card card-p space-y-5 text-center"
+                            style={{ background: '#1e1b4b', borderColor: '#312e81', color: '#fff' }}
+                        >
+                            <div className="space-y-2">
+                                <p className="text-2xl">✨</p>
+                                <p className="font-bold text-base">AI Mentor Matching</p>
+                                <p className="text-xs leading-relaxed" style={{ color: '#c4b5fd' }}>
+                                    Upgrade to BPU Pro and our AI will analyse your profile to surface the mentors
+                                    whose experience best aligns with where you want to go.
+                                </p>
+                            </div>
+                            <a
+                                href="/upgrade"
+                                className="btn btn-amber btn-sm w-full"
+                                style={{ display: 'block', textAlign: 'center' }}
+                            >
+                                Upgrade to Pro →
+                            </a>
+                            <a
+                                href="/paired/mentors"
+                                className="btn btn-sm w-full"
+                                style={{
+                                    display: 'block',
+                                    textAlign: 'center',
+                                    background: 'rgba(255,255,255,0.10)',
+                                    color: '#e9d5ff',
+                                    border: '1px solid rgba(255,255,255,0.15)',
+                                }}
+                            >
+                                Browse mentors manually
+                            </a>
+                        </div>
+                    )}
                 </div>
 
             </div>

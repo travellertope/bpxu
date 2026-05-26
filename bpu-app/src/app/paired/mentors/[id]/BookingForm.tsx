@@ -17,50 +17,9 @@ interface Props {
     mentorId: number;
     mentorName: string;
     isAuthenticated: boolean;
-    isPro: boolean;
 }
 
-function ProUpgradeOverlay({ mentorName }: { mentorName: string }) {
-    return (
-        <div className="card card-p sticky top-20 space-y-4 text-center" style={{ position: 'relative', overflow: 'hidden' }}>
-            {/* Blurred background hint of the form */}
-            <div style={{ filter: 'blur(3px)', pointerEvents: 'none', userSelect: 'none', opacity: 0.4 }} aria-hidden="true">
-                <p className="section-title">Book a free session</p>
-                <div className="space-y-3">
-                    <div className="field-input w-full h-10 bg-bg" />
-                    <div className="field-input w-full h-10 bg-bg" />
-                    <div className="field-input w-full h-20 bg-bg" />
-                </div>
-            </div>
-            {/* Overlay */}
-            <div
-                className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6"
-                style={{ background: 'rgba(0,0,0,0.75)', borderRadius: 'var(--radius)' }}
-            >
-                <p className="text-white text-2xl">★</p>
-                <p className="text-white font-bold text-base">Pro feature</p>
-                <p className="text-white/80 text-sm text-center">
-                    Booking a session with {mentorName} requires a BPU Pro membership.
-                </p>
-                <a
-                    href="/upgrade"
-                    className="btn btn-amber btn-sm"
-                    style={{ display: 'inline-block' }}
-                >
-                    Upgrade to Pro →
-                </a>
-                <a
-                    href="/login"
-                    className="text-xs text-white/60 hover:text-white/90 hover:underline"
-                >
-                    Already pro? Sign in
-                </a>
-            </div>
-        </div>
-    );
-}
-
-export default function BookingForm({ mentorId, mentorName, isAuthenticated, isPro }: Props) {
+export default function BookingForm({ mentorId, mentorName, isAuthenticated }: Props) {
     const [date, setDate] = useState('');
     const [timeSlot, setTimeSlot] = useState('');
     const [notes, setNotes] = useState('');
@@ -102,7 +61,7 @@ export default function BookingForm({ mentorId, mentorName, isAuthenticated, isP
             <div className="card card-p sticky top-20 space-y-4">
                 <p className="section-title">Book a session</p>
                 <p className="text-sm text-text-2">
-                    Sign in to book a 1-on-1 session with {mentorName}.
+                    Sign in to book a free 1-on-1 session with {mentorName}.
                 </p>
                 <a
                     href={`/login?returnTo=/paired/mentors/${mentorId}`}
@@ -113,10 +72,6 @@ export default function BookingForm({ mentorId, mentorName, isAuthenticated, isP
                 </a>
             </div>
         );
-    }
-
-    if (!isPro) {
-        return <ProUpgradeOverlay mentorName={mentorName} />;
     }
 
     if (success) {
@@ -140,7 +95,7 @@ export default function BookingForm({ mentorId, mentorName, isAuthenticated, isP
 
     return (
         <div className="card card-p sticky top-20 space-y-4">
-            <p className="section-title">Book a session</p>
+            <p className="section-title">Book a free session</p>
             <form onSubmit={handleSubmit} className="space-y-3">
                 <div>
                     <label className="field-label">Date</label>
@@ -183,7 +138,7 @@ export default function BookingForm({ mentorId, mentorName, isAuthenticated, isP
                 <button type="submit" disabled={loading} className="btn btn-purple btn-sm w-full">
                     {loading ? 'Booking…' : 'Request session'}
                 </button>
-                <p className="text-xs text-text-3 text-center">60 min · Video call</p>
+                <p className="text-xs text-text-3 text-center">Free · 60 min · Video call</p>
             </form>
         </div>
     );
