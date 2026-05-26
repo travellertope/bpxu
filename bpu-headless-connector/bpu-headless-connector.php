@@ -31,6 +31,9 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_cv_review_post_type' ) );
         add_action( 'init', array( $this, 'register_mentorship_booking_post_type' ) );
 
+        // Register bpu_pro role
+        add_action( 'init', array( $this, 'register_pro_role' ) );
+
         // SSO token relay handoff (runs on every page load, checks for handoff query param)
         add_action( 'init', array( $this, 'handle_sso_handoff' ) );
 
@@ -45,6 +48,22 @@ class BPU_Headless_Connector {
 
         // Hook when manual CV review is published to trigger alerts
         add_action( 'publish_cv_clinic_review', array( $this, 'notify_candidate_of_cv_review' ), 10, 2 );
+
+        // Notify pro members when a new job is published
+        add_action( 'publish_job_listing', array( $this, 'notify_matched_members_of_new_job' ), 10, 2 );
+
+        // Notify matched mentees when a user is promoted to the mentor role
+        add_action( 'set_user_role', array( $this, 'notify_matched_mentees_of_new_mentor' ), 10, 3 );
+
+        // Weekly job digest (WP Cron)
+        add_filter( 'cron_schedules', array( $this, 'add_weekly_cron_schedule' ) );
+        add_action( 'bpu_weekly_job_digest', array( $this, 'send_weekly_job_digests' ) );
+
+        // Sync bpu_pro role with WooCommerce Subscription status
+        add_action( 'woocommerce_subscription_status_active',     array( $this, 'on_subscription_activated' ) );
+        add_action( 'woocommerce_subscription_status_cancelled',  array( $this, 'on_subscription_deactivated' ) );
+        add_action( 'woocommerce_subscription_status_expired',    array( $this, 'on_subscription_deactivated' ) );
+        add_action( 'woocommerce_subscription_status_on-hold',    array( $this, 'on_subscription_deactivated' ) );
     }
 
     /**
@@ -124,6 +143,64 @@ class BPU_Headless_Connector {
     }
 
     /**
+     * Register the bpu_pro role (idempotent).
+     */
+    public function register_pro_role() {
+        if ( ! get_role( 'bpu_pro' ) ) {
+            add_role( 'bpu_pro', __( 'BPU Pro Member', 'bpu' ), array( 'read' => true ) );
+        }
+    }
+
+    /**
+     * Returns true if user_id is a Pro member.
+     * Checks (in order): administrator role, bpu_pro role, active WooCommerce Subscription.
+     */
+    private function is_pro_member( int $user_id ): bool {
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            return false;
+        }
+        $roles = (array) $user->roles;
+        if ( in_array( 'administrator', $roles, true ) ) {
+            return true;
+        }
+        if ( in_array( 'bpu_pro', $roles, true ) ) {
+            return true;
+        }
+        // Check WooCommerce Subscriptions if available
+        if ( function_exists( 'wcs_user_has_subscription' ) ) {
+            return (bool) wcs_user_has_subscription( $user_id, '', 'active' );
+        }
+        return false;
+    }
+
+    /** Auto-assign bpu_pro role when a WooCommerce Subscription becomes active. */
+    public function on_subscription_activated( $subscription ) {
+        $user_id = is_callable( array( $subscription, 'get_user_id' ) )
+            ? $subscription->get_user_id()
+            : ( $subscription->user_id ?? 0 );
+        if ( $user_id ) {
+            $user = new WP_User( $user_id );
+            $user->add_role( 'bpu_pro' );
+        }
+    }
+
+    /** Remove bpu_pro role when all WooCommerce Subscriptions are inactive. */
+    public function on_subscription_deactivated( $subscription ) {
+        $user_id = is_callable( array( $subscription, 'get_user_id' ) )
+            ? $subscription->get_user_id()
+            : ( $subscription->user_id ?? 0 );
+        if ( ! $user_id ) {
+            return;
+        }
+        // Only strip role if no remaining active subscriptions
+        if ( function_exists( 'wcs_user_has_subscription' ) && ! wcs_user_has_subscription( $user_id, '', 'active' ) ) {
+            $user = new WP_User( $user_id );
+            $user->remove_role( 'bpu_pro' );
+        }
+    }
+
+    /**
      * Register Custom REST API routes
      */
     public function register_api_routes() {
@@ -156,7 +233,7 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/courses/progress', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'track_course_progress' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ), 
+            'permission_callback' => array( $this, 'check_auth_permissions' ),
             'args'                => array(
                 'course_id' => array(
                     'required'          => true,
@@ -165,18 +242,29 @@ class BPU_Headless_Connector {
             ),
         ) );
 
-        // 4. CV Upload & Gemini Pro Autofill parser
+        // 3b. Course listing (always-public, works with or without Tutor LMS REST API)
+        register_rest_route( $this->namespace, '/courses', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_courses' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+
+        // 4. CV Upload & Gemini Pro Autofill parser (Pro — JWT Bearer)
         register_rest_route( $this->namespace, '/member/cv-upload', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'handle_member_cv_upload' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
         // 5. Get Member CV Reviews List
         register_rest_route( $this->namespace, '/member/cv-reviews', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_member_cv_reviews' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
         // ──────────────────────────────────────────────────────
@@ -284,7 +372,7 @@ class BPU_Headless_Connector {
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => array( $this, 'create_booking' ),
-                'permission_callback' => array( $this, 'check_auth_permissions' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
                 'args'                => array(
                     'mentor_id' => array(
                         'required'          => true,
@@ -320,7 +408,7 @@ class BPU_Headless_Connector {
             array(
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => array( $this, 'get_bookings' ),
-                'permission_callback' => array( $this, 'check_auth_permissions' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
                 'args'                => array(
                     'page' => array(
                         'default'           => 1,
@@ -338,13 +426,44 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/bookings/(?P<id>\d+)', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_single_booking' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
             'args'                => array(
                 'id' => array(
                     'required'          => true,
                     'sanitize_callback' => 'absint',
                 ),
             ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 9. Events (The Events Calendar — public)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/events', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_events' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 10. Member Preferences (Pro — JWT Bearer)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/preferences', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'update_member_preferences' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 11. Request CV Review (Pro — JWT Bearer)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/request-cv-review', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_request_cv_review' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
 
@@ -450,6 +569,64 @@ class BPU_Headless_Connector {
     }
 
     /**
+     * GET /courses — Paginated course listing sourced directly from Tutor LMS post type.
+     * Works regardless of whether Tutor LMS exposes its own REST routes.
+     */
+    public function get_courses( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
+        $page     = max( 1, $request->get_param( 'page' ) );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'courses',   // Tutor LMS post type
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $courses = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id = get_the_ID();
+                $courses[] = array(
+                    'id'            => $post_id,
+                    'title'         => get_the_title(),
+                    'excerpt'       => wp_strip_all_tags( get_the_excerpt() ),
+                    'provider'      => get_post_meta( $post_id, '_tutor_course_instructor', true )
+                        ? get_userdata( (int) get_post_meta( $post_id, '_tutor_course_instructor', true ) )->display_name ?? 'BPU Partner'
+                        : 'BPU Partner',
+                    'category'      => wp_get_post_terms( $post_id, 'course-category', array( 'fields' => 'names' ) )[0] ?? 'Professional Development',
+                    'learn_more_url' => get_the_permalink(),
+                    'image'         => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'duration'      => get_post_meta( $post_id, '_course_duration', true ) ?: '',
+                    'level'         => get_post_meta( $post_id, '_tutor_course_level', true ) ?: '',
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        $total       = $query->found_posts;
+        $total_pages = (int) ceil( $total / $per_page );
+
+        $response = new WP_REST_Response( array(
+            'success'     => true,
+            'courses'     => $courses,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        ), 200 );
+
+        $response->header( 'X-WP-Total',      $total );
+        $response->header( 'X-WP-TotalPages', $total_pages );
+
+        return $response;
+    }
+
+    /**
      * 3. Tutor LMS Course Progress Trigger
      */
     public function track_course_progress( WP_REST_Request $request ) {
@@ -482,11 +659,19 @@ class BPU_Headless_Connector {
     }
 
     /**
-     * 4. CV Upload & Gemini Pro Parser
-     * Handles file uploads securely and calls Vertex AI (Gemini Pro) to parser the PDF.
+     * 4. CV Upload & Gemini Pro Parser — Pro members only, JWT Bearer auth.
      */
     public function handle_member_cv_upload( WP_REST_Request $request ) {
-        $user_id = wp_get_current_user()->ID;
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+
+        if ( ! $this->is_pro_member( $user_id ) ) {
+            return new WP_Error( 'bpu_not_pro', __( 'CV upload requires a BPU Pro membership.', 'bpu' ), array( 'status' => 403 ) );
+        }
 
         // Ensure files are present in the request
         $files = $request->get_file_params();
@@ -678,7 +863,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * Retrieves all manual critique reviews published by BPU professionals for this user.
      */
     public function get_member_cv_reviews( WP_REST_Request $request ) {
-        $user_id = wp_get_current_user()->ID;
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
 
         $query = new WP_Query( array(
             'post_type'      => 'cv_clinic_review',
@@ -756,6 +945,294 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
 
             wp_mail( $to, $subject, $message, $headers );
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MATCH-BASED EMAIL NOTIFICATIONS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Fires when a job_listing post transitions to 'publish'.
+     * Scores every member profile against the new job and emails those
+     * whose match score is >= 70. Deduped via post meta flag.
+     */
+    public function notify_matched_members_of_new_job( $post_id, $post ) {
+        if ( get_post_meta( $post_id, '_bpu_job_notified', true ) ) {
+            return;
+        }
+
+        $job_title = $post->post_title;
+        $job_type  = get_post_meta( $post_id, '_job_type', true );
+        $company   = get_post_meta( $post_id, '_company_name', true ) ?: 'A partner organisation';
+        $location  = get_post_meta( $post_id, '_job_location', true ) ?: 'United Kingdom';
+
+        $members  = $this->get_pro_members_with_profiles( 150 );
+        $notified = 0;
+
+        foreach ( $members as $member ) {
+            $profile = function_exists( 'get_fields' )
+                ? ( get_fields( 'user_' . $member->ID ) ?: array() )
+                : array();
+
+            $score = $this->score_job_match( $profile, $job_title, $job_type );
+            if ( $score < 70 ) {
+                continue;
+            }
+
+            $subject  = sprintf( __( 'New job match (%d%%): %s — BPU', 'bpu' ), $score, $job_title );
+            $message  = sprintf( __( 'Hi %s,', 'bpu' ), $member->display_name ) . "\r\n\r\n";
+            $message .= __( 'A new job has been posted that matches your BPU profile.', 'bpu' ) . "\r\n\r\n";
+            $message .= sprintf( __( 'Role:     %s', 'bpu' ), $job_title ) . "\r\n";
+            $message .= sprintf( __( 'Company:  %s', 'bpu' ), $company ) . "\r\n";
+            $message .= sprintf( __( 'Location: %s', 'bpu' ), $location ) . "\r\n";
+            $message .= sprintf( __( 'Match:    %d%%', 'bpu' ), $score ) . "\r\n\r\n";
+            $message .= __( 'View and apply in your member portal:', 'bpu' ) . "\r\n";
+            $message .= 'https://app.blackprofessionals.uk' . "\r\n\r\n";
+            $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
+            $message .= __( 'The BPU Team', 'bpu' );
+
+            wp_mail( $member->user_email, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+            $notified++;
+        }
+
+        update_post_meta( $post_id, '_bpu_job_notified', 1 );
+        update_post_meta( $post_id, '_bpu_job_notified_count', $notified );
+    }
+
+    /**
+     * Fires when a WordPress user's role is changed via WP_User::set_role().
+     * If the new role is 'mentor', scores every member profile against the
+     * mentor's profile and emails those with a match score >= 60.
+     * Deduped via user meta flag so the mentor only triggers one round.
+     */
+    public function notify_matched_mentees_of_new_mentor( $user_id, $new_role, $old_roles ) {
+        if ( $new_role !== 'mentor' ) {
+            return;
+        }
+        if ( get_user_meta( $user_id, '_bpu_mentor_notified', true ) ) {
+            return;
+        }
+
+        $mentor = get_userdata( $user_id );
+        if ( ! $mentor ) {
+            return;
+        }
+
+        $mentor_profile = function_exists( 'get_fields' )
+            ? ( get_fields( 'user_' . $user_id ) ?: array() )
+            : array();
+
+        $mentor_industry = $mentor_profile['industry'] ?? '';
+        $mentor_field    = $mentor_profile['industryfield_of_expertise'] ?? '';
+
+        $members  = $this->get_pro_members_with_profiles( 150 );
+        $notified = 0;
+
+        foreach ( $members as $member ) {
+            if ( $member->ID === $user_id ) {
+                continue;
+            }
+
+            $member_profile = function_exists( 'get_fields' )
+                ? ( get_fields( 'user_' . $member->ID ) ?: array() )
+                : array();
+
+            $score = $this->score_mentor_match( $member_profile, $mentor_profile );
+            if ( $score < 60 ) {
+                continue;
+            }
+
+            $subject  = sprintf( __( 'New mentor match on PAIRED: %s', 'bpu' ), $mentor->display_name );
+            $message  = sprintf( __( 'Hi %s,', 'bpu' ), $member->display_name ) . "\r\n\r\n";
+            $message .= __( 'A new mentor has joined PAIRED who looks like a great fit for your career goals.', 'bpu' ) . "\r\n\r\n";
+            $message .= sprintf( __( 'Mentor:   %s', 'bpu' ), $mentor->display_name ) . "\r\n";
+            if ( $mentor_industry ) {
+                $message .= sprintf( __( 'Industry: %s', 'bpu' ), $mentor_industry ) . "\r\n";
+            }
+            if ( $mentor_field ) {
+                $message .= sprintf( __( 'Field:    %s', 'bpu' ), $mentor_field ) . "\r\n";
+            }
+            $message .= "\r\n" . __( 'View their profile and book a free session:', 'bpu' ) . "\r\n";
+            $message .= 'https://pairedbybpu.uk/mentors/' . $user_id . "\r\n\r\n";
+            $message .= __( 'The PAIRED Team', 'bpu' );
+
+            wp_mail( $member->user_email, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+            $notified++;
+        }
+
+        update_user_meta( $user_id, '_bpu_mentor_notified', 1 );
+    }
+
+    /**
+     * Query members who have at least a partial profile (industry or skills set).
+     * Excludes admins, editors, and mentors. Capped at $limit to avoid timeouts.
+     */
+    private function get_members_with_profiles( int $limit = 150 ): array {
+        return ( new WP_User_Query( array(
+            'role__not_in' => array( 'administrator', 'editor', 'author', 'contributor', 'mentor' ),
+            'number'       => $limit,
+            'orderby'      => 'registered',
+            'order'        => 'DESC',
+            'meta_query'   => array(
+                'relation' => 'OR',
+                array( 'key' => 'industry',        'value' => '', 'compare' => '!=' ),
+                array( 'key' => 'skills_separate', 'value' => '', 'compare' => '!=' ),
+            ),
+        ) ) )->get_results();
+    }
+
+    /** Pro members who have at least a partial profile — used for job/mentor notifications. */
+    private function get_pro_members_with_profiles( int $limit = 150 ): array {
+        return ( new WP_User_Query( array(
+            'role'    => 'bpu_pro',
+            'number'  => $limit,
+            'orderby' => 'registered',
+            'order'   => 'DESC',
+            'meta_query' => array(
+                'relation' => 'OR',
+                array( 'key' => 'industry',        'value' => '', 'compare' => '!=' ),
+                array( 'key' => 'skills_separate', 'value' => '', 'compare' => '!=' ),
+            ),
+        ) ) )->get_results();
+    }
+
+    /** Pro members who have opted in to the weekly digest. */
+    private function get_pro_members_with_digest( int $limit = 200 ): array {
+        return ( new WP_User_Query( array(
+            'role'    => 'bpu_pro',
+            'number'  => $limit,
+            'orderby' => 'registered',
+            'order'   => 'DESC',
+            'meta_query' => array(
+                array( 'key' => '_bpu_weekly_emails', 'value' => '1', 'compare' => '=' ),
+            ),
+        ) ) )->get_results();
+    }
+
+    /**
+     * Score a member's ACF profile against a job title and type.
+     * Returns an integer from 50–99. Mirrors the scoring logic in lib/api.ts.
+     */
+    private function score_job_match( array $profile, string $job_title, string $job_type ): int {
+        $score       = 60;
+        $u_industry  = strtolower( $profile['industry'] ?? '' );
+        $u_field     = strtolower( $profile['industryfield_of_expertise'] ?? '' );
+        $u_skills    = strtolower( $profile['skills_separate'] ?? '' );
+        $u_status    = strtolower( $profile['current_employment_status'] ?? '' );
+        $u_exp       = intval( $profile['years_of_experience'] ?? 0 );
+        $target      = strtolower( "$job_type $job_title" );
+
+        foreach ( (array) preg_split( '/\W+/', $u_industry ) as $w ) {
+            if ( strlen( $w ) > 3 && strpos( $target, $w ) !== false ) $score += 8;
+        }
+        foreach ( (array) preg_split( '/\W+/', $u_field ) as $w ) {
+            if ( strlen( $w ) > 3 && strpos( $target, $w ) !== false ) $score += 6;
+        }
+        foreach ( (array) preg_split( '/[,\s]+/', $u_skills ) as $w ) {
+            if ( strlen( $w ) > 2 && strpos( $target, $w ) !== false ) $score += 4;
+        }
+
+        if ( $u_exp >= 5 )  $score += 6;
+        if ( $u_exp >= 10 ) $score += 4;
+        if ( strpos( $u_status, 'looking' ) !== false || strpos( $u_status, 'student' ) !== false ) {
+            $score += 5;
+        }
+
+        return min( 99, max( 50, $score ) );
+    }
+
+    /**
+     * Score a member's profile against a mentor's profile.
+     * Returns an integer from 0–99. Shared industry = +30, shared field = +20,
+     * overlapping skills = up to +20 (5 pts per shared skill).
+     */
+    private function score_mentor_match( array $member_profile, array $mentor_profile ): int {
+        $score    = 40;
+        $m_ind    = strtolower( $member_profile['industry'] ?? '' );
+        $m_field  = strtolower( $member_profile['industryfield_of_expertise'] ?? '' );
+        $m_skills = array_filter( array_map( 'trim', explode( ',', strtolower( $member_profile['skills_separate'] ?? '' ) ) ) );
+        $t_ind    = strtolower( $mentor_profile['industry'] ?? '' );
+        $t_field  = strtolower( $mentor_profile['industryfield_of_expertise'] ?? '' );
+        $t_skills = array_filter( array_map( 'trim', explode( ',', strtolower( $mentor_profile['skills_separate'] ?? '' ) ) ) );
+
+        if ( $m_ind   && $t_ind   && $m_ind   === $t_ind   ) $score += 30;
+        if ( $m_field && $t_field && $m_field === $t_field ) $score += 20;
+
+        $overlap = count( array_intersect( $m_skills, $t_skills ) );
+        $score  += min( 20, $overlap * 5 );
+
+        return min( 99, $score );
+    }
+
+    /**
+     * Send a welcome email to a newly registered member.
+     */
+    private function send_welcome_email( WP_User $user ) {
+        $to      = $user->user_email;
+        $subject = __( 'Welcome to Black Professionals United!', 'bpu' );
+
+        $message  = sprintf( __( 'Hi %s,', 'bpu' ), $user->display_name ) . "\r\n\r\n";
+        $message .= __( 'Welcome to the Black Professionals United community — we are thrilled to have you.', 'bpu' ) . "\r\n\r\n";
+        $message .= __( 'Here is what you can do next:', 'bpu' ) . "\r\n";
+        $message .= '• ' . __( 'Complete your profile so we can match you with the right jobs and mentors', 'bpu' ) . "\r\n";
+        $message .= '• ' . __( 'Upload your CV to our AI-powered CV Clinic for personalised feedback', 'bpu' ) . "\r\n";
+        $message .= '• ' . __( 'Browse PAIRED — our free 1-on-1 mentorship platform', 'bpu' ) . "\r\n\r\n";
+        $message .= __( 'Your member portal:', 'bpu' ) . ' https://app.blackprofessionals.uk' . "\r\n";
+        $message .= __( 'Find a mentor:', 'bpu' ) . ' https://pairedbybpu.uk/mentors' . "\r\n\r\n";
+        $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
+        $message .= __( 'The BPU Team', 'bpu' );
+
+        wp_mail( $to, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+    }
+
+    /**
+     * Send confirmation email to mentee and notification email to mentor on booking creation.
+     */
+    private function send_booking_emails( WP_User $mentee, WP_User $mentor, string $date, string $time_slot, string $notes ) {
+        $headers  = array( 'Content-Type: text/plain; charset=UTF-8' );
+        $portal   = 'https://pairedbybpu.uk/dashboard';
+        $readable_date = date_i18n( get_option( 'date_format' ), strtotime( $date ) );
+        $readable_time = str_replace( '-', ' – ', $time_slot ) . ' GMT';
+
+        // 1. Mentee confirmation
+        $mentee_subject = sprintf(
+            __( 'Booking requested with %s — PAIRED by BPU', 'bpu' ),
+            $mentor->display_name
+        );
+        $mentee_msg  = sprintf( __( 'Hi %s,', 'bpu' ), $mentee->display_name ) . "\r\n\r\n";
+        $mentee_msg .= sprintf(
+            __( 'Your session request with %s has been sent. They will confirm shortly.', 'bpu' ),
+            $mentor->display_name
+        ) . "\r\n\r\n";
+        $mentee_msg .= sprintf( __( 'Date:      %s', 'bpu' ), $readable_date ) . "\r\n";
+        $mentee_msg .= sprintf( __( 'Time:      %s', 'bpu' ), $readable_time ) . "\r\n";
+        if ( ! empty( $notes ) ) {
+            $mentee_msg .= sprintf( __( 'Your notes: %s', 'bpu' ), $notes ) . "\r\n";
+        }
+        $mentee_msg .= "\r\n" . __( 'View your sessions:', 'bpu' ) . ' ' . $portal . "\r\n\r\n";
+        $mentee_msg .= __( 'The PAIRED Team', 'bpu' );
+
+        wp_mail( $mentee->user_email, $mentee_subject, $mentee_msg, $headers );
+
+        // 2. Mentor notification
+        $mentor_subject = sprintf(
+            __( 'New session request from %s — PAIRED by BPU', 'bpu' ),
+            $mentee->display_name
+        );
+        $mentor_msg  = sprintf( __( 'Hi %s,', 'bpu' ), $mentor->display_name ) . "\r\n\r\n";
+        $mentor_msg .= sprintf(
+            __( '%s has requested a 1-on-1 session with you.', 'bpu' ),
+            $mentee->display_name
+        ) . "\r\n\r\n";
+        $mentor_msg .= sprintf( __( 'Date:      %s', 'bpu' ), $readable_date ) . "\r\n";
+        $mentor_msg .= sprintf( __( 'Time:      %s', 'bpu' ), $readable_time ) . "\r\n";
+        if ( ! empty( $notes ) ) {
+            $mentor_msg .= sprintf( __( 'Their notes: %s', 'bpu' ), $notes ) . "\r\n";
+        }
+        $mentor_msg .= "\r\n" . __( 'Log in to confirm or reschedule:', 'bpu' ) . ' ' . $portal . "\r\n\r\n";
+        $mentor_msg .= __( 'The PAIRED Team', 'bpu' );
+
+        wp_mail( $mentor->user_email, $mentor_subject, $mentor_msg, $headers );
     }
 
     /**
@@ -978,6 +1455,7 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'username'     => $user->user_login,
             'email'        => $user->user_email,
             'display_name' => $user->display_name,
+            'roles'        => array_values( (array) $user->roles ),
             'profile'      => get_field( 'profile_photo', 'user_' . $user->ID ) ?: '',
             'cv_url'       => get_field( 'cv_file', 'user_' . $user->ID ) ?: '',
             'iat'          => time(),
@@ -988,6 +1466,7 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'jwt'          => $jwt,
             'display_name' => $user->display_name,
             'email'        => $user->user_email,
+            'roles'        => array_values( (array) $user->roles ),
         ) );
     }
 
@@ -1065,16 +1544,20 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'username'     => $user->user_login,
             'email'        => $user->user_email,
             'display_name' => $user->display_name,
+            'roles'        => array_values( (array) $user->roles ),
             'profile'      => '',
             'cv_url'       => '',
             'iat'          => time(),
             'exp'          => time() + DAY_IN_SECONDS,
         ) );
 
+        $this->send_welcome_email( $user );
+
         return new WP_REST_Response( array(
             'jwt'          => $jwt,
             'display_name' => $user->display_name,
             'email'        => $user->user_email,
+            'roles'        => array_values( (array) $user->roles ),
         ), 201 );
     }
 
@@ -1192,6 +1675,172 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'profile' => $acf_profile,
             'cv_url'  => $cv_url,
         ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/preferences — save weekly_emails opt-in + target_role (Pro only).
+     */
+    public function update_member_preferences( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        if ( ! $this->is_pro_member( $user_id ) ) {
+            return new WP_Error( 'bpu_not_pro', __( 'Email preferences require a BPU Pro membership.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body = $request->get_json_params();
+
+        if ( isset( $body['weekly_emails'] ) ) {
+            update_user_meta( $user_id, '_bpu_weekly_emails', $body['weekly_emails'] ? '1' : '0' );
+        }
+        if ( isset( $body['target_role'] ) ) {
+            update_user_meta( $user_id, '_bpu_target_role', sanitize_text_field( $body['target_role'] ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/request-cv-review — create a pending cv_clinic_review (Pro only).
+     */
+    public function handle_request_cv_review( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        if ( ! $this->is_pro_member( $user_id ) ) {
+            return new WP_Error( 'bpu_not_pro', __( 'CV review requests require a BPU Pro membership.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $user = get_userdata( $user_id );
+
+        // Prevent duplicate pending requests.
+        $existing = get_posts( array(
+            'post_type'      => 'cv_clinic_review',
+            'post_status'    => 'pending',
+            'posts_per_page' => 1,
+            'meta_query'     => array(
+                array( 'key' => '_bpu_member_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+        ) );
+        if ( ! empty( $existing ) ) {
+            return new WP_Error( 'duplicate_request', __( 'You already have a pending CV review request.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $cv_id  = get_user_meta( $user_id, '_bpu_member_cv_id', true );
+        $cv_url = $cv_id ? wp_get_attachment_url( $cv_id ) : '';
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'cv_clinic_review',
+            'post_status' => 'pending',
+            'post_title'  => sprintf( __( 'CV Review Request — %s', 'bpu' ), $user->display_name ),
+            'post_author' => $user_id,
+            'meta_input'  => array(
+                '_bpu_member_id'    => $user_id,
+                '_bpu_member_email' => $user->user_email,
+                '_bpu_cv_url'       => $cv_url,
+            ),
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'request_failed', __( 'Could not submit CV review request.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        wp_mail(
+            get_option( 'admin_email' ),
+            sprintf( __( 'New CV Review Request from %s', 'bpu' ), $user->display_name ),
+            sprintf(
+                "A BPU Pro member has requested a CV review.\n\nName: %s\nEmail: %s\nCV: %s\n\nReview in WP Admin:\n%s",
+                $user->display_name,
+                $user->user_email,
+                $cv_url ?: 'No CV uploaded',
+                admin_url( 'post.php?post=' . $post_id . '&action=edit' )
+            ),
+            array( 'Content-Type: text/plain; charset=UTF-8' )
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'request_id' => $post_id ), 201 );
+    }
+
+    /**
+     * WP Cron handler — sends weekly job digests to opted-in Pro members.
+     */
+    public function send_weekly_job_digests() {
+        $members = $this->get_pro_members_with_digest( 200 );
+        if ( empty( $members ) ) {
+            return;
+        }
+
+        $jobs = get_posts( array(
+            'post_type'      => 'job_listing',
+            'post_status'    => 'publish',
+            'posts_per_page' => 10,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        if ( empty( $jobs ) ) {
+            return;
+        }
+
+        foreach ( $members as $member ) {
+            $profile = function_exists( 'get_fields' )
+                ? ( get_fields( 'user_' . $member->ID ) ?: array() )
+                : array();
+
+            $matched = array();
+            foreach ( $jobs as $job ) {
+                $job_type = get_post_meta( $job->ID, '_job_type', true );
+                $score    = $this->score_job_match( $profile, $job->post_title, $job_type );
+                if ( $score >= 60 ) {
+                    $matched[] = array(
+                        'title'   => $job->post_title,
+                        'company' => get_post_meta( $job->ID, '_company_name', true ) ?: 'Partner Organisation',
+                        'score'   => $score,
+                    );
+                }
+            }
+
+            if ( empty( $matched ) ) {
+                continue;
+            }
+
+            usort( $matched, function ( $a, $b ) { return $b['score'] - $a['score']; } );
+            $top = array_slice( $matched, 0, 5 );
+
+            $message  = sprintf( __( 'Hi %s,', 'bpu' ), $member->display_name ) . "\r\n\r\n";
+            $message .= __( 'Your top job matches this week from BPU:', 'bpu' ) . "\r\n\r\n";
+            foreach ( $top as $i => $j ) {
+                $message .= sprintf( "%d. %s — %s (%d%% match)\r\n", $i + 1, $j['title'], $j['company'], $j['score'] );
+            }
+            $message .= "\r\n" . __( 'View all in your member portal:', 'bpu' ) . "\r\n";
+            $message .= "https://app.blackprofessionals.uk\r\n\r\n";
+            $message .= __( 'To unsubscribe, visit My Profile › Email Preferences.', 'bpu' ) . "\r\n";
+            $message .= __( 'The BPU Team', 'bpu' );
+
+            wp_mail(
+                $member->user_email,
+                __( 'Your Weekly BPU Job Digest', 'bpu' ),
+                $message,
+                array( 'Content-Type: text/plain; charset=UTF-8' )
+            );
+        }
+    }
+
+    /** Add a "weekly" interval to WP Cron schedules. */
+    public function add_weekly_cron_schedule( $schedules ) {
+        if ( ! isset( $schedules['weekly'] ) ) {
+            $schedules['weekly'] = array(
+                'interval' => 7 * DAY_IN_SECONDS,
+                'display'  => __( 'Once Weekly', 'bpu' ),
+            );
+        }
+        return $schedules;
     }
 
     /** Base64url-decode (RFC 7515). */
@@ -1394,7 +2043,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * POST /bookings — Create a new mentorship booking.
      */
     public function create_booking( WP_REST_Request $request ) {
-        $user_id   = get_current_user_id();
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id   = intval( $payload['user_id'] );
         $mentor_id = $request->get_param( 'mentor_id' );
         $date      = $request->get_param( 'date' );
         $time_slot = $request->get_param( 'time_slot' );
@@ -1472,6 +2125,8 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
         update_post_meta( $post_id, '_bpu_booking_status', 'pending' );
         update_post_meta( $post_id, '_bpu_booking_created_at', current_time( 'mysql' ) );
 
+        $this->send_booking_emails( $mentee, $mentor, $date, $time_slot, $notes );
+
         return new WP_REST_Response( array(
             'success' => true,
             'booking' => $this->format_booking( $post_id, $user_id ),
@@ -1482,7 +2137,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * GET /bookings — List the current user's bookings.
      */
     public function get_bookings( WP_REST_Request $request ) {
-        $user_id  = get_current_user_id();
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id  = intval( $payload['user_id'] );
         $page     = max( 1, $request->get_param( 'page' ) );
         $per_page = min( 100, max( 1, $request->get_param( 'per_page' ) ) );
 
@@ -1532,7 +2191,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * GET /bookings/{id} — Single booking detail.
      */
     public function get_single_booking( WP_REST_Request $request ) {
-        $user_id = get_current_user_id();
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
         $post_id = $request->get_param( 'id' );
 
         $post = get_post( $post_id );
@@ -1560,6 +2223,84 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
             'success' => true,
             'booking' => $this->format_booking( $post_id, $user_id ),
         ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  EVENTS (THE EVENTS CALENDAR)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /events — Paginated upcoming event list using The Events Calendar.
+     */
+    public function get_events( WP_REST_Request $request ) {
+        $page     = max( 1, $request->get_param( 'page' ) );
+        $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
+
+        // The Events Calendar stores events as the 'tribe_events' post type.
+        $today = date( 'Y-m-d' );
+
+        $query_args = array(
+            'post_type'      => 'tribe_events',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_EventStartDate',
+            'order'          => 'ASC',
+            'meta_query'     => array(
+                array(
+                    'key'     => '_EventStartDate',
+                    'value'   => $today,
+                    'compare' => '>=',
+                    'type'    => 'DATETIME',
+                ),
+            ),
+        );
+
+        $query  = new WP_Query( $query_args );
+        $events = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id = get_the_ID();
+                $events[] = array(
+                    'id'          => $post_id,
+                    'title'       => get_the_title(),
+                    'description' => wp_strip_all_tags( get_the_excerpt() ),
+                    'start_date'  => get_post_meta( $post_id, '_EventStartDate',    true ),
+                    'end_date'    => get_post_meta( $post_id, '_EventEndDate',      true ),
+                    'venue'       => get_post_meta( $post_id, '_EventVenueID',      true )
+                        ? tribe_get_venue( $post_id )
+                        : '',
+                    'cost'        => get_post_meta( $post_id, '_EventCost',         true ) ?: 'Free',
+                    'url'         => get_the_permalink(),
+                    'image'       => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'is_virtual'  => (bool) get_post_meta( $post_id, '_tribe_events_venue_show_map', true ),
+                    'register_url' => function_exists( 'tribe_get_tickets_link' )
+                        ? tribe_get_tickets_link( $post_id )
+                        : get_the_permalink(),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        $total       = $query->found_posts;
+        $total_pages = (int) ceil( $total / $per_page );
+
+        $response = new WP_REST_Response( array(
+            'success'     => true,
+            'events'      => $events,
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+            'total_pages' => $total_pages,
+        ), 200 );
+
+        $response->header( 'X-WP-Total',      $total );
+        $response->header( 'X-WP-TotalPages', $total_pages );
+
+        return $response;
     }
 
     /**
@@ -1642,3 +2383,17 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
 
 // Initialize the connector
 new BPU_Headless_Connector();
+
+// Schedule the weekly digest on activation; clear on deactivation.
+register_activation_hook( __FILE__, 'bpu_schedule_weekly_digest' );
+register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
+
+function bpu_schedule_weekly_digest() {
+    if ( ! wp_next_scheduled( 'bpu_weekly_job_digest' ) ) {
+        wp_schedule_event( strtotime( 'next Monday 08:00:00' ), 'weekly', 'bpu_weekly_job_digest' );
+    }
+}
+
+function bpu_unschedule_weekly_digest() {
+    wp_clear_scheduled_hook( 'bpu_weekly_job_digest' );
+}

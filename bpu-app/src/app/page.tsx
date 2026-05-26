@@ -15,10 +15,11 @@ export default async function MemberPortal() {
   const cookieStore = await cookies();
   const jwt = cookieStore.get('bpu_session')?.value || '';
 
-  const [jobs, courses, reviews] = await Promise.all([
+  const [jobs, courses, reviews, events] = await Promise.all([
     BPUApi.getJobRecommendations(user.id, jwt),
     BPUApi.getCourses(jwt),
     BPUApi.getCVClinicReviews(jwt),
+    BPUApi.getEvents(),
   ]);
 
   return (
@@ -27,6 +28,7 @@ export default async function MemberPortal() {
       initialJobs={jobs}
       initialCourses={courses}
       initialReviews={reviews}
+      initialEvents={events}
       jwt={jwt}
     />
   );

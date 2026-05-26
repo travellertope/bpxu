@@ -36,6 +36,7 @@ export interface BPUUser {
     email: string;
     display_name: string;
     roles: string[];
+    is_pro: boolean;
     profile: ACFProfile;
     cv_url?: string;
 }
@@ -84,12 +85,14 @@ export async function getBPUSession(): Promise<SessionResult> {
         const { payload } = await jwtVerify(sessionCookie.value, secret) as { payload: BPUJWTPayload };
 
         // Build user from JWT payload
+        const userRoles = payload.roles || [];
         const user: BPUUser = {
             id: payload.user_id,
             username: payload.username || payload.email,
             email: payload.email,
             display_name: payload.display_name,
-            roles: payload.roles || [],
+            roles: userRoles,
+            is_pro: userRoles.includes('bpu_pro') || userRoles.includes('administrator'),
             profile: payload.profile || {
                 first_name: payload.display_name?.split(' ')[0] || '',
                 last_name: payload.display_name?.split(' ').slice(1).join(' ') || '',
