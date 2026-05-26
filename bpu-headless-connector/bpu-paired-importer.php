@@ -595,442 +595,418 @@ Cynthia ', 'created_at' => '2025-11-14 07:39:30', 'is_read' => '0' ],
     [ 'id' => '73', 'user_id' => '167', 'receiver_id' => '124', 'message' => 'Thankyou for confirming ', 'created_at' => '2025-11-18 07:38:46', 'is_read' => '1' ],
 ];
 
+
 // ============================================================
-// WP-CLI COMMAND REGISTRATION
+// CORE IMPORT LOGIC (shared by admin page and WP-CLI)
+// ============================================================
+
+function bpu_paired_meta_map( $u ) {
+    $industry         = ! empty( $u['expertise_industry'] ) ? $u['expertise_industry'] : ( $u['other_industry'] ?? '' );
+    $current_role_val = ! empty( $u['current_role'] ) ? $u['current_role'] : ( $u['designation'] ?? '' );
+    return [
+        'user_bio'                   => $u['about_me'] ?? '',
+        'industry'                   => $industry,
+        'industryfield_of_expertise' => $u['expertise_industry'] ?? '',
+        'current_role'               => $current_role_val,
+        'company'                    => $u['company'] ?? '',
+        'years_of_experience'        => $u['experience_year'] ?? '',
+        'skills_separate'            => $u['skills_normalized'] ?? '',
+        'linkedin_profile'           => $u['linkedin_profile'] ?? '',
+        'facebook_profile'           => $u['facebook_profile'] ?? '',
+        'instagram_profile'          => $u['instagram_profile'] ?? '',
+        'x_profile'                  => $u['x_profile'] ?? '',
+        'mentorship_availability'    => $u['mentorship_availability'] ?? '',
+        'mentorship_requirements'    => $u['mentorship_requirements'] ?? '',
+        'mentees_at_once'            => $u['mentees_at_once'] ?? '',
+        'career_goals'               => $u['career_goals'] ?? '',
+        'employment_status'          => $u['employment_status'] ?? '',
+        'gender'                     => $u['gender'] ?? '',
+        'bp_network'                 => $u['bp_network'] ?? '',
+        'residence'                  => $u['residence'] ?? '',
+        'phone'                      => $u['phone'] ?? '',
+        'paired_image_path'          => $u['image'] ?? '',
+        'paired_thumb_path'          => $u['thumb'] ?? '',
+        'paired_is_active'           => $u['is_active'] ?? '',
+        'paired_status'              => $u['status'] ?? '',
+        'paired_created_at'          => $u['created_at'] ?? '',
+    ];
+}
+
+function bpu_paired_set_user_meta( $wp_user_id, $u ) {
+    foreach ( bpu_paired_meta_map( $u ) as $key => $val ) {
+        update_user_meta( $wp_user_id, $key, $val );
+    }
+}
+
+function bpu_paired_merge_user_meta( $wp_user_id, $u ) {
+    foreach ( bpu_paired_meta_map( $u ) as $key => $val ) {
+        if ( empty( get_user_meta( $wp_user_id, $key, true ) ) ) {
+            update_user_meta( $wp_user_id, $key, $val );
+        }
+    }
+}
+
+/**
+ * Run the full import. Returns ['stats'=>[...], 'log'=>[...], 'resets'=>[...]].
+ */
+function bpu_paired_run_import() {
+    global $PAIRED_USERS, $PAIRED_BOOKINGS, $PAIRED_EXPERIENCES, $PAIRED_EDUCATIONS;
+
+    $stats = [
+        'users_created'    => 0,
+        'users_merged'     => 0,
+        'users_skipped'    => 0,
+        'users_errors'     => 0,
+        'bookings_created' => 0,
+        'bookings_skipped' => 0,
+        'bookings_errors'  => 0,
+        'exp_records'      => 0,
+        'exp_users'        => 0,
+        'edu_records'      => 0,
+        'edu_users'        => 0,
+    ];
+
+    $log                = [];
+    $old_to_new_user_id = [];
+    $password_resets    = [];
+
+    // ── 1. Users ──────────────────────────────────────────────
+    $log[] = '=== Importing Users ===';
+
+    foreach ( $PAIRED_USERS as $u ) {
+        $old_id = $u['id'];
+        $email  = trim( $u['email'] ?? '' );
+        $name   = trim( $u['name'] ?? '' );
+        $role   = $u['role'] ?? 'user';
+
+        if ( empty( $email ) ) {
+            $log[] = "  SKIP  user old_id={$old_id} — no email";
+            $stats['users_skipped']++;
+            continue;
+        }
+
+        if ( $role === 'admin' ) {
+            $wp_role = 'administrator';
+        } elseif ( $role === 'mentee' ) {
+            $wp_role = 'subscriber';
+        } else {
+            $wp_role = ( $u['has_bookings'] === '1' ) ? 'bpu_mentor' : 'subscriber';
+        }
+
+        $display_name = ! empty( $name ) ? $name : $email;
+        $user_login   = sanitize_user( strtolower( preg_replace( '/[^a-zA-Z0-9._\-]/', '', $email ) ), true );
+        if ( empty( $user_login ) ) {
+            $user_login = 'user_' . $old_id;
+        }
+
+        $existing = get_user_by( 'email', $email );
+
+        if ( $existing ) {
+            $new_wp_id                     = $existing->ID;
+            $old_to_new_user_id[ $old_id ] = $new_wp_id;
+            update_user_meta( $new_wp_id, '_paired_old_id', $old_id );
+            bpu_paired_merge_user_meta( $new_wp_id, $u );
+            $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (empty meta filled)";
+            $stats['users_merged']++;
+            continue;
+        }
+
+        $user_data = [
+            'user_login'   => $user_login,
+            'user_email'   => $email,
+            'display_name' => $display_name,
+            'role'         => $wp_role,
+            'user_pass'    => wp_generate_password( 16 ),
+        ];
+
+        $new_wp_id = wp_insert_user( $user_data );
+        if ( is_wp_error( $new_wp_id ) ) {
+            $user_data['user_login'] = $user_login . '_' . $old_id;
+            $new_wp_id = wp_insert_user( $user_data );
+        }
+        if ( is_wp_error( $new_wp_id ) ) {
+            $log[] = "  ERROR user {$email}: " . $new_wp_id->get_error_message();
+            $stats['users_errors']++;
+            continue;
+        }
+
+        update_user_meta( $new_wp_id, '_paired_old_id', $old_id );
+        bpu_paired_set_user_meta( $new_wp_id, $u );
+        $old_to_new_user_id[ $old_id ] = $new_wp_id;
+
+        $role_label        = $wp_role === 'bpu_mentor' ? 'Mentor' : ( $wp_role === 'administrator' ? 'Admin' : 'Mentee' );
+        $password_resets[] = [ 'email' => $email, 'role' => $role_label, 'name' => $display_name ];
+        $log[] = "  CREATE user: {$email} as {$role_label} (WP ID {$new_wp_id})";
+        $stats['users_created']++;
+    }
+
+    $log[] = "Users done: created={$stats['users_created']} merged={$stats['users_merged']} skipped={$stats['users_skipped']} errors={$stats['users_errors']}";
+
+    // ── 2. Bookings ───────────────────────────────────────────
+    $log[] = '';
+    $log[] = '=== Importing Bookings ===';
+
+    $status_map = [ '0' => 'pending', '1' => 'confirmed', '2' => 'completed', '3' => 'cancelled' ];
+
+    foreach ( $PAIRED_BOOKINGS as $b ) {
+        $old_booking_id = $b['id'];
+        $booking_number = $b['booking_number'] ?? '';
+        $old_mentor_id  = $b['user_id'];
+        $old_mentee_id  = $b['mentee_id'];
+
+        $existing_posts = get_posts( [
+            'post_type'   => 'mentorship_booking',
+            'post_status' => 'any',
+            'meta_query'  => [ [ 'key' => '_paired_old_booking_id', 'value' => $old_booking_id ] ],
+            'numberposts' => 1,
+        ] );
+        if ( ! empty( $existing_posts ) ) {
+            $log[] = "  SKIP  booking old_id={$old_booking_id} (already imported)";
+            $stats['bookings_skipped']++;
+            continue;
+        }
+
+        $mentor_wp_id = $old_to_new_user_id[ $old_mentor_id ] ?? null;
+        if ( ! $mentor_wp_id ) {
+            $found        = get_users( [ 'meta_key' => '_paired_old_id', 'meta_value' => $old_mentor_id, 'number' => 1 ] );
+            $mentor_wp_id = ! empty( $found ) ? $found[0]->ID : null;
+        }
+        if ( ! $mentor_wp_id ) {
+            $log[] = "  WARN  booking {$old_booking_id}: mentor old_id={$old_mentor_id} not found — skipped";
+            $stats['bookings_errors']++;
+            continue;
+        }
+
+        $mentee_wp_id = $old_to_new_user_id[ $old_mentee_id ] ?? null;
+        if ( ! $mentee_wp_id ) {
+            $found        = get_users( [ 'meta_key' => '_paired_old_id', 'meta_value' => $old_mentee_id, 'number' => 1 ] );
+            $mentee_wp_id = ! empty( $found ) ? $found[0]->ID : null;
+        }
+        if ( ! $mentee_wp_id ) {
+            $log[] = "  WARN  booking {$old_booking_id}: mentee old_id={$old_mentee_id} not found — skipped";
+            $stats['bookings_errors']++;
+            continue;
+        }
+
+        $status_str = $status_map[ (string) ( $b['status'] ?? '0' ) ] ?? 'pending';
+
+        $post_id = wp_insert_post( [
+            'post_type'   => 'mentorship_booking',
+            'post_status' => 'publish',
+            'post_title'  => 'Session #' . $booking_number,
+            'post_date'   => $b['created_at'] ?? current_time( 'mysql' ),
+        ] );
+
+        if ( is_wp_error( $post_id ) ) {
+            $log[] = "  ERROR booking old_id={$old_booking_id}: " . $post_id->get_error_message();
+            $stats['bookings_errors']++;
+            continue;
+        }
+
+        update_post_meta( $post_id, 'booking_mentor_id',      $mentor_wp_id );
+        update_post_meta( $post_id, 'booking_mentee_id',      $mentee_wp_id );
+        update_post_meta( $post_id, 'booking_date',           $b['date'] ?? '' );
+        update_post_meta( $post_id, 'booking_time_slot',      $b['time'] ?? '' );
+        update_post_meta( $post_id, 'booking_notes',          $b['note'] ?? '' );
+        update_post_meta( $post_id, 'booking_status',         $status_str );
+        update_post_meta( $post_id, 'booking_duration',       $b['duration'] ?? '' );
+        update_post_meta( $post_id, 'booking_is_completed',   $b['is_completed'] ?? '0' );
+        update_post_meta( $post_id, 'booking_is_recurring',   $b['is_recurring'] ?? '0' );
+        update_post_meta( $post_id, '_paired_old_booking_id', $old_booking_id );
+
+        $log[] = "  CREATE booking old_id={$old_booking_id} → post_id={$post_id} mentor={$mentor_wp_id} mentee={$mentee_wp_id} [{$status_str}]";
+        $stats['bookings_created']++;
+    }
+
+    $log[] = "Bookings done: created={$stats['bookings_created']} skipped={$stats['bookings_skipped']} errors={$stats['bookings_errors']}";
+
+    // ── 3. Experiences ────────────────────────────────────────
+    $log[] = '';
+    $log[] = '=== Importing Experiences ===';
+
+    $exp_by_user = [];
+    foreach ( $PAIRED_EXPERIENCES as $e ) {
+        $exp_by_user[ $e['user_id'] ][] = [
+            'title'        => $e['title'] ?? '',
+            'company'      => $e['company'] ?? '',
+            'start_date'   => $e['start_date'] ?? '',
+            'end_date'     => $e['end_date'] ?? '',
+            'is_present'   => $e['is_present'] ?? '0',
+            'contribution' => $e['contribution'] ?? '',
+        ];
+    }
+    foreach ( $exp_by_user as $old_uid => $exp_list ) {
+        $wp_uid = $old_to_new_user_id[ $old_uid ] ?? null;
+        if ( ! $wp_uid ) {
+            $found  = get_users( [ 'meta_key' => '_paired_old_id', 'meta_value' => $old_uid, 'number' => 1 ] );
+            $wp_uid = ! empty( $found ) ? $found[0]->ID : null;
+        }
+        if ( ! $wp_uid ) { $log[] = "  WARN  experiences: old_id={$old_uid} not found — skipped"; continue; }
+        update_user_meta( $wp_uid, 'bpu_experiences', $exp_list );
+        $cnt = count( $exp_list );
+        $stats['exp_records'] += $cnt;
+        $stats['exp_users']++;
+        $log[] = "  Stored {$cnt} experience(s) for WP user {$wp_uid}";
+    }
+    $log[] = "Experiences done: {$stats['exp_records']} records for {$stats['exp_users']} users";
+
+    // ── 4. Educations ─────────────────────────────────────────
+    $log[] = '';
+    $log[] = '=== Importing Educations ===';
+
+    $edu_by_user = [];
+    foreach ( $PAIRED_EDUCATIONS as $e ) {
+        $edu_by_user[ $e['user_id'] ][] = [
+            'institute'  => $e['institute'] ?? '',
+            'degree'     => $e['degree'] ?? '',
+            'start_year' => $e['start_year'] ?? '',
+            'end_year'   => $e['end_year'] ?? '',
+        ];
+    }
+    foreach ( $edu_by_user as $old_uid => $edu_list ) {
+        $wp_uid = $old_to_new_user_id[ $old_uid ] ?? null;
+        if ( ! $wp_uid ) {
+            $found  = get_users( [ 'meta_key' => '_paired_old_id', 'meta_value' => $old_uid, 'number' => 1 ] );
+            $wp_uid = ! empty( $found ) ? $found[0]->ID : null;
+        }
+        if ( ! $wp_uid ) { $log[] = "  WARN  educations: old_id={$old_uid} not found — skipped"; continue; }
+        update_user_meta( $wp_uid, 'bpu_educations', $edu_list );
+        $cnt = count( $edu_list );
+        $stats['edu_records'] += $cnt;
+        $stats['edu_users']++;
+        $log[] = "  Stored {$cnt} education(s) for WP user {$wp_uid}";
+    }
+    $log[] = "Educations done: {$stats['edu_records']} records for {$stats['edu_users']} users";
+
+    return [ 'stats' => $stats, 'log' => $log, 'resets' => $password_resets ];
+}
+
+// ============================================================
+// WORDPRESS ADMIN PAGE (Tools → PAIRED Importer)
+// ============================================================
+
+add_action( 'admin_menu', function () {
+    add_management_page(
+        'PAIRED Importer',
+        'PAIRED Importer',
+        'manage_options',
+        'bpu-paired-importer',
+        'bpu_paired_admin_page'
+    );
+} );
+
+function bpu_paired_admin_page() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( 'Not allowed.' );
+    }
+
+    $result = null;
+
+    if (
+        isset( $_POST['bpu_run_import'] ) &&
+        check_admin_referer( 'bpu_paired_import_action', 'bpu_paired_nonce' )
+    ) {
+        set_time_limit( 300 );
+        $result = bpu_paired_run_import();
+    }
+
+    ?>
+    <div class="wrap">
+        <h1>BPU PAIRED Importer</h1>
+        <p>Imports all users, bookings, experiences and educations from the old PAIRED platform into WordPress.</p>
+        <ul style="list-style:disc;padding-left:20px;">
+            <li><strong>Existing users</strong> (matched by email) — password, role and display name are untouched; only empty profile fields are filled.</li>
+            <li><strong>New users</strong> — created with a random password. A password-reset table is shown at the end.</li>
+            <li><strong>Safe to re-run</strong> — already-imported records are skipped automatically.</li>
+        </ul>
+
+        <?php if ( ! $result ) : ?>
+            <form method="post">
+                <?php wp_nonce_field( 'bpu_paired_import_action', 'bpu_paired_nonce' ); ?>
+                <p>
+                    <input type="submit" name="bpu_run_import" class="button button-primary button-large"
+                           value="Run Import Now"
+                           onclick="return confirm('This will write data into your live WordPress database. Continue?');">
+                </p>
+            </form>
+
+        <?php else : ?>
+            <?php $s = $result['stats']; ?>
+            <div class="notice notice-success" style="padding:12px 16px;">
+                <p><strong>Import complete.</strong></p>
+                <p>Users: <strong>created <?php echo (int) $s['users_created']; ?></strong>
+                   | merged <?php echo (int) $s['users_merged']; ?>
+                   | skipped <?php echo (int) $s['users_skipped']; ?>
+                   | errors <?php echo (int) $s['users_errors']; ?></p>
+                <p>Bookings: <strong>created <?php echo (int) $s['bookings_created']; ?></strong>
+                   | skipped <?php echo (int) $s['bookings_skipped']; ?>
+                   | errors <?php echo (int) $s['bookings_errors']; ?></p>
+                <p>Experiences: <?php echo (int) $s['exp_records']; ?> records for <?php echo (int) $s['exp_users']; ?> users
+                   &nbsp;|&nbsp;
+                   Educations: <?php echo (int) $s['edu_records']; ?> records for <?php echo (int) $s['edu_users']; ?> users</p>
+            </div>
+
+            <h2>Full log</h2>
+            <pre style="background:#1e1e1e;color:#d4d4d4;padding:16px;overflow:auto;max-height:500px;font-size:12px;border-radius:4px;"><?php
+                foreach ( $result['log'] as $line ) {
+                    echo esc_html( $line ) . "\n";
+                }
+            ?></pre>
+
+            <?php if ( ! empty( $result['resets'] ) ) : ?>
+                <h2>Password reset needed</h2>
+                <p>These accounts were created with a random password. Use the reset links below, or go to
+                   <a href="<?php echo esc_url( admin_url( 'users.php' ) ); ?>">Users</a> to send bulk resets.</p>
+                <table class="widefat striped" style="max-width:750px;">
+                    <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reset link</th></tr></thead>
+                    <tbody>
+                    <?php foreach ( $result['resets'] as $pr ) :
+                        $wp_user = get_user_by( 'email', $pr['email'] );
+                    ?>
+                        <tr>
+                            <td><?php echo esc_html( $pr['name'] ); ?></td>
+                            <td><?php echo esc_html( $pr['email'] ); ?></td>
+                            <td><?php echo esc_html( $pr['role'] ); ?></td>
+                            <td><?php
+                                if ( $wp_user ) {
+                                    $key = get_password_reset_key( $wp_user );
+                                    if ( ! is_wp_error( $key ) ) {
+                                        $link = network_site_url( 'wp-login.php?action=rp&key=' . $key . '&login=' . rawurlencode( $wp_user->user_login ), 'login' );
+                                        echo '<a href="' . esc_url( $link ) . '" target="_blank">Copy reset link</a>';
+                                    }
+                                }
+                            ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
+            <?php endif; ?>
+
+            <hr>
+            <p><strong>Done.</strong> Once you have verified the imported data, please deactivate and delete this plugin.</p>
+        <?php endif; ?>
+    </div>
+    <?php
+}
+
+// ============================================================
+// WP-CLI COMMAND (bonus — works if terminal access is available)
 // ============================================================
 
 if ( defined( 'WP_CLI' ) && WP_CLI ) {
-
-    class BPU_Paired_Import_Command {
-
-        /**
-         * Import all data from the old PAIRED platform.
-         *
-         * ## EXAMPLES
-         *
-         *     wp bpu-import paired
-         *
-         * @when after_wp_load
-         */
+    WP_CLI::add_command( 'bpu-import', new class {
+        /** @when after_wp_load */
         public function paired( $args, $assoc_args ) {
-            global $PAIRED_USERS, $PAIRED_BOOKINGS, $PAIRED_EXPERIENCES, $PAIRED_EDUCATIONS, $PAIRED_MESSAGES;
-
-            $stats = [
-                'users_created'    => 0,
-                'users_merged'     => 0,
-                'users_updated'    => 0,
-                'users_skipped'    => 0,
-                'users_errors'     => 0,
-                'bookings_created' => 0,
-                'bookings_skipped' => 0,
-                'bookings_errors'  => 0,
-                'exp_records'      => 0,
-                'exp_users'        => 0,
-                'edu_records'      => 0,
-                'edu_users'        => 0,
-            ];
-
-            // Map: old user ID => new WP user ID
-            $old_to_new_user_id = [];
-            // Emails that need password reset
-            $password_reset_list = [];
-
-            // -------------------------------------------------
-            // 1. IMPORT USERS
-            // -------------------------------------------------
-            WP_CLI::log( '' );
-            WP_CLI::log( '=== Importing Users ===' );
-
-            foreach ( $PAIRED_USERS as $u ) {
-                $old_id = $u['id'];
-                $email  = trim( $u['email'] ?? '' );
-                $name   = trim( $u['name'] ?? '' );
-                $role   = $u['role'] ?? 'user';
-
-                if ( empty( $email ) ) {
-                    WP_CLI::warning( "User old_id={$old_id} has no email — skipping." );
-                    $stats['users_skipped']++;
-                    continue;
-                }
-
-                // Determine WP role
-                if ( $role === 'admin' ) {
-                    $wp_role = 'administrator';
-                } elseif ( $role === 'mentee' ) {
-                    $wp_role = 'subscriber';
-                } else {
-                    // role='user' — check if they have bookings (mentor)
-                    $wp_role = ( $u['has_bookings'] === '1' ) ? 'bpu_mentor' : 'subscriber';
-                }
-
-                $display_name = ! empty( $name ) ? $name : $email;
-                $user_login   = sanitize_user( strtolower( preg_replace( '/[^a-zA-Z0-9._\-]/', '', $email ) ), true );
-                if ( empty( $user_login ) ) {
-                    $user_login = 'user_' . $old_id;
-                }
-
-                $existing = get_user_by( 'email', $email );
-
-                if ( $existing ) {
-                    // Email already exists in WordPress — merge carefully.
-                    // DO NOT change password, WP role, or display_name.
-                    // Always set _paired_old_id so booking lookups work.
-                    // For all other profile meta, only write if the existing value is empty/falsy.
-                    $new_wp_id = $existing->ID;
-                    $old_to_new_user_id[ $old_id ] = $new_wp_id;
-                    update_user_meta( $new_wp_id, '_paired_old_id', $old_id );
-                    $this->merge_user_meta( $new_wp_id, $u );
-                    WP_CLI::log( "  MERGED existing WP user: {$email} (WP ID {$new_wp_id}) — profile meta filled where empty" );
-                    $stats['users_merged']++;
-                    // Do NOT add to password_reset_list — they already have a working password.
-                    continue;
-                }
-
-                // Create new user
-                $password = wp_generate_password( 16 );
-                $user_data = [
-                    'user_login'   => $user_login,
-                    'user_email'   => $email,
-                    'display_name' => $display_name,
-                    'role'         => $wp_role,
-                    'user_pass'    => $password,
-                ];
-
-                $new_wp_id = wp_insert_user( $user_data );
-
-                if ( is_wp_error( $new_wp_id ) ) {
-                    // user_login collision? try appending old_id
-                    $user_data['user_login'] = $user_login . '_' . $old_id;
-                    $new_wp_id = wp_insert_user( $user_data );
-                }
-
-                if ( is_wp_error( $new_wp_id ) ) {
-                    WP_CLI::warning( "  ERROR creating user {$email}: " . $new_wp_id->get_error_message() );
-                    $stats['users_errors']++;
-                    continue;
-                }
-
-                update_user_meta( $new_wp_id, '_paired_old_id', $old_id );
-                $this->set_user_meta( $new_wp_id, $u );
-                $old_to_new_user_id[ $old_id ] = $new_wp_id;
-
-                $role_label = ( $wp_role === 'bpu_mentor' ) ? 'Mentor' : ( $wp_role === 'administrator' ? 'Admin' : 'Mentee' );
-                $password_reset_list[] = [ 'email' => $email, 'role' => $role_label, 'name' => $display_name ];
-
-                WP_CLI::log( "  CREATED user: {$email} as {$role_label} (WP ID {$new_wp_id})" );
-                $stats['users_created']++;
+            $result = bpu_paired_run_import();
+            foreach ( $result['log'] as $line ) {
+                WP_CLI::log( $line );
             }
-
-            WP_CLI::log( "Users done: created={$stats['users_created']} merged={$stats['users_merged']} skipped={$stats['users_skipped']} errors={$stats['users_errors']}" );
-
-            // -------------------------------------------------
-            // 2. IMPORT BOOKINGS
-            // -------------------------------------------------
-            WP_CLI::log( '' );
-            WP_CLI::log( '=== Importing Bookings ===' );
-
-            $status_map = [
-                '0' => 'pending',
-                '1' => 'confirmed',
-                '2' => 'completed',
-                '3' => 'cancelled',
-            ];
-
-            $booking_counter = 0;
-
-            foreach ( $PAIRED_BOOKINGS as $b ) {
-                $old_booking_id   = $b['id'];
-                $old_mentor_id    = $b['user_id'];
-                $old_mentee_id    = $b['mentee_id'];
-                $booking_number   = $b['booking_number'] ?? '';
-
-                // Skip if already imported
-                $existing_posts = get_posts( [
-                    'post_type'   => 'mentorship_booking',
-                    'post_status' => 'any',
-                    'meta_query'  => [
-                        [ 'key' => '_paired_old_booking_id', 'value' => $old_booking_id ],
-                    ],
-                    'numberposts' => 1,
-                ] );
-                if ( ! empty( $existing_posts ) ) {
-                    WP_CLI::log( "  SKIP booking old_id={$old_booking_id} (already imported)" );
-                    $stats['bookings_skipped']++;
-                    continue;
-                }
-
-                // Resolve mentor
-                if ( isset( $old_to_new_user_id[ $old_mentor_id ] ) ) {
-                    $mentor_wp_id = $old_to_new_user_id[ $old_mentor_id ];
-                } else {
-                    // Try meta lookup
-                    $mentor_users = get_users( [
-                        'meta_key'   => '_paired_old_id',
-                        'meta_value' => $old_mentor_id,
-                        'number'     => 1,
-                    ] );
-                    if ( empty( $mentor_users ) ) {
-                        WP_CLI::warning( "  SKIP booking {$old_booking_id}: mentor old_id={$old_mentor_id} not found in WP." );
-                        $stats['bookings_errors']++;
-                        continue;
-                    }
-                    $mentor_wp_id = $mentor_users[0]->ID;
-                }
-
-                // Resolve mentee
-                if ( isset( $old_to_new_user_id[ $old_mentee_id ] ) ) {
-                    $mentee_wp_id = $old_to_new_user_id[ $old_mentee_id ];
-                } else {
-                    $mentee_users = get_users( [
-                        'meta_key'   => '_paired_old_id',
-                        'meta_value' => $old_mentee_id,
-                        'number'     => 1,
-                    ] );
-                    if ( empty( $mentee_users ) ) {
-                        WP_CLI::warning( "  SKIP booking {$old_booking_id}: mentee old_id={$old_mentee_id} not found in WP." );
-                        $stats['bookings_errors']++;
-                        continue;
-                    }
-                    $mentee_wp_id = $mentee_users[0]->ID;
-                }
-
-                $booking_counter++;
-                $raw_status  = (string) ( $b['status'] ?? '0' );
-                $status_str  = $status_map[ $raw_status ] ?? 'pending';
-
-                $post_id = wp_insert_post( [
-                    'post_type'   => 'mentorship_booking',
-                    'post_status' => 'publish',
-                    'post_title'  => 'Session #' . $booking_number,
-                    'post_date'   => $b['created_at'] ?? current_time( 'mysql' ),
-                ] );
-
-                if ( is_wp_error( $post_id ) ) {
-                    WP_CLI::warning( "  ERROR inserting booking old_id={$old_booking_id}: " . $post_id->get_error_message() );
-                    $stats['bookings_errors']++;
-                    continue;
-                }
-
-                update_post_meta( $post_id, 'booking_mentor_id',        $mentor_wp_id );
-                update_post_meta( $post_id, 'booking_mentee_id',        $mentee_wp_id );
-                update_post_meta( $post_id, 'booking_date',             $b['date'] ?? '' );
-                update_post_meta( $post_id, 'booking_time_slot',        $b['time'] ?? '' );
-                update_post_meta( $post_id, 'booking_notes',            $b['note'] ?? '' );
-                update_post_meta( $post_id, 'booking_status',           $status_str );
-                update_post_meta( $post_id, 'booking_duration',         $b['duration'] ?? '' );
-                update_post_meta( $post_id, 'booking_is_completed',     $b['is_completed'] ?? '0' );
-                update_post_meta( $post_id, 'booking_is_recurring',     $b['is_recurring'] ?? '0' );
-                update_post_meta( $post_id, '_paired_old_booking_id',   $old_booking_id );
-
-                WP_CLI::log( "  CREATED booking old_id={$old_booking_id} → post_id={$post_id} mentor={$mentor_wp_id} mentee={$mentee_wp_id} status={$status_str}" );
-                $stats['bookings_created']++;
-            }
-
-            WP_CLI::log( "Bookings done: created={$stats['bookings_created']} skipped={$stats['bookings_skipped']} errors={$stats['bookings_errors']}" );
-
-            // -------------------------------------------------
-            // 3. IMPORT EXPERIENCES
-            // -------------------------------------------------
-            WP_CLI::log( '' );
-            WP_CLI::log( '=== Importing Experiences ===' );
-
-            $exp_by_user = [];
-            foreach ( $PAIRED_EXPERIENCES as $e ) {
-                $old_uid = $e['user_id'];
-                if ( ! isset( $exp_by_user[ $old_uid ] ) ) {
-                    $exp_by_user[ $old_uid ] = [];
-                }
-                $exp_by_user[ $old_uid ][] = [
-                    'title'        => $e['title'] ?? '',
-                    'company'      => $e['company'] ?? '',
-                    'start_date'   => $e['start_date'] ?? '',
-                    'end_date'     => $e['end_date'] ?? '',
-                    'is_present'   => $e['is_present'] ?? '0',
-                    'contribution' => $e['contribution'] ?? '',
-                ];
-            }
-
-            foreach ( $exp_by_user as $old_uid => $exp_list ) {
-                if ( isset( $old_to_new_user_id[ $old_uid ] ) ) {
-                    $wp_uid = $old_to_new_user_id[ $old_uid ];
-                } else {
-                    $found = get_users( [ 'meta_key' => '_paired_old_id', 'meta_value' => $old_uid, 'number' => 1 ] );
-                    if ( empty( $found ) ) {
-                        WP_CLI::warning( "  Experiences: old user_id={$old_uid} not found, skipping." );
-                        continue;
-                    }
-                    $wp_uid = $found[0]->ID;
-                }
-                update_user_meta( $wp_uid, 'bpu_experiences', $exp_list );
-                $stats['exp_records'] += count( $exp_list );
-                $stats['exp_users']++;
-                WP_CLI::log( "  Stored " . count( $exp_list ) . " experience(s) for WP user {$wp_uid}" );
-            }
-
-            WP_CLI::log( "Experiences done: {$stats['exp_records']} records for {$stats['exp_users']} users" );
-
-            // -------------------------------------------------
-            // 4. IMPORT EDUCATIONS
-            // -------------------------------------------------
-            WP_CLI::log( '' );
-            WP_CLI::log( '=== Importing Educations ===' );
-
-            $edu_by_user = [];
-            foreach ( $PAIRED_EDUCATIONS as $e ) {
-                $old_uid = $e['user_id'];
-                if ( ! isset( $edu_by_user[ $old_uid ] ) ) {
-                    $edu_by_user[ $old_uid ] = [];
-                }
-                $edu_by_user[ $old_uid ][] = [
-                    'institute'  => $e['institute'] ?? '',
-                    'degree'     => $e['degree'] ?? '',
-                    'start_year' => $e['start_year'] ?? '',
-                    'end_year'   => $e['end_year'] ?? '',
-                ];
-            }
-
-            foreach ( $edu_by_user as $old_uid => $edu_list ) {
-                if ( isset( $old_to_new_user_id[ $old_uid ] ) ) {
-                    $wp_uid = $old_to_new_user_id[ $old_uid ];
-                } else {
-                    $found = get_users( [ 'meta_key' => '_paired_old_id', 'meta_value' => $old_uid, 'number' => 1 ] );
-                    if ( empty( $found ) ) {
-                        WP_CLI::warning( "  Educations: old user_id={$old_uid} not found, skipping." );
-                        continue;
-                    }
-                    $wp_uid = $found[0]->ID;
-                }
-                update_user_meta( $wp_uid, 'bpu_educations', $edu_list );
-                $stats['edu_records'] += count( $edu_list );
-                $stats['edu_users']++;
-                WP_CLI::log( "  Stored " . count( $edu_list ) . " education(s) for WP user {$wp_uid}" );
-            }
-
-            WP_CLI::log( "Educations done: {$stats['edu_records']} records for {$stats['edu_users']} users" );
-
-            // -------------------------------------------------
-            // 5. SUMMARY
-            // -------------------------------------------------
-            WP_CLI::log( '' );
-            WP_CLI::log( '=== BPU PAIRED Import Complete ===' );
-            WP_CLI::log( sprintf( 'Users:    created %d | merged %d | skipped %d | errors %d',
-                $stats['users_created'], $stats['users_merged'],
-                $stats['users_skipped'], $stats['users_errors'] ) );
-            WP_CLI::log( sprintf( 'Bookings: created %d | skipped %d | errors %d',
-                $stats['bookings_created'], $stats['bookings_skipped'], $stats['bookings_errors'] ) );
-            WP_CLI::log( sprintf( 'Experiences: imported %d records for %d users',
-                $stats['exp_records'], $stats['exp_users'] ) );
-            WP_CLI::log( sprintf( 'Educations:  imported %d records for %d users',
-                $stats['edu_records'], $stats['edu_users'] ) );
-
             WP_CLI::log( '' );
             WP_CLI::log( 'Password reset needed for:' );
-            foreach ( $password_reset_list as $pr ) {
-                WP_CLI::log( sprintf( '  - %s (%s) [%s]', $pr['email'], $pr['role'], $pr['name'] ) );
+            foreach ( $result['resets'] as $pr ) {
+                WP_CLI::log( "  - {$pr['email']} ({$pr['role']}) [{$pr['name']}]" );
             }
-            WP_CLI::log( '' );
             WP_CLI::success( 'Import complete. Please delete this plugin after verifying the data.' );
         }
-
-        /**
-         * Set all profile meta fields for a user.
-         */
-        private function set_user_meta( $wp_user_id, $u ) {
-            $industry = ! empty( $u['expertise_industry'] )
-                ? $u['expertise_industry']
-                : ( $u['other_industry'] ?? '' );
-
-            $current_role_val = ! empty( $u['current_role'] )
-                ? $u['current_role']
-                : ( $u['designation'] ?? '' );
-
-            $meta_map = [
-                'user_bio'                    => $u['about_me'] ?? '',
-                'industry'                    => $industry,
-                'industryfield_of_expertise'  => $u['expertise_industry'] ?? '',
-                'current_role'                => $current_role_val,
-                'company'                     => $u['company'] ?? '',
-                'years_of_experience'         => $u['experience_year'] ?? '',
-                'skills_separate'             => $u['skills_normalized'] ?? '',
-                'linkedin_profile'            => $u['linkedin_profile'] ?? '',
-                'facebook_profile'            => $u['facebook_profile'] ?? '',
-                'instagram_profile'           => $u['instagram_profile'] ?? '',
-                'x_profile'                   => $u['x_profile'] ?? '',
-                'mentorship_availability'     => $u['mentorship_availability'] ?? '',
-                'mentorship_requirements'     => $u['mentorship_requirements'] ?? '',
-                'mentees_at_once'             => $u['mentees_at_once'] ?? '',
-                'career_goals'                => $u['career_goals'] ?? '',
-                'employment_status'           => $u['employment_status'] ?? '',
-                'gender'                      => $u['gender'] ?? '',
-                'bp_network'                  => $u['bp_network'] ?? '',
-                'residence'                   => $u['residence'] ?? '',
-                'phone'                       => $u['phone'] ?? '',
-                'paired_image_path'           => $u['image'] ?? '',
-                'paired_thumb_path'           => $u['thumb'] ?? '',
-                'paired_is_active'            => $u['is_active'] ?? '',
-                'paired_status'               => $u['status'] ?? '',
-                'paired_created_at'           => $u['created_at'] ?? '',
-            ];
-
-            foreach ( $meta_map as $meta_key => $meta_value ) {
-                update_user_meta( $wp_user_id, $meta_key, $meta_value );
-            }
-        }
-
-        /**
-         * Merge PAIRED profile meta into an existing WordPress user.
-         *
-         * Rules:
-         *  - _paired_old_id is always written (handled by the caller before this).
-         *  - All other profile meta keys are written ONLY if the existing WP value
-         *    is empty/falsy — we never overwrite data the user already has.
-         *  - Password, WP role, and display_name are never touched.
-         */
-        private function merge_user_meta( $wp_user_id, $u ) {
-            $industry = ! empty( $u['expertise_industry'] )
-                ? $u['expertise_industry']
-                : ( $u['other_industry'] ?? '' );
-
-            $current_role_val = ! empty( $u['current_role'] )
-                ? $u['current_role']
-                : ( $u['designation'] ?? '' );
-
-            $meta_map = [
-                'user_bio'                    => $u['about_me'] ?? '',
-                'industry'                    => $industry,
-                'industryfield_of_expertise'  => $u['expertise_industry'] ?? '',
-                'current_role'                => $current_role_val,
-                'company'                     => $u['company'] ?? '',
-                'years_of_experience'         => $u['experience_year'] ?? '',
-                'skills_separate'             => $u['skills_normalized'] ?? '',
-                'linkedin_profile'            => $u['linkedin_profile'] ?? '',
-                'facebook_profile'            => $u['facebook_profile'] ?? '',
-                'instagram_profile'           => $u['instagram_profile'] ?? '',
-                'x_profile'                   => $u['x_profile'] ?? '',
-                'mentorship_availability'     => $u['mentorship_availability'] ?? '',
-                'mentorship_requirements'     => $u['mentorship_requirements'] ?? '',
-                'mentees_at_once'             => $u['mentees_at_once'] ?? '',
-                'career_goals'                => $u['career_goals'] ?? '',
-                'employment_status'           => $u['employment_status'] ?? '',
-                'gender'                      => $u['gender'] ?? '',
-                'bp_network'                  => $u['bp_network'] ?? '',
-                'residence'                   => $u['residence'] ?? '',
-                'phone'                       => $u['phone'] ?? '',
-                'paired_image_path'           => $u['image'] ?? '',
-                'paired_thumb_path'           => $u['thumb'] ?? '',
-                'paired_is_active'            => $u['is_active'] ?? '',
-                'paired_status'               => $u['status'] ?? '',
-                'paired_created_at'           => $u['created_at'] ?? '',
-            ];
-
-            foreach ( $meta_map as $meta_key => $meta_value ) {
-                $existing = get_user_meta( $wp_user_id, $meta_key, true );
-                if ( empty( $existing ) ) {
-                    update_user_meta( $wp_user_id, $meta_key, $meta_value );
-                }
-            }
-        }
-    }
-
-    WP_CLI::add_command( 'bpu-import', 'BPU_Paired_Import_Command' );
+    } );
 }
