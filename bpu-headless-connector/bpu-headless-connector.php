@@ -284,7 +284,7 @@ class BPU_Headless_Connector {
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
                 'callback'            => array( $this, 'create_booking' ),
-                'permission_callback' => array( $this, 'check_auth_permissions' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
                 'args'                => array(
                     'mentor_id' => array(
                         'required'          => true,
@@ -320,7 +320,7 @@ class BPU_Headless_Connector {
             array(
                 'methods'             => WP_REST_Server::READABLE,
                 'callback'            => array( $this, 'get_bookings' ),
-                'permission_callback' => array( $this, 'check_auth_permissions' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
                 'args'                => array(
                     'page' => array(
                         'default'           => 1,
@@ -338,7 +338,7 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/bookings/(?P<id>\d+)', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_single_booking' ),
-            'permission_callback' => array( $this, 'check_auth_permissions' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
             'args'                => array(
                 'id' => array(
                     'required'          => true,
@@ -1394,7 +1394,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * POST /bookings — Create a new mentorship booking.
      */
     public function create_booking( WP_REST_Request $request ) {
-        $user_id   = get_current_user_id();
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id   = intval( $payload['user_id'] );
         $mentor_id = $request->get_param( 'mentor_id' );
         $date      = $request->get_param( 'date' );
         $time_slot = $request->get_param( 'time_slot' );
@@ -1482,7 +1486,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * GET /bookings — List the current user's bookings.
      */
     public function get_bookings( WP_REST_Request $request ) {
-        $user_id  = get_current_user_id();
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id  = intval( $payload['user_id'] );
         $page     = max( 1, $request->get_param( 'page' ) );
         $per_page = min( 100, max( 1, $request->get_param( 'per_page' ) ) );
 
@@ -1532,7 +1540,11 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
      * GET /bookings/{id} — Single booking detail.
      */
     public function get_single_booking( WP_REST_Request $request ) {
-        $user_id = get_current_user_id();
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
         $post_id = $request->get_param( 'id' );
 
         $post = get_post( $post_id );
