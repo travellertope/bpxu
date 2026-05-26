@@ -4,7 +4,7 @@ const PRO_FEATURES = [
     {
         icon: '🤖',
         title: 'AI Job Matching',
-        desc: 'Your CV is parsed by Gemini Pro and automatically matched to new roles. Get email alerts when a high-match job is posted.',
+        desc: 'Upload your CV and our system automatically matches you to new roles. Get email alerts when a high-match job is posted.',
     },
     {
         icon: '📊',

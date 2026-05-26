@@ -86,7 +86,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       setCvUrl(data.cv_url);
       setProfile(data.parsed_data);
       setEditForm(data.parsed_data);
-      setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated by Gemini Pro.' });
+      setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated automatically.' });
     } catch (err: unknown) {
       setUploadMsg({ type: 'err', text: err instanceof Error ? err.message : 'Upload error.' });
     } finally {
@@ -290,7 +290,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
           <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
               <h2 className="text-xl font-bold">CV Clinic</h2>
-              <p className="section-sub">Upload your CV as a PDF. Gemini Pro will parse it and auto-fill your profile.</p>
+              <p className="section-sub">Upload your CV as a PDF. Our system will read it and auto-fill your profile — including your work history, education, and skills.</p>
             </div>
 
             <ProGate isPro={isPro} feature="CV upload &amp; AI parsing">
@@ -309,7 +309,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                 <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
                   <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
                   <p className="text-base font-semibold">
-                    {uploading ? 'Processing with Gemini Pro…' : 'Click to upload your CV'}
+                    {uploading ? 'Reading your CV…' : 'Click to upload your CV'}
                   </p>
                   <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
                   <input

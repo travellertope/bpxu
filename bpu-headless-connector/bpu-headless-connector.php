@@ -750,20 +750,32 @@ class BPU_Headless_Connector {
         // Gemini Multimodal API URL
         $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=' . $api_key;
 
-        $prompt = "You are a professional CV Parser. Extract details from this PDF CV.
-You MUST output a strictly valid JSON object matching these ACF profile keys:
-- first_name: string (e.g. \"Segun\")
-- last_name: string (e.g. \"Odumoye\")
-- phone_number: string
-- current_employment_status: MUST match one of the exact choices [Employed Full-Time, Employed Part-Time, Self-employed, Not employed but looking for work, Student]
-- level_of_education: MUST match one of the exact choices [High School, Bachelor's Degree, Masters Degree, PhD, Other]
-- industry: MUST match one of the choices [Information Technology, Legal, Banking & Financial Services, Engineering, Healthcare, Sales & Retail]
-- industryfield_of_expertise: MUST match one of the choices [Technology, Finance and Accounting, Legal, Human Resources, Engineering, Sciences (STEM)]
-- years_of_experience: MUST match one of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11-15, 16-20, 20+]
-- skills_separate: comma-separated list of major technical or business skills
-- user_bio: One-paragraph professional summary profile based on the resume.
+        $prompt = 'You are a professional CV parser. Extract all information from this PDF CV and return a single valid JSON object with the following keys.
 
-Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
+Flat profile fields (strings):
+- first_name
+- last_name
+- phone_number
+- current_employment_status: one of [Employed Full-Time, Employed Part-Time, Self-employed, Not employed but looking for work, Student]
+- level_of_education: one of [High School, Bachelor\'s Degree, Masters Degree, PhD, Other]
+- industry: one of [Information Technology, Legal, Banking & Financial Services, Engineering, Healthcare, Sales & Retail]
+- industryfield_of_expertise: one of [Technology, Finance and Accounting, Legal, Human Resources, Engineering, Sciences (STEM)]
+- years_of_experience: one of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11-15, 16-20, 20+]
+- skills_separate: comma-separated list of key technical and professional skills
+- user_bio: a one-paragraph professional summary written in third person based on the CV
+- residence: city and country of the candidate if present (e.g. "Edinburgh, UK")
+- linkedin_profile: LinkedIn URL if present, else empty string
+
+Structured arrays (output as JSON arrays — include ALL entries found):
+- work_experiences: array of objects, each with keys: title (job title), company, start_date (e.g. "Jan 2020"), end_date (e.g. "Mar 2023" or "" if current), is_current (true/false), description (one sentence summary of role)
+- education_history: array of objects, each with keys: institution, degree, field_of_study, start_year (4-digit string), end_year (4-digit string or "" if ongoing)
+- certifications: array of objects, each with keys: name, issuer, year (4-digit string or "")
+- languages: array of language name strings (e.g. ["English", "French"])
+
+Rules:
+- Output ONLY the raw JSON object. No markdown, no backticks, no explanation.
+- If a field cannot be determined, use an empty string "" or empty array [] as appropriate.
+- Never invent information not present in the CV.';
 
         $body = array(
             'contents' => array(
@@ -832,30 +844,90 @@ Output ONLY the raw JSON object. Do not include markdown wraps or backticks.";
     }
 
     /**
-     * Map parsed Gemini keys back to WordPress ACF fields (referencing acf_fields.json configurations)
+     * Store all CV-parsed data into WordPress user meta.
+     * Always overwrites on re-upload — the CV is the source of truth.
      */
     private function update_member_acf_profile( $user_id, $data ) {
-        if ( ! function_exists( 'update_field' ) ) {
-            // Fallback to standard WordPress usermeta if ACF is missing
-            foreach ( $data as $key => $value ) {
-                update_user_meta( $user_id, $key, $value );
-            }
-            return;
-        }
-
-        // Map keys programmatically to the User profile fields
         $selector = 'user_' . $user_id;
 
-        update_field( 'first_name', sanitize_text_field( $data['first_name'] ), $selector );
-        update_field( 'last_name', sanitize_text_field( $data['last_name'] ), $selector );
-        update_field( 'phone_number', sanitize_text_field( $data['phone_number'] ), $selector );
-        update_field( 'current_employment_status', sanitize_text_field( $data['current_employment_status'] ), $selector );
-        update_field( 'level_of_education', sanitize_text_field( $data['level_of_education'] ), $selector );
-        update_field( 'industry', sanitize_text_field( $data['industry'] ), $selector );
-        update_field( 'industryfield_of_expertise', sanitize_text_field( $data['industryfield_of_expertise'] ), $selector );
-        update_field( 'years_of_experience', sanitize_text_field( $data['years_of_experience'] ), $selector );
-        update_field( 'skills_separate', sanitize_text_field( $data['skills_separate'] ), $selector );
-        update_field( 'user_bio', sanitize_textarea_field( $data['user_bio'] ), $selector );
+        // ── Flat scalar fields ────────────────────────────────
+        $flat_fields = [
+            'first_name'               => 'sanitize_text_field',
+            'last_name'                => 'sanitize_text_field',
+            'phone_number'             => 'sanitize_text_field',
+            'current_employment_status'=> 'sanitize_text_field',
+            'level_of_education'       => 'sanitize_text_field',
+            'industry'                 => 'sanitize_text_field',
+            'industryfield_of_expertise' => 'sanitize_text_field',
+            'years_of_experience'      => 'sanitize_text_field',
+            'skills_separate'          => 'sanitize_text_field',
+            'user_bio'                 => 'sanitize_textarea_field',
+            'residence'                => 'sanitize_text_field',
+            'linkedin_profile'         => 'sanitize_url',
+        ];
+
+        foreach ( $flat_fields as $key => $sanitizer ) {
+            if ( ! isset( $data[ $key ] ) || $data[ $key ] === '' ) {
+                continue;
+            }
+            $value = call_user_func( $sanitizer, $data[ $key ] );
+            // Write via ACF if available, always write via user_meta as fallback/mirror
+            if ( function_exists( 'update_field' ) ) {
+                update_field( $key, $value, $selector );
+            }
+            update_user_meta( $user_id, $key, $value );
+        }
+
+        // ── Structured array fields ───────────────────────────
+        // work_experiences → bpu_experiences (same key used by the PAIRED importer)
+        if ( ! empty( $data['work_experiences'] ) && is_array( $data['work_experiences'] ) ) {
+            $experiences = array_map( function( $e ) {
+                return [
+                    'title'        => sanitize_text_field( $e['title']       ?? '' ),
+                    'company'      => sanitize_text_field( $e['company']     ?? '' ),
+                    'start_date'   => sanitize_text_field( $e['start_date']  ?? '' ),
+                    'end_date'     => sanitize_text_field( $e['end_date']    ?? '' ),
+                    'is_present'   => ! empty( $e['is_current'] ) ? '1' : '0',
+                    'contribution' => sanitize_textarea_field( $e['description'] ?? '' ),
+                ];
+            }, $data['work_experiences'] );
+            update_user_meta( $user_id, 'bpu_experiences', $experiences );
+        }
+
+        // education_history → bpu_educations (same key used by the PAIRED importer)
+        if ( ! empty( $data['education_history'] ) && is_array( $data['education_history'] ) ) {
+            $educations = array_map( function( $e ) {
+                return [
+                    'institute'  => sanitize_text_field( $e['institution']    ?? '' ),
+                    'degree'     => sanitize_text_field( $e['degree']         ?? '' ),
+                    'field'      => sanitize_text_field( $e['field_of_study'] ?? '' ),
+                    'start_year' => sanitize_text_field( $e['start_year']     ?? '' ),
+                    'end_year'   => sanitize_text_field( $e['end_year']       ?? '' ),
+                ];
+            }, $data['education_history'] );
+            update_user_meta( $user_id, 'bpu_educations', $educations );
+        }
+
+        // certifications
+        if ( ! empty( $data['certifications'] ) && is_array( $data['certifications'] ) ) {
+            $certs = array_map( function( $c ) {
+                return [
+                    'name'   => sanitize_text_field( $c['name']   ?? '' ),
+                    'issuer' => sanitize_text_field( $c['issuer'] ?? '' ),
+                    'year'   => sanitize_text_field( $c['year']   ?? '' ),
+                ];
+            }, $data['certifications'] );
+            update_user_meta( $user_id, 'bpu_certifications', $certs );
+        }
+
+        // languages
+        if ( ! empty( $data['languages'] ) && is_array( $data['languages'] ) ) {
+            $languages = implode( ', ', array_map( 'sanitize_text_field', $data['languages'] ) );
+            update_user_meta( $user_id, 'bpu_languages', $languages );
+        }
+
+        // Timestamp of last CV parse
+        update_user_meta( $user_id, 'bpu_cv_parsed_at', current_time( 'mysql' ) );
     }
 
     /**
