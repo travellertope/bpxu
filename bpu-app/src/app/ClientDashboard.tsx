@@ -47,6 +47,47 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
   const [reviews] = useState<CVReview[]>(initialReviews);
   const [events] = useState<EventItem[]>(initialEvents);
 
+  // CV Analyzer (free feature)
+  const [analyzeRole, setAnalyzeRole] = useState('');
+  const [analyzeJD, setAnalyzeJD] = useState('');
+  const [analyzeCvFile, setAnalyzeCvFile] = useState<File | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeMsg, setAnalyzeMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [analyzeResult, setAnalyzeResult] = useState<{
+    score: number;
+    strengths: string[];
+    weaknesses: string[];
+    recommendation: string;
+  } | null>(null);
+
+  const handleCVAnalyze = async () => {
+    if (!analyzeRole.trim()) {
+      setAnalyzeMsg({ type: 'err', text: 'Please enter a target role.' });
+      return;
+    }
+    if (!cvUrl && !analyzeCvFile) {
+      setAnalyzeMsg({ type: 'err', text: 'Please upload a CV to analyze.' });
+      return;
+    }
+    setAnalyzing(true);
+    setAnalyzeMsg(null);
+    setAnalyzeResult(null);
+    try {
+      const form = new FormData();
+      form.append('target_role', analyzeRole.trim());
+      if (analyzeJD.trim()) form.append('job_description', analyzeJD.trim());
+      if (analyzeCvFile) form.append('cv_file', analyzeCvFile);
+      const res = await fetch('/api/member/cv-analyze', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Analysis failed.');
+      setAnalyzeResult(data);
+    } catch (err: unknown) {
+      setAnalyzeMsg({ type: 'err', text: err instanceof Error ? err.message : 'Analysis error.' });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   // Structured CV data (parsed from CV, read-only)
   const [experiences, setExperiences] = useState<WorkExperience[]>(user.experiences || []);
   const [educations, setEducations] = useState<Education[]>(user.educations || []);
@@ -303,8 +344,142 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
           <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
               <h2 className="text-xl font-bold">CV Clinic</h2>
-              <p className="section-sub">Upload your CV as a PDF. Our system will read it and auto-fill your profile — including your work history, education, and skills.</p>
+              <p className="section-sub">Get instant AI feedback on your CV, upload it to auto-fill your profile, or request a professional written review.</p>
             </div>
+
+            {/* ── CV Analyzer — free for all logged-in users ── */}
+            <div className="card card-p space-y-5">
+              <div>
+                <p className="section-title">Instant CV Analysis</p>
+                <p className="text-sm text-text-2">Get instant AI feedback on how well your CV matches a role. Free for all members.</p>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="field-label">Target role <span className="text-red-400">*</span></label>
+                  <input
+                    className="field-input"
+                    placeholder="e.g. Senior Software Engineer"
+                    value={analyzeRole}
+                    onChange={e => setAnalyzeRole(e.target.value)}
+                    disabled={analyzing}
+                  />
+                </div>
+                <div>
+                  <label className="field-label">Job description <span className="text-text-3 font-normal">(optional — paste the JD for a more accurate score)</span></label>
+                  <textarea
+                    className="field-input field-textarea"
+                    placeholder="Paste the job description here…"
+                    rows={4}
+                    value={analyzeJD}
+                    onChange={e => setAnalyzeJD(e.target.value)}
+                    disabled={analyzing}
+                  />
+                </div>
+                {cvUrl
+                  ? <p className="text-xs text-text-2">Using your saved CV. <label htmlFor="analyze-cv-file" className="underline cursor-pointer">Use a different file</label>
+                      {analyzeCvFile && <span className="ml-2 text-brand">✓ {analyzeCvFile.name}</span>}
+                      <input id="analyze-cv-file" type="file" accept=".pdf" className="sr-only" onChange={e => setAnalyzeCvFile(e.target.files?.[0] ?? null)} />
+                    </p>
+                  : <div>
+                      <label className="field-label">CV (PDF) <span className="text-red-400">*</span></label>
+                      <label htmlFor="analyze-cv-file" className="block card p-4 text-center text-sm text-text-2 cursor-pointer" style={{ borderStyle: 'dashed' }}>
+                        {analyzeCvFile ? <span className="text-brand font-medium">✓ {analyzeCvFile.name}</span> : 'Click to upload PDF'}
+                      </label>
+                      <input id="analyze-cv-file" type="file" accept=".pdf" className="sr-only" onChange={e => setAnalyzeCvFile(e.target.files?.[0] ?? null)} />
+                    </div>
+                }
+                {analyzeMsg && (
+                  <div className={`alert ${analyzeMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                    {analyzeMsg.text}
+                  </div>
+                )}
+                <button
+                  onClick={handleCVAnalyze}
+                  disabled={analyzing}
+                  className="btn btn-amber"
+                >
+                  {analyzing ? 'Analysing…' : 'Analyse my CV'}
+                </button>
+              </div>
+
+              {analyzing && (
+                <div className="space-y-2 text-center py-4">
+                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                    <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '60%' }} />
+                  </div>
+                  <p className="text-sm text-text-2">Our system is reviewing your CV…</p>
+                </div>
+              )}
+
+              {analyzeResult && (
+                <div className="space-y-4 pt-2 border-t border-border">
+                  {/* Score */}
+                  <div className="flex items-center gap-5">
+                    <div
+                      className="shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-2xl font-extrabold"
+                      style={{
+                        background: analyzeResult.score >= 70 ? 'var(--green-bg)' : analyzeResult.score >= 45 ? '#fef9c3' : '#fee2e2',
+                        color: analyzeResult.score >= 70 ? 'var(--green)' : analyzeResult.score >= 45 ? '#a16207' : '#b91c1c',
+                      }}
+                    >
+                      {analyzeResult.score}
+                    </div>
+                    <div>
+                      <p className="font-bold">Match Score</p>
+                      <p className="text-sm text-text-2">
+                        {analyzeResult.score >= 70 ? 'Strong match for this role.' : analyzeResult.score >= 45 ? 'Moderate match — some gaps to address.' : 'Low match — significant improvements recommended.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Strengths */}
+                  {analyzeResult.strengths.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--green)' }}>Strengths</p>
+                      <ul className="space-y-1">
+                        {analyzeResult.strengths.map((s, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <span style={{ color: 'var(--green)' }} className="mt-0.5 shrink-0">✓</span> {s}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Weaknesses */}
+                  {analyzeResult.weaknesses.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold uppercase tracking-wide text-red-500">Areas to improve</p>
+                      <ul className="space-y-1">
+                        {analyzeResult.weaknesses.map((w, i) => (
+                          <li key={i} className="flex items-start gap-2 text-sm">
+                            <span className="text-red-400 mt-0.5 shrink-0">✗</span> {w}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Recommendation */}
+                  {analyzeResult.recommendation && (
+                    <div className="card card-p space-y-1" style={{ background: 'var(--bg-2)' }}>
+                      <p className="text-xs font-bold uppercase tracking-wide text-text-3">Top recommendation</p>
+                      <p className="text-sm leading-relaxed">{analyzeResult.recommendation}</p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => { setAnalyzeResult(null); setAnalyzeRole(''); setAnalyzeJD(''); setAnalyzeCvFile(null); }}
+                    className="btn btn-ghost btn-sm"
+                  >
+                    Analyse again
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="divider" />
 
             <ProGate isPro={isPro} feature="CV upload &amp; AI parsing">
               {/* Current CV */}

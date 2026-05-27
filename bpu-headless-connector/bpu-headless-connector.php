@@ -260,6 +260,13 @@ class BPU_Headless_Connector {
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
+        // 4b. CV Analyzer — instant ATS feedback (Free — JWT Bearer)
+        register_rest_route( $this->namespace, '/member/cv-analyze', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_member_cv_analyze' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
         // 5. Get Member CV Reviews List
         register_rest_route( $this->namespace, '/member/cv-reviews', array(
             'methods'             => WP_REST_Server::READABLE,
@@ -730,6 +737,139 @@ class BPU_Headless_Connector {
             'cv_url'        => wp_get_attachment_url( $attachment_id ),
             'parsed_data'   => $parsed_profile,
         ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/cv-analyze — instant ATS analysis, free for all authenticated users.
+     */
+    public function handle_member_cv_analyze( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id     = intval( $payload['user_id'] );
+        $body        = $request->get_body_params();
+        $target_role = isset( $body['target_role'] )     ? sanitize_text_field( $body['target_role'] )         : '';
+        $job_desc    = isset( $body['job_description'] ) ? sanitize_textarea_field( $body['job_description'] ) : '';
+
+        if ( empty( $target_role ) ) {
+            return new WP_Error( 'bpu_missing_field', __( 'target_role is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Determine the PDF to analyze: new upload takes precedence, else stored CV.
+        $files   = $request->get_file_params();
+        $base64_pdf = '';
+
+        if ( ! empty( $files['cv_file'] ) && $files['cv_file']['error'] === UPLOAD_ERR_OK ) {
+            $file_type = wp_check_filetype( $files['cv_file']['name'] );
+            if ( 'pdf' !== $file_type['ext'] ) {
+                return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+            }
+            $file_data  = file_get_contents( $files['cv_file']['tmp_name'] );
+            $base64_pdf = base64_encode( $file_data );
+        } else {
+            $cv_id = get_user_meta( $user_id, '_bpu_member_cv_id', true );
+            if ( $cv_id ) {
+                $cv_path = get_attached_file( $cv_id );
+                if ( $cv_path && file_exists( $cv_path ) ) {
+                    $base64_pdf = base64_encode( file_get_contents( $cv_path ) );
+                }
+            }
+        }
+
+        if ( empty( $base64_pdf ) ) {
+            return new WP_Error( 'bpu_no_cv', __( 'No CV found. Please upload a PDF.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $results = $this->analyze_cv_with_gemini( $base64_pdf, $target_role, $job_desc );
+        if ( is_wp_error( $results ) ) {
+            return $results;
+        }
+
+        return new WP_REST_Response( array_merge( array( 'success' => true ), $results ), 200 );
+    }
+
+    /**
+     * ATS-style CV analysis via Gemini (returns score, strengths, weaknesses, recommendation).
+     */
+    private function analyze_cv_with_gemini( $base64_pdf, $target_role, $job_description = '' ) {
+        $api_key = defined( 'GEMINI_API_KEY' ) ? GEMINI_API_KEY : get_option( 'bpu_gemini_api_key', '' );
+
+        if ( empty( $api_key ) ) {
+            return new WP_Error( 'gemini_missing_api_key', __( 'Gemini API Key is not configured.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $api_key;
+
+        $prompt = sprintf(
+            'You are an expert ATS system and Senior HR Recruiter. Review the candidate\'s CV for the role of "%s".%s
+
+Provide a critical and constructive evaluation. Return a single valid JSON object with these exact keys:
+- score: integer 0-100 representing how well the CV matches the target role
+- strengths: array of 3-4 strings describing key strengths of this CV for the role
+- weaknesses: array of 3-4 strings describing gaps or improvements needed
+- recommendation: single string with the most important action the candidate should take
+
+Return only the JSON object, no markdown.',
+            esc_attr( $target_role ),
+            $job_description ? "\n\nJob Description:\n" . mb_substr( $job_description, 0, 5000 ) : ''
+        );
+
+        $body = array(
+            'contents' => array(
+                array(
+                    'parts' => array(
+                        array( 'text' => $prompt ),
+                        array(
+                            'inline_data' => array(
+                                'mime_type' => 'application/pdf',
+                                'data'      => $base64_pdf,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            'generationConfig' => array(
+                'responseMimeType' => 'application/json',
+            ),
+        );
+
+        $response = wp_remote_post( $url, array(
+            'headers' => array( 'Content-Type' => 'application/json' ),
+            'body'    => wp_json_encode( $body ),
+            'timeout' => 90,
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return new WP_Error( 'gemini_request_failed', $response->get_error_message(), array( 'status' => 502 ) );
+        }
+
+        $status = wp_remote_retrieve_response_code( $response );
+        $raw    = wp_remote_retrieve_body( $response );
+
+        if ( 200 !== $status ) {
+            return new WP_Error( 'gemini_api_error', 'Gemini returned status ' . $status, array( 'status' => 502 ) );
+        }
+
+        $data = json_decode( $raw, true );
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+
+        if ( empty( $text ) ) {
+            return new WP_Error( 'gemini_empty', __( 'Empty response from AI.', 'bpu' ), array( 'status' => 502 ) );
+        }
+
+        $result = json_decode( trim( $text ), true );
+        if ( ! $result || ! isset( $result['score'] ) ) {
+            return new WP_Error( 'gemini_invalid_json', __( 'Could not parse AI response.', 'bpu' ), array( 'status' => 502 ) );
+        }
+
+        return array(
+            'score'          => intval( $result['score'] ),
+            'strengths'      => array_slice( (array) ( $result['strengths'] ?? [] ), 0, 4 ),
+            'weaknesses'     => array_slice( (array) ( $result['weaknesses'] ?? [] ), 0, 4 ),
+            'recommendation' => sanitize_textarea_field( $result['recommendation'] ?? '' ),
+        );
     }
 
     /**
