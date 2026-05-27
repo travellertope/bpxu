@@ -1,6 +1,29 @@
 import { cookies } from 'next/headers';
 import { jwtVerify, JWTPayload } from 'jose';
 
+export interface WorkExperience {
+    title: string;
+    company: string;
+    start_date?: string;
+    end_date?: string;
+    is_current?: boolean;
+    description?: string;
+}
+
+export interface Education {
+    institution: string;
+    degree?: string;
+    field_of_study?: string;
+    start_year?: string;
+    end_year?: string;
+}
+
+export interface Certification {
+    name: string;
+    issuer?: string;
+    year?: string;
+}
+
 export interface ACFProfile {
     first_name: string;
     last_name: string;
@@ -39,6 +62,11 @@ export interface BPUUser {
     is_pro: boolean;
     profile: ACFProfile;
     cv_url?: string;
+    experiences?: WorkExperience[];
+    educations?: Education[];
+    certifications?: Certification[];
+    languages?: string;
+    cv_parsed_at?: string;
 }
 
 export interface SessionResult {
@@ -122,6 +150,11 @@ export async function getBPUSession(): Promise<SessionResult> {
                     if (profileData.cv_url) {
                         user.cv_url = profileData.cv_url;
                     }
+                    if (profileData.experiences?.length)    user.experiences    = profileData.experiences;
+                    if (profileData.educations?.length)     user.educations     = profileData.educations;
+                    if (profileData.certifications?.length) user.certifications = profileData.certifications;
+                    if (profileData.languages)              user.languages      = profileData.languages;
+                    if (profileData.cv_parsed_at)           user.cv_parsed_at   = profileData.cv_parsed_at;
                 }
             } catch {
                 // Profile fetch is optional — proceed with JWT-extracted data

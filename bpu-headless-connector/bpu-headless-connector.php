@@ -1743,9 +1743,20 @@ Rules:
         $cv_id  = get_user_meta( $user_id, '_bpu_member_cv_id', true );
         $cv_url = $cv_id ? wp_get_attachment_url( $cv_id ) : '';
 
+        $experiences    = get_user_meta( $user_id, 'bpu_experiences', true );
+        $educations     = get_user_meta( $user_id, 'bpu_educations', true );
+        $certifications = get_user_meta( $user_id, 'bpu_certifications', true );
+        $languages      = get_user_meta( $user_id, 'bpu_languages', true );
+        $cv_parsed_at   = get_user_meta( $user_id, 'bpu_cv_parsed_at', true );
+
         return new WP_REST_Response( array(
-            'profile' => $acf_profile,
-            'cv_url'  => $cv_url,
+            'profile'        => $acf_profile,
+            'cv_url'         => $cv_url,
+            'experiences'    => is_array( $experiences )    ? $experiences    : array(),
+            'educations'     => is_array( $educations )     ? $educations     : array(),
+            'certifications' => is_array( $certifications ) ? $certifications : array(),
+            'languages'      => is_string( $languages )     ? $languages      : '',
+            'cv_parsed_at'   => $cv_parsed_at ?: '',
         ), 200 );
     }
 

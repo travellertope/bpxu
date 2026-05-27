@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { BPUUser, ACFProfile } from '@/lib/auth';
+import { BPUUser, ACFProfile, WorkExperience, Education, Certification } from '@/lib/auth';
 import { JobListing, CourseItem, CVReview, EventItem, BPUApi } from '@/lib/api';
 
 function ProGate({ children, isPro, feature }: { children: React.ReactNode; isPro: boolean; feature: string }) {
@@ -47,6 +47,13 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
   const [reviews] = useState<CVReview[]>(initialReviews);
   const [events] = useState<EventItem[]>(initialEvents);
 
+  // Structured CV data (parsed from CV, read-only)
+  const [experiences, setExperiences] = useState<WorkExperience[]>(user.experiences || []);
+  const [educations, setEducations] = useState<Education[]>(user.educations || []);
+  const [certifications, setCertifications] = useState<Certification[]>(user.certifications || []);
+  const [cvLanguages, setCvLanguages] = useState<string>(user.languages || '');
+  const [cvParsedAt, setCvParsedAt] = useState<string>(user.cv_parsed_at || '');
+
   // CV upload
   const [uploading, setUploading] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
@@ -84,8 +91,14 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed.');
       setCvUrl(data.cv_url);
-      setProfile(data.parsed_data);
-      setEditForm(data.parsed_data);
+      const parsed = data.parsed_data || {};
+      setProfile(prev => ({ ...prev, ...parsed }));
+      setEditForm(prev => ({ ...prev, ...parsed }));
+      if (parsed.work_experiences?.length)  setExperiences(parsed.work_experiences);
+      if (parsed.education_history?.length) setEducations(parsed.education_history);
+      if (parsed.certifications?.length)    setCertifications(parsed.certifications);
+      if (parsed.languages)                 setCvLanguages(parsed.languages);
+      setCvParsedAt(new Date().toLocaleString());
       setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated automatically.' });
     } catch (err: unknown) {
       setUploadMsg({ type: 'err', text: err instanceof Error ? err.message : 'Upload error.' });
@@ -841,6 +854,82 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                 {saving ? 'Saving…' : 'Save changes'}
               </button>
             </div>
+
+            {/* CV-parsed structured data */}
+            {(experiences.length > 0 || educations.length > 0 || certifications.length > 0 || cvLanguages) && (
+              <>
+                <div className="divider" />
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold uppercase tracking-wide text-text-3">Parsed from your CV</p>
+                  {cvParsedAt && <p className="text-xs text-text-3">Last updated: {cvParsedAt}</p>}
+                </div>
+                <p className="text-xs text-text-2">This information was automatically extracted from your uploaded CV. Re-upload your CV to refresh it.</p>
+
+                {experiences.length > 0 && (
+                  <div className="card card-p space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Work Experience</p>
+                    <div className="space-y-4">
+                      {experiences.map((exp, i) => (
+                        <div key={i} className="border-l-2 border-brand pl-4 space-y-1">
+                          <p className="font-semibold text-sm">{exp.title}</p>
+                          <p className="text-sm text-text-2">{exp.company}</p>
+                          {(exp.start_date || exp.end_date) && (
+                            <p className="text-xs text-text-3">
+                              {exp.start_date || ''}{exp.start_date && (exp.end_date || exp.is_current) ? ' – ' : ''}{exp.is_current ? 'Present' : exp.end_date || ''}
+                            </p>
+                          )}
+                          {exp.description && <p className="text-xs text-text-2 leading-relaxed">{exp.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {educations.length > 0 && (
+                  <div className="card card-p space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Education</p>
+                    <div className="space-y-3">
+                      {educations.map((edu, i) => (
+                        <div key={i} className="border-l-2 border-brand pl-4 space-y-1">
+                          <p className="font-semibold text-sm">{edu.institution}</p>
+                          {(edu.degree || edu.field_of_study) && (
+                            <p className="text-sm text-text-2">{[edu.degree, edu.field_of_study].filter(Boolean).join(', ')}</p>
+                          )}
+                          {(edu.start_year || edu.end_year) && (
+                            <p className="text-xs text-text-3">{edu.start_year || ''}{edu.start_year && edu.end_year ? ' – ' : ''}{edu.end_year || ''}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {certifications.length > 0 && (
+                  <div className="card card-p space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Certifications</p>
+                    <ul className="space-y-2">
+                      {certifications.map((cert, i) => (
+                        <li key={i} className="flex items-start gap-2 text-sm">
+                          <span className="text-brand mt-0.5">✓</span>
+                          <span>
+                            <span className="font-medium">{cert.name}</span>
+                            {cert.issuer && <span className="text-text-2"> — {cert.issuer}</span>}
+                            {cert.year && <span className="text-text-3"> ({cert.year})</span>}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {cvLanguages && (
+                  <div className="card card-p space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Languages</p>
+                    <p className="text-sm">{cvLanguages}</p>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Email preferences — Pro only */}
             <div className="divider" />
