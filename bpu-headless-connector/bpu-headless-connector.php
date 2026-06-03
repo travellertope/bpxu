@@ -549,6 +549,12 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'get_employer_jobs' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-apply', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'submit_mentor_application' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
     }
 
     /**
@@ -3217,6 +3223,66 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'user_id'      => $user_id,
             'company_name' => $company_name,
         ), 201 );
+    }
+
+    // ── Mentor application ────────────────────────────────────────────
+
+    public function submit_mentor_application( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Authentication required.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $body    = $request->get_json_params();
+
+        $required = array( 'job_title', 'employer', 'years_exp', 'expertise', 'availability', 'has_mentored', 'motivation' );
+        foreach ( $required as $field ) {
+            if ( empty( $body[ $field ] ) ) {
+                return new WP_Error( 'bpu_missing', sprintf( __( '%s is required.', 'bpu' ), $field ), array( 'status' => 400 ) );
+            }
+        }
+
+        // Prevent duplicate applications
+        $existing = get_user_meta( $user_id, 'bpu_mentor_application_status', true );
+        if ( $existing && $existing !== 'rejected' ) {
+            return new WP_Error( 'bpu_duplicate', __( 'You already have a pending or approved mentor application.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $application = array(
+            'job_title'        => sanitize_text_field( $body['job_title'] ),
+            'employer'         => sanitize_text_field( $body['employer'] ),
+            'years_exp'        => sanitize_text_field( $body['years_exp'] ),
+            'expertise'        => sanitize_text_field( $body['expertise'] ),
+            'mentorship_style' => is_array( $body['mentorship_style'] ?? null )
+                ? array_map( 'sanitize_text_field', $body['mentorship_style'] )
+                : array(),
+            'availability'     => sanitize_text_field( $body['availability'] ),
+            'has_mentored'     => sanitize_text_field( $body['has_mentored'] ),
+            'linkedin_url'     => esc_url_raw( $body['linkedin_url'] ?? '' ),
+            'motivation'       => sanitize_textarea_field( $body['motivation'] ),
+            'applied_at'       => current_time( 'mysql' ),
+        );
+
+        update_user_meta( $user_id, 'bpu_mentor_application',        $application );
+        update_user_meta( $user_id, 'bpu_mentor_application_status', 'pending' );
+
+        // Notify admin
+        $user       = get_userdata( $user_id );
+        $admin_mail = get_option( 'admin_email' );
+        wp_mail(
+            $admin_mail,
+            '[BPU PAIRED] New mentor application: ' . $application['job_title'] . ' at ' . $application['employer'],
+            "A new mentor application has been submitted.\n\n" .
+            'Name: '       . ( $user ? $user->display_name : "User #$user_id" ) . "\n" .
+            'Email: '      . ( $user ? $user->user_email : '' ) . "\n" .
+            'Role: '       . $application['job_title'] . ' at ' . $application['employer'] . "\n" .
+            'Expertise: '  . $application['expertise'] . "\n" .
+            'Motivation: ' . $application['motivation'] . "\n\n" .
+            'Review in WordPress admin: ' . admin_url( "user-edit.php?user_id=$user_id" )
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => 'pending' ), 201 );
     }
 }
 

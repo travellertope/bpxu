@@ -129,6 +129,22 @@ export default async function PairedHome() {
         </div>
       </section>
 
+      {/* ── Become a mentor CTA ──────────────────────────── */}
+      <section style={{ padding: '60px 24px', background: 'var(--surface)', borderTop: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: '640px', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p className="text-xs font-bold uppercase tracking-widest text-text-3">Are you an experienced professional?</p>
+          <h2 className="text-2xl font-bold">Give back. Become a PAIRED mentor.</h2>
+          <p className="text-text-2 text-sm max-w-md mx-auto">
+            Share your expertise, open doors, and help shape the next generation of Black professionals. Commitment from just 1 hour a month.
+          </p>
+          <div className="flex justify-center">
+            <a href="/paired/apply" className="btn btn-outline btn-lg">
+              Apply to mentor →
+            </a>
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 }
