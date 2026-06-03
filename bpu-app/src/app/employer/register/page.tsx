@@ -55,7 +55,7 @@ export default function EmployerRegisterPage() {
         <div className="min-h-screen flex flex-col">
             <header className="topbar">
                 <div className="topbar-inner">
-                    <a href="/" className="topbar-brand"><span>BPU</span> Portal</a>
+                    <a href="/" className="topbar-brand"><img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" /></a>
                     <div className="flex items-center gap-3">
                         <a href="/employer" className="btn btn-ghost btn-sm">← Employer portal</a>
                     </div>

@@ -80,11 +80,12 @@ function LoginForm() {
 
         {/* Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-2xl font-extrabold tracking-tight">
-            <span className="text-brand">BPU</span>
-            <span className="text-text"> Portal</span>
-          </div>
-          <p className="mt-2 text-sm text-text-2">Black Professionals United</p>
+          <img
+            src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png"
+            alt="Black Professionals United"
+            className="h-16 w-auto mx-auto mb-3"
+          />
+          <p className="text-sm font-semibold text-text-2">Member Portal</p>
         </div>
 
         <div className="card card-p space-y-5">

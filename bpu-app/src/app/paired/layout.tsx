@@ -15,8 +15,8 @@ export default async function PairedLayout({ children }: { children: React.React
       <header className="topbar">
         <div className="topbar-inner">
           <a href="/paired" className="topbar-brand">
-            <span>PAIRED</span>
-            <span className="text-text-2 font-medium text-base"> by BPU</span>
+            <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" />
+            <span className="portal-label">PAIRED</span>
           </a>
 
           <nav className="hidden md:flex items-center gap-1">
