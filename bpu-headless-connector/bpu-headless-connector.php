@@ -73,6 +73,8 @@ class BPU_Headless_Connector {
         add_action( 'add_meta_boxes', array( $this, 'register_job_meta_boxes' ) );
         add_action( 'save_post_bpu_job', array( $this, 'save_job_meta_boxes' ), 10, 2 );
         add_action( 'admin_menu', array( $this, 'register_employer_link_admin_page' ) );
+        add_action( 'admin_menu', array( $this, 'register_job_reports_admin_page' ) );
+        add_action( 'wp_ajax_bpu_reports_export_csv', array( $this, 'ajax_reports_export_csv' ) );
         add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
         add_action( 'wp_ajax_bpu_employer_link_user',   array( $this, 'ajax_employer_link_user' ) );
         add_action( 'wp_ajax_bpu_employer_unlink_user', array( $this, 'ajax_employer_unlink_user' ) );
@@ -2960,6 +2962,268 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
     }
 
     // ── Employer ↔ User link admin page ──────────────────────────
+
+    // ── Job Reports admin page ────────────────────────────────────
+
+    public function register_job_reports_admin_page() {
+        add_submenu_page(
+            'edit.php?post_type=bpu_job',
+            'Job Board Reports',
+            'Reports',
+            'manage_options',
+            'bpu-job-reports',
+            array( $this, 'render_job_reports_page' )
+        );
+    }
+
+    /** Fetch job stats rows, filtered by employer term, job type, and date. */
+    private function get_report_rows( array $filters ): array {
+        $args = array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+
+        if ( ! empty( $filters['employer_term_id'] ) ) {
+            $args['tax_query'] = array( array(
+                'taxonomy' => 'bpu_employer',
+                'field'    => 'term_id',
+                'terms'    => intval( $filters['employer_term_id'] ),
+            ) );
+        }
+        if ( ! empty( $filters['job_type'] ) ) {
+            $args['meta_query'] = array( array(
+                'key'   => '_bpu_job_type',
+                'value' => sanitize_text_field( $filters['job_type'] ),
+            ) );
+        }
+        if ( ! empty( $filters['date_from'] ) ) {
+            $args['date_query'][] = array( 'after' => sanitize_text_field( $filters['date_from'] ), 'inclusive' => true );
+        }
+        if ( ! empty( $filters['date_to'] ) ) {
+            $args['date_query'][] = array( 'before' => sanitize_text_field( $filters['date_to'] ), 'inclusive' => true );
+        }
+
+        $posts = get_posts( $args );
+        $rows  = array();
+        foreach ( $posts as $p ) {
+            $imp  = intval( get_post_meta( $p->ID, '_bpu_impressions', true ) );
+            $clk  = intval( get_post_meta( $p->ID, '_bpu_clicks', true ) );
+            $app  = intval( get_post_meta( $p->ID, '_bpu_applications_count', true ) );
+            $ctr  = $imp > 0 ? round( $clk / $imp * 100, 1 ) : 0;
+
+            $emp_terms = wp_get_post_terms( $p->ID, 'bpu_employer', array( 'fields' => 'names' ) );
+            $company   = ( ! is_wp_error( $emp_terms ) && $emp_terms ) ? $emp_terms[0] : get_post_meta( $p->ID, '_bpu_company', true );
+
+            $rows[] = array(
+                'id'          => $p->ID,
+                'title'       => $p->post_title,
+                'company'     => $company ?: '—',
+                'job_type'    => get_post_meta( $p->ID, '_bpu_job_type', true ) ?: 'outbound',
+                'industry'    => get_post_meta( $p->ID, '_bpu_industry', true ) ?: '—',
+                'location'    => get_post_meta( $p->ID, '_bpu_location', true ) ?: '—',
+                'status'      => $p->post_status,
+                'date'        => $p->post_date,
+                'impressions' => $imp,
+                'clicks'      => $clk,
+                'applications'=> $app,
+                'ctr'         => $ctr,
+            );
+        }
+        return $rows;
+    }
+
+    public function render_job_reports_page() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Not allowed.' );
+
+        $filters = array(
+            'employer_term_id' => intval( $_GET['employer_term_id'] ?? 0 ),
+            'job_type'         => sanitize_text_field( $_GET['job_type'] ?? '' ),
+            'date_from'        => sanitize_text_field( $_GET['date_from'] ?? '' ),
+            'date_to'          => sanitize_text_field( $_GET['date_to'] ?? '' ),
+        );
+
+        $rows = $this->get_report_rows( $filters );
+
+        $total_imp = array_sum( array_column( $rows, 'impressions' ) );
+        $total_clk = array_sum( array_column( $rows, 'clicks' ) );
+        $total_app = array_sum( array_column( $rows, 'applications' ) );
+        $avg_ctr   = $total_imp > 0 ? round( $total_clk / $total_imp * 100, 1 ) : 0;
+
+        $all_employers = get_terms( array( 'taxonomy' => 'bpu_employer', 'hide_empty' => false, 'orderby' => 'name' ) );
+        if ( is_wp_error( $all_employers ) ) $all_employers = array();
+
+        $export_url = add_query_arg( array_merge( (array) $filters, array(
+            'action' => 'bpu_reports_export_csv',
+            'nonce'  => wp_create_nonce( 'bpu_reports_csv' ),
+        ) ), admin_url( 'admin-ajax.php' ) );
+        ?>
+        <div class="wrap">
+            <h1 style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                Job Board Reports
+                <a href="<?php echo esc_url( $export_url . '&' . http_build_query( $filters ) ); ?>" class="button button-secondary">
+                    ⬇ Export CSV
+                </a>
+            </h1>
+
+            <!-- Filters -->
+            <form method="get" style="background:#fff;padding:14px 16px;border:1px solid #ddd;border-radius:4px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:16px 0;">
+                <input type="hidden" name="post_type" value="bpu_job" />
+                <input type="hidden" name="page" value="bpu-job-reports" />
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Employer</label>
+                    <select name="employer_term_id">
+                        <option value="">All employers</option>
+                        <?php foreach ( $all_employers as $t ) : ?>
+                            <option value="<?php echo esc_attr( $t->term_id ); ?>" <?php selected( $filters['employer_term_id'], $t->term_id ); ?>>
+                                <?php echo esc_html( $t->name ); ?> (<?php echo (int) $t->count; ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Job Type</label>
+                    <select name="job_type">
+                        <option value="">All types</option>
+                        <option value="inbound"  <?php selected( $filters['job_type'], 'inbound' );  ?>>Inbound (apply on BPU)</option>
+                        <option value="outbound" <?php selected( $filters['job_type'], 'outbound' ); ?>>Outbound (partner site)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Posted from</label>
+                    <input type="date" name="date_from" value="<?php echo esc_attr( $filters['date_from'] ); ?>" />
+                </div>
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Posted to</label>
+                    <input type="date" name="date_to" value="<?php echo esc_attr( $filters['date_to'] ); ?>" />
+                </div>
+
+                <div style="display:flex;gap:6px;">
+                    <button type="submit" class="button button-primary">Filter</button>
+                    <a href="<?php echo esc_url( admin_url( 'edit.php?post_type=bpu_job&page=bpu-job-reports' ) ); ?>" class="button">Reset</a>
+                </div>
+            </form>
+
+            <!-- Summary cards -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                <?php foreach ( array(
+                    array( 'label' => 'Total Jobs', 'value' => count( $rows ), 'color' => '#1a56db' ),
+                    array( 'label' => 'Impressions', 'value' => number_format( $total_imp ), 'color' => '#0e9f6e' ),
+                    array( 'label' => 'Clicks / Applications', 'value' => number_format( $total_clk ) . ' / ' . number_format( $total_app ), 'color' => '#e3a008' ),
+                    array( 'label' => 'Avg CTR', 'value' => $avg_ctr . '%', 'color' => '#7e3af2' ),
+                ) as $card ) : ?>
+                    <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px 18px;border-top:3px solid <?php echo $card['color']; ?>;">
+                        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#666;margin:0 0 6px;"><?php echo esc_html( $card['label'] ); ?></p>
+                        <p style="font-size:24px;font-weight:700;color:#1e1e1e;margin:0;"><?php echo esc_html( $card['value'] ); ?></p>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Per-job table -->
+            <?php if ( empty( $rows ) ) : ?>
+                <p>No jobs found for the selected filters.</p>
+            <?php else : ?>
+            <table class="widefat striped" id="bpu-reports-table">
+                <thead>
+                    <tr>
+                        <th class="sortable" data-col="0">Job Title</th>
+                        <th class="sortable" data-col="1">Employer</th>
+                        <th class="sortable" data-col="2">Type</th>
+                        <th class="sortable" data-col="3">Industry</th>
+                        <th class="sortable" data-col="4">Status</th>
+                        <th class="sortable" data-col="5" style="text-align:right;">Impressions</th>
+                        <th class="sortable" data-col="6" style="text-align:right;">Clicks</th>
+                        <th class="sortable" data-col="7" style="text-align:right;">Applications</th>
+                        <th class="sortable" data-col="8" style="text-align:right;">CTR</th>
+                        <th>Posted</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $rows as $r ) :
+                        $status_colour = $r['status'] === 'publish' ? '#0e9f6e' : '#aaa';
+                    ?>
+                    <tr>
+                        <td><a href="<?php echo esc_url( get_edit_post_link( $r['id'] ) ); ?>"><?php echo esc_html( $r['title'] ); ?></a></td>
+                        <td><?php echo esc_html( $r['company'] ); ?></td>
+                        <td><?php echo esc_html( $r['job_type'] ); ?></td>
+                        <td><?php echo esc_html( $r['industry'] ); ?></td>
+                        <td><span style="color:<?php echo $status_colour; ?>;font-weight:600;"><?php echo esc_html( $r['status'] ); ?></span></td>
+                        <td style="text-align:right;"><?php echo number_format( $r['impressions'] ); ?></td>
+                        <td style="text-align:right;"><?php echo number_format( $r['clicks'] ); ?></td>
+                        <td style="text-align:right;"><?php echo number_format( $r['applications'] ); ?></td>
+                        <td style="text-align:right;"><?php echo esc_html( $r['ctr'] ); ?>%</td>
+                        <td><?php echo esc_html( date( 'd M Y', strtotime( $r['date'] ) ) ); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <script>
+            (function(){
+                const th = document.querySelectorAll('#bpu-reports-table thead th.sortable');
+                th.forEach(function(h){
+                    h.style.cursor='pointer';
+                    h.title='Click to sort';
+                    h.addEventListener('click', function(){
+                        const col = parseInt(h.dataset.col);
+                        const tbody = document.querySelector('#bpu-reports-table tbody');
+                        const rows = Array.from(tbody.querySelectorAll('tr'));
+                        const asc = h.dataset.dir !== 'asc';
+                        h.dataset.dir = asc ? 'asc' : 'desc';
+                        th.forEach(function(x){ x.style.fontStyle = 'normal'; });
+                        h.style.fontStyle = 'italic';
+                        rows.sort(function(a,b){
+                            const av = a.cells[col].innerText.replace(/[,%]/g,'').trim();
+                            const bv = b.cells[col].innerText.replace(/[,%]/g,'').trim();
+                            const an = parseFloat(av), bn = parseFloat(bv);
+                            if (!isNaN(an) && !isNaN(bn)) return asc ? an-bn : bn-an;
+                            return asc ? av.localeCompare(bv) : bv.localeCompare(av);
+                        });
+                        rows.forEach(function(r){ tbody.appendChild(r); });
+                    });
+                });
+            })();
+            </script>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    public function ajax_reports_export_csv() {
+        if ( ! check_ajax_referer( 'bpu_reports_csv', 'nonce', false ) ) wp_die( 'Bad nonce.' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Not allowed.' );
+
+        $filters = array(
+            'employer_term_id' => intval( $_GET['employer_term_id'] ?? 0 ),
+            'job_type'         => sanitize_text_field( $_GET['job_type'] ?? '' ),
+            'date_from'        => sanitize_text_field( $_GET['date_from'] ?? '' ),
+            'date_to'          => sanitize_text_field( $_GET['date_to'] ?? '' ),
+        );
+        $rows = $this->get_report_rows( $filters );
+
+        $filename = 'bpu-job-report-' . date( 'Y-m-d' ) . '.csv';
+        header( 'Content-Type: text/csv; charset=utf-8' );
+        header( 'Content-Disposition: attachment; filename="' . $filename . '"' );
+        header( 'Pragma: no-cache' );
+
+        $out = fopen( 'php://output', 'w' );
+        fputcsv( $out, array( 'ID', 'Title', 'Employer', 'Job Type', 'Industry', 'Location', 'Status', 'Posted', 'Impressions', 'Clicks', 'Applications', 'CTR %' ) );
+        foreach ( $rows as $r ) {
+            fputcsv( $out, array(
+                $r['id'], $r['title'], $r['company'], $r['job_type'], $r['industry'],
+                $r['location'], $r['status'], date( 'd/m/Y', strtotime( $r['date'] ) ),
+                $r['impressions'], $r['clicks'], $r['applications'], $r['ctr'],
+            ) );
+        }
+        fclose( $out );
+        exit;
+    }
 
     public function register_employer_link_admin_page() {
         add_submenu_page(
