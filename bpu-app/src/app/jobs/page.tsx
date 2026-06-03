@@ -56,8 +56,8 @@ export default async function JobsPage() {
                         <h1 className="text-4xl font-extrabold tracking-tight mb-3">
                             Find your next opportunity
                         </h1>
-                        <p className="text-text-2 text-lg max-w-xl mx-auto">
-                            Jobs curated for Black professionals in the UK — both direct applications and partner employer roles.
+                        <p className="text-text-2 text-lg max-w-2xl mx-auto">
+                            Hundreds of jobs from organisations that prioritise diversity, equity, and inclusion, ensuring you have access to opportunities that value your unique skills and experiences. From technology and finance to arts and beyond, you can find opportunities in various industries.
                         </p>
                     </div>
                 </section>

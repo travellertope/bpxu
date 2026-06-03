@@ -4,6 +4,17 @@ export interface ScreeningQuestion {
     required: boolean;
 }
 
+export interface Employer {
+    id: number;
+    name: string;
+    logo_url: string;
+    website: string;
+    tagline: string;
+    twitter: string;
+    video: string;
+    description: string;
+}
+
 export interface Job {
     id: number;
     title: string;
@@ -19,8 +30,12 @@ export interface Job {
     expires?: string;
     date_posted: string;
     status: 'published' | 'pending';
+    remote?: boolean;
+    featured?: boolean;
+    filled?: boolean;
     impressions?: number;
     clicks?: number;
     applications?: number;
     screening_questions?: ScreeningQuestion[];
+    employer?: Employer | null;
 }

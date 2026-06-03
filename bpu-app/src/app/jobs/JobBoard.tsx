@@ -33,9 +33,38 @@ interface JobCardProps {
     job: Job;
 }
 
+function CompanyAvatar({ name, logoUrl }: { name: string; logoUrl?: string }) {
+    if (logoUrl) {
+        return (
+            <div
+                className="shrink-0 rounded-lg overflow-hidden border border-border bg-surface"
+                style={{ width: 48, height: 48 }}
+            >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl} alt={name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+            </div>
+        );
+    }
+    // Initials fallback
+    const initials = name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map(w => w[0]?.toUpperCase() ?? '')
+        .join('');
+    return (
+        <div
+            className="shrink-0 rounded-lg flex items-center justify-center text-sm font-bold border border-border"
+            style={{ width: 48, height: 48, background: 'var(--brand-bg)', color: 'var(--brand)' }}
+        >
+            {initials}
+        </div>
+    );
+}
+
 function JobCard({ job }: JobCardProps) {
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
+    const logoUrl = job.employer?.logo_url || undefined;
 
     return (
         <Link
@@ -43,22 +72,30 @@ function JobCard({ job }: JobCardProps) {
             className="card card-p card-lift block text-text hover:no-underline"
             style={{ textDecoration: 'none' }}
         >
-            <div className="flex items-start justify-between gap-3 mb-3">
+            {/* Header: logo + title + badge */}
+            <div className="flex items-start gap-3 mb-3">
+                <CompanyAvatar name={job.company} logoUrl={logoUrl} />
                 <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-base leading-snug truncate">{job.title}</h3>
-                    <p className="text-sm text-text-2 mt-0.5">{job.company}</p>
+                    <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-semibold text-base leading-snug">{job.title}</h3>
+                        {isInbound ? (
+                            <span className="badge badge-green shrink-0">Apply now</span>
+                        ) : (
+                            <span className="badge badge-amber shrink-0">Partner</span>
+                        )}
+                    </div>
+                    <p className="text-sm text-text-2 mt-0.5 truncate">{job.company}</p>
+                    {job.employer?.tagline && (
+                        <p className="text-xs text-text-3 mt-0.5 truncate">{job.employer.tagline}</p>
+                    )}
                 </div>
-                {isInbound ? (
-                    <span className="badge badge-green flex-shrink-0">Apply now</span>
-                ) : (
-                    <span className="badge badge-amber flex-shrink-0">Partner role</span>
-                )}
             </div>
 
+            {/* Meta row */}
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-text-2 mb-3">
                 <span className="flex items-center gap-1">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                    {job.location}
+                    {job.remote ? 'Remote' : job.location}
                 </span>
                 <span className="flex items-center gap-1">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
@@ -72,8 +109,17 @@ function JobCard({ job }: JobCardProps) {
                 )}
             </div>
 
+            {/* Footer: industry + badges + date */}
             <div className="flex items-center justify-between text-xs text-text-3">
-                <span>{job.industry}</span>
+                <div className="flex items-center gap-1.5">
+                    <span>{job.industry}</span>
+                    {job.remote && (
+                        <span className="badge badge-gray" style={{ fontSize: '10px', padding: '1px 6px' }}>Remote</span>
+                    )}
+                    {job.featured && (
+                        <span className="badge badge-amber" style={{ fontSize: '10px', padding: '1px 6px' }}>Featured</span>
+                    )}
+                </div>
                 <span>{formatDate(job.date_posted)}</span>
             </div>
         </Link>
@@ -96,6 +142,8 @@ const INDUSTRIES = [
     'Other',
 ];
 
+const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Freelance', 'Contract', 'Internship'];
+
 type TypeFilter = 'all' | 'inbound' | 'outbound';
 
 interface JobBoardProps {
@@ -106,6 +154,11 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
     const [search, setSearch] = useState('');
     const [industry, setIndustry] = useState('All industries');
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+    const [remoteOnly, setRemoteOnly] = useState(false);
+    const [empTypes, setEmpTypes] = useState<string[]>([]);
+
+    const toggleEmpType = (t: string) =>
+        setEmpTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
     const filtered = useMemo(() => {
         return initialJobs.filter(job => {
@@ -122,18 +175,23 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
             const matchType =
                 typeFilter === 'all' || job.job_type === typeFilter;
 
-            return matchSearch && matchIndustry && matchType;
+            const matchRemote =
+                !remoteOnly || !!job.remote;
+
+            const matchEmpType =
+                empTypes.length === 0 || empTypes.includes(job.employment_type);
+
+            return matchSearch && matchIndustry && matchType && matchRemote && matchEmpType;
         });
-    }, [initialJobs, search, industry, typeFilter]);
+    }, [initialJobs, search, industry, typeFilter, remoteOnly, empTypes]);
 
     return (
         <div>
-            {/* Filters */}
-            <div className="card card-p mb-8">
-                <div className="flex flex-col sm:flex-row gap-3">
-                    {/* Search */}
+            {/* Search + filters */}
+            <div className="card card-p mb-6">
+                <div className="flex flex-col sm:flex-row gap-3 mb-3">
+                    {/* Keywords */}
                     <div className="flex-1">
-                        <label htmlFor="job-search" className="field-label">Search</label>
                         <div className="relative">
                             <svg
                                 className="absolute left-3 top-1/2 -translate-y-1/2 text-text-3 pointer-events-none"
@@ -146,7 +204,7 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
                                 id="job-search"
                                 type="text"
                                 className="field-input pl-9"
-                                placeholder="Job title, company, or location…"
+                                placeholder="Keywords — job title or company…"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
                             />
@@ -155,7 +213,6 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
 
                     {/* Industry */}
                     <div className="sm:w-52">
-                        <label htmlFor="job-industry" className="field-label">Industry</label>
                         <select
                             id="job-industry"
                             className="field-input"
@@ -169,26 +226,52 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
                     </div>
 
                     {/* Type toggle */}
-                    <div>
-                        <p className="field-label">Type</p>
-                        <div className="flex rounded-lg border border-border overflow-hidden" style={{ height: '40px' }}>
-                            {(['all', 'inbound', 'outbound'] as TypeFilter[]).map(t => (
-                                <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => setTypeFilter(t)}
-                                    className="px-3 text-sm font-medium transition-colors"
-                                    style={{
-                                        background: typeFilter === t ? 'var(--brand)' : 'var(--surface)',
-                                        color: typeFilter === t ? '#fff' : 'var(--text-2)',
-                                        borderRight: t !== 'outbound' ? '1px solid var(--border)' : 'none',
-                                    }}
-                                >
-                                    {t === 'all' ? 'All' : t === 'inbound' ? 'Inbound' : 'Outbound'}
-                                </button>
-                            ))}
-                        </div>
+                    <div className="flex rounded-lg border border-border overflow-hidden" style={{ height: '40px' }}>
+                        {(['all', 'inbound', 'outbound'] as TypeFilter[]).map(t => (
+                            <button
+                                key={t}
+                                type="button"
+                                onClick={() => setTypeFilter(t)}
+                                className="px-3 text-sm font-medium transition-colors"
+                                style={{
+                                    background: typeFilter === t ? 'var(--brand)' : 'var(--surface)',
+                                    color: typeFilter === t ? '#fff' : 'var(--text-2)',
+                                    borderRight: t !== 'outbound' ? '1px solid var(--border)' : 'none',
+                                }}
+                            >
+                                {t === 'all' ? 'All' : t === 'inbound' ? 'Apply direct' : 'Partner'}
+                            </button>
+                        ))}
                     </div>
+                </div>
+
+                {/* Second row: checkboxes */}
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                            type="checkbox"
+                            checked={remoteOnly}
+                            onChange={e => setRemoteOnly(e.target.checked)}
+                            className="w-4 h-4 rounded"
+                            style={{ accentColor: 'var(--brand)' }}
+                        />
+                        <span className="text-text-2">Remote positions only</span>
+                    </label>
+                    <span className="text-text-3" style={{ fontSize: '12px' }}>
+                        Employment type:
+                    </span>
+                    {EMPLOYMENT_TYPES.map(t => (
+                        <label key={t} className="flex items-center gap-1.5 cursor-pointer select-none">
+                            <input
+                                type="checkbox"
+                                checked={empTypes.includes(t)}
+                                onChange={() => toggleEmpType(t)}
+                                className="w-4 h-4 rounded"
+                                style={{ accentColor: 'var(--brand)' }}
+                            />
+                            <span className="text-text-2">{t}</span>
+                        </label>
+                    ))}
                 </div>
             </div>
 

@@ -138,13 +138,22 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
     // ── Read WP Job Manager meta ─────────────────────────────────
     $get = fn( $key ) => get_post_meta( $id, $key, true );
 
-    $location   = (string) $get( '_job_location' );
-    $company    = (string) $get( '_company_name' );
-    $application= (string) $get( '_application' );
-    $links_to   = (string) $get( '_links_to' );   // Page Links To plugin redirect URL
-    $expires    = (string) $get( '_job_expires' );
-    $salary_raw = (string) ( $get( '_job_salary' ) ?: $get( '_salary' ) ?: '' );
-    $filled     = (string) $get( '_filled' );
+    $location          = (string) $get( '_job_location' );
+    $company           = (string) $get( '_company_name' );
+    $application       = (string) $get( '_application' );
+    $links_to          = (string) $get( '_links_to' );   // Page Links To plugin redirect URL
+    $expires           = (string) $get( '_job_expires' );
+    $salary_raw        = (string) ( $get( '_job_salary' ) ?: $get( '_salary' ) ?: '' );
+    $salary_currency   = (string) ( $get( '_job_salary_currency' ) ?: 'GBP' );
+    $filled            = (bool) $get( '_filled' );
+    $remote            = (bool) $get( '_remote_position' );
+    $featured          = (bool) $get( '_featured' );
+    $company_tagline   = (string) $get( '_company_tagline' );
+    $company_website   = (string) $get( '_company_website' );
+    $company_twitter   = (string) $get( '_company_twitter' );
+    $company_video     = (string) $get( '_company_video' );
+    $company_about     = (string) $get( 'about_company' );  // ACF wysiwyg field
+    $company_logo_id   = intval( get_post_thumbnail_id( $id ) );
 
     // ── Taxonomies ───────────────────────────────────────────────
     $type_terms = wp_get_post_terms( $id, 'job_listing_type',     [ 'fields' => 'names' ] );
@@ -179,9 +188,28 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
     // ── Parse salary ─────────────────────────────────────────────
     [ $sal_min, $sal_max ] = bpu_wjm_parse_salary( $salary_raw );
 
+    // ── Resolve company logo URL from WJM post thumbnail ─────────
+    $logo_url = '';
+    if ( $company_logo_id ) {
+        $img = wp_get_attachment_image_src( $company_logo_id, 'full' );
+        if ( $img ) $logo_url = $img[0];
+    }
+
+    // ── Get or create bpu_employer taxonomy term ──────────────────
+    $employer_name = $company ?: 'Unknown Company';
+    $employer_term_id = null;
+    if ( class_exists( 'BPU_Headless_Connector' ) ) {
+        $employer_term_id = BPU_Headless_Connector::get_or_create_employer_term( $employer_name, [
+            'logo_url'    => $logo_url,
+            'website'     => $company_website,
+            'tagline'     => $company_tagline,
+            'twitter'     => $company_twitter,
+            'video'       => $company_video,
+            'description' => $company_about,
+        ] );
+    }
+
     // ── Decide post_status ───────────────────────────────────────
-    // Publish live & expired WJM jobs into BPU as published.
-    // (Admin can bulk-unpublish if needed.)
     $bpu_status = ( $wjm->post_status === 'pending' ) ? 'pending' : 'publish';
 
     // ── Create the BPU job post ───────────────────────────────────
@@ -198,20 +226,28 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
         return [ 'status' => 'error', 'msg' => "#{$id} "{$title}" — " . $bpu_id->get_error_message() ];
     }
 
+    // ── Attach employer taxonomy term ─────────────────────────────
+    if ( $employer_term_id ) {
+        wp_set_post_terms( $bpu_id, [ $employer_term_id ], 'bpu_employer' );
+    }
+
     // ── Write BPU meta ────────────────────────────────────────────
     $meta = [
-        '_bpu_company'         => $company    ?: 'Unknown Company',
-        '_bpu_location'        => $location   ?: 'United Kingdom',
-        '_bpu_employment_type' => $employment_type,
-        '_bpu_industry'        => $industry,
-        '_bpu_job_type'        => $job_type,
-        '_bpu_apply_url'       => $apply_url,
-        '_bpu_expires_date'    => $expires,
-        '_bpu_salary_currency' => 'GBP',
-        '_bpu_impressions'     => 0,
-        '_bpu_clicks'          => 0,
+        '_bpu_company'            => $employer_name,
+        '_bpu_location'           => $location   ?: 'United Kingdom',
+        '_bpu_employment_type'    => $employment_type,
+        '_bpu_industry'           => $industry,
+        '_bpu_job_type'           => $job_type,
+        '_bpu_apply_url'          => $apply_url,
+        '_bpu_expires_date'       => $expires,
+        '_bpu_salary_currency'    => $salary_currency,
+        '_bpu_remote'             => $remote    ? '1' : '0',
+        '_bpu_featured'           => $featured  ? '1' : '0',
+        '_bpu_filled'             => $filled    ? '1' : '0',
+        '_bpu_impressions'        => 0,
+        '_bpu_clicks'             => 0,
         '_bpu_applications_count' => 0,
-        BPU_WJM_STAMP          => $id,        // import tracking
+        BPU_WJM_STAMP             => $id,
     ];
     if ( $sal_min !== null ) $meta['_bpu_salary_min'] = $sal_min;
     if ( $sal_max !== null ) $meta['_bpu_salary_max'] = $sal_max;
@@ -220,7 +256,9 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
         update_post_meta( $bpu_id, $key, $value );
     }
 
-    return [ 'status' => 'imported', 'msg' => "#{$id} "{$title}" → BPU #{$bpu_id} [{$job_type}, {$employment_type}, {$industry}]" ];
+    $flags = array_filter( [ $remote ? 'remote' : '', $featured ? 'featured' : '', $filled ? 'filled' : '' ] );
+    $flags_str = $flags ? ' [' . implode( ', ', $flags ) . ']' : '';
+    return [ 'status' => 'imported', 'msg' => "#{$id} "{$title}" → BPU #{$bpu_id} [{$job_type}, {$employment_type}, {$industry}]{$flags_str}" ];
 }
 
 // ─────────────────────────────────────────────────────────────────

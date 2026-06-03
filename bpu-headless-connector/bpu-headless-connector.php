@@ -69,6 +69,7 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_job_post_type' ) );
         add_action( 'init', array( $this, 'register_job_application_post_type' ) );
         add_action( 'init', array( $this, 'register_employer_role' ) );
+        add_action( 'init', array( $this, 'register_employer_taxonomy' ) );
     }
 
     /**
@@ -2741,17 +2742,89 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
     }
 
+    public function register_employer_taxonomy() {
+        register_taxonomy( 'bpu_employer', 'bpu_job', array(
+            'labels'            => array(
+                'name'          => __( 'Employers', 'bpu' ),
+                'singular_name' => __( 'Employer', 'bpu' ),
+                'menu_name'     => __( 'Employers', 'bpu' ),
+                'all_items'     => __( 'All Employers', 'bpu' ),
+                'edit_item'     => __( 'Edit Employer', 'bpu' ),
+                'add_new_item'  => __( 'Add New Employer', 'bpu' ),
+            ),
+            'public'            => false,
+            'publicly_queryable'=> false,
+            'hierarchical'      => false,
+            'show_ui'           => true,
+            'show_in_menu'      => true,
+            'show_in_rest'      => false,
+            'show_admin_column' => true,
+            'rewrite'           => false,
+        ) );
+    }
+
+    /**
+     * Get or create a bpu_employer term by company name.
+     * Optionally seeds term meta on creation/update if $meta array is provided.
+     */
+    public static function get_or_create_employer_term( string $name, array $meta = [] ): ?int {
+        if ( ! $name ) return null;
+        $term = get_term_by( 'name', $name, 'bpu_employer' );
+        if ( ! $term ) {
+            $result = wp_insert_term( $name, 'bpu_employer' );
+            if ( is_wp_error( $result ) ) return null;
+            $term_id = (int) $result['term_id'];
+        } else {
+            $term_id = (int) $term->term_id;
+        }
+        foreach ( $meta as $key => $value ) {
+            if ( $value !== '' && $value !== null ) {
+                update_term_meta( $term_id, $key, $value );
+            }
+        }
+        return $term_id;
+    }
+
+    /**
+     * Return the employer object for a given term_id (or null).
+     */
+    private function get_employer_data( int $term_id ): ?array {
+        if ( ! $term_id ) return null;
+        $term = get_term( $term_id, 'bpu_employer' );
+        if ( ! $term || is_wp_error( $term ) ) return null;
+        $gm = fn( $k ) => get_term_meta( $term_id, $k, true );
+        return array(
+            'id'          => $term_id,
+            'name'        => $term->name,
+            'logo_url'    => (string) $gm( 'logo_url' ),
+            'website'     => (string) $gm( 'website' ),
+            'tagline'     => (string) $gm( 'tagline' ),
+            'twitter'     => (string) $gm( 'twitter' ),
+            'video'       => (string) $gm( 'video' ),
+            'description' => (string) $gm( 'description' ),
+        );
+    }
+
     private function format_job_for_api( $post ) {
         $get = function ( $key ) use ( $post ) {
             return get_post_meta( $post->ID, $key, true );
         };
         $questions = maybe_unserialize( $get( '_bpu_screening_questions' ) );
+
+        // Resolve bpu_employer taxonomy term
+        $employer_terms = wp_get_post_terms( $post->ID, 'bpu_employer', array( 'fields' => 'ids' ) );
+        $employer_term_id = ( ! is_wp_error( $employer_terms ) && ! empty( $employer_terms ) ) ? (int) $employer_terms[0] : 0;
+        $employer = $this->get_employer_data( $employer_term_id );
+
+        // Fall back to plain meta for company name if no taxonomy term yet
+        $company_name = $employer ? $employer['name'] : (string) $get( '_bpu_company' );
+
         return array(
             'id'                  => $post->ID,
             'title'               => $post->post_title,
             'slug'                => $post->post_name,
             'description'         => $post->post_content,
-            'company'             => (string) $get( '_bpu_company' ),
+            'company'             => $company_name,
             'location'            => (string) $get( '_bpu_location' ),
             'employment_type'     => (string) $get( '_bpu_employment_type' ),
             'industry'            => (string) $get( '_bpu_industry' ),
@@ -2761,12 +2834,16 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'job_type'            => $get( '_bpu_job_type' ) ?: 'outbound',
             'apply_url'           => (string) $get( '_bpu_apply_url' ),
             'expires'             => (string) $get( '_bpu_expires_date' ),
+            'remote'              => (bool) $get( '_bpu_remote' ),
+            'featured'            => (bool) $get( '_bpu_featured' ),
+            'filled'              => (bool) $get( '_bpu_filled' ),
             'impressions'         => intval( $get( '_bpu_impressions' ) ?: 0 ),
             'clicks'              => intval( $get( '_bpu_clicks' ) ?: 0 ),
             'applications'        => intval( $get( '_bpu_applications_count' ) ?: 0 ),
             'screening_questions' => is_array( $questions ) ? $questions : array(),
             'date_posted'         => $post->post_date,
             'employer_id'         => intval( $post->post_author ),
+            'employer'            => $employer,
         );
     }
 

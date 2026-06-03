@@ -1,5 +1,5 @@
 import { getBPUSession } from '@/lib/auth';
-import { Job } from '../types';
+import { Job, Employer } from '../types';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import OutboundApplyButton from './OutboundApplyButton';
@@ -59,6 +59,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
+    const employer: Employer | null = job.employer ?? null;
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -89,20 +90,47 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
                 {/* Job header */}
                 <div className="card card-p mb-6">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                        <div>
+                    <div className="flex flex-wrap items-start gap-4 mb-4">
+                        {/* Company logo */}
+                        {employer?.logo_url ? (
+                            <div
+                                className="shrink-0 rounded-xl overflow-hidden border border-border bg-surface"
+                                style={{ width: 72, height: 72 }}
+                            >
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                    src={employer.logo_url}
+                                    alt={employer.name}
+                                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                                />
+                            </div>
+                        ) : (
+                            <div
+                                className="shrink-0 rounded-xl flex items-center justify-center text-xl font-bold border border-border"
+                                style={{ width: 72, height: 72, background: 'var(--brand-bg)', color: 'var(--brand)' }}
+                            >
+                                {job.company.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')}
+                            </div>
+                        )}
+                        <div className="flex-1 min-w-0">
                             <div className="flex flex-wrap items-center gap-2 mb-2">
                                 {isInbound ? (
                                     <span className="badge badge-green">Apply now</span>
                                 ) : (
                                     <span className="badge badge-amber">Partner role</span>
                                 )}
+                                {job.remote && <span className="badge badge-gray">Remote</span>}
+                                {job.featured && <span className="badge badge-amber">Featured</span>}
+                                {job.filled && <span className="badge badge-gray">Position filled</span>}
                                 {job.status === 'pending' && (
                                     <span className="badge badge-gray">Pending review</span>
                                 )}
                             </div>
                             <h1 className="text-2xl font-bold mb-1">{job.title}</h1>
                             <p className="text-text-2 text-lg">{job.company}</p>
+                            {employer?.tagline && (
+                                <p className="text-sm text-text-3 mt-0.5">{employer.tagline}</p>
+                            )}
                         </div>
                     </div>
 
@@ -151,8 +179,8 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
                 {/* Two-column layout */}
                 <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Left: Description */}
-                    <div className="flex-1 min-w-0">
+                    {/* Left: Description + About Company */}
+                    <div className="flex-1 min-w-0 space-y-6">
                         <div className="card card-p">
                             <h2 className="section-title mb-4">Job Description</h2>
                             <div
@@ -161,6 +189,42 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                 dangerouslySetInnerHTML={{ __html: job.description }}
                             />
                         </div>
+
+                        {/* About the company */}
+                        {employer && (employer.description || employer.video) && (
+                            <div className="card card-p">
+                                <div className="flex items-center gap-3 mb-4">
+                                    {employer.logo_url && (
+                                        <div
+                                            className="shrink-0 rounded-lg overflow-hidden border border-border bg-surface"
+                                            style={{ width: 40, height: 40 }}
+                                        >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={employer.logo_url} alt={employer.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                        </div>
+                                    )}
+                                    <h2 className="section-title">About {employer.name}</h2>
+                                </div>
+                                {employer.description && (
+                                    <div
+                                        className="prose prose-sm max-w-none text-text leading-relaxed mb-4"
+                                        style={{ fontSize: '14px', lineHeight: '1.7' }}
+                                        dangerouslySetInnerHTML={{ __html: employer.description }}
+                                    />
+                                )}
+                                {employer.video && (
+                                    <div className="mt-4 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                                        <iframe
+                                            src={employer.video}
+                                            className="w-full h-full"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowFullScreen
+                                            title={`${employer.name} video`}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     {/* Right: Sidebar */}
@@ -212,9 +276,13 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
                             <div className="divider" />
 
-                            <div className="space-y-1">
+                            <div className="space-y-1.5">
                                 <p className="text-xs text-text-3">
-                                    <strong className="text-text-2">Company:</strong> {job.company}
+                                    <strong className="text-text-2">Company:</strong>{' '}
+                                    {employer?.website
+                                        ? <a href={employer.website} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">{job.company}</a>
+                                        : job.company
+                                    }
                                 </p>
                                 <p className="text-xs text-text-3">
                                     <strong className="text-text-2">Type:</strong> {job.employment_type}
@@ -225,6 +293,19 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                 {salary && (
                                     <p className="text-xs text-text-3">
                                         <strong className="text-text-2">Salary:</strong> {salary}
+                                    </p>
+                                )}
+                                {job.remote && (
+                                    <p className="text-xs text-text-3">
+                                        <strong className="text-text-2">Location:</strong> Remote
+                                    </p>
+                                )}
+                                {employer?.twitter && (
+                                    <p className="text-xs text-text-3">
+                                        <strong className="text-text-2">Twitter/X:</strong>{' '}
+                                        <a href={`https://x.com/${employer.twitter.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">
+                                            @{employer.twitter.replace(/^@/, '')}
+                                        </a>
                                     </p>
                                 )}
                             </div>
