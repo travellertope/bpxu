@@ -64,6 +64,11 @@ class BPU_Headless_Connector {
         add_action( 'woocommerce_subscription_status_cancelled',  array( $this, 'on_subscription_deactivated' ) );
         add_action( 'woocommerce_subscription_status_expired',    array( $this, 'on_subscription_deactivated' ) );
         add_action( 'woocommerce_subscription_status_on-hold',    array( $this, 'on_subscription_deactivated' ) );
+
+        // Job platform CPTs and roles
+        add_action( 'init', array( $this, 'register_job_post_type' ) );
+        add_action( 'init', array( $this, 'register_job_application_post_type' ) );
+        add_action( 'init', array( $this, 'register_employer_role' ) );
     }
 
     /**
@@ -470,6 +475,78 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/request-cv-review', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'handle_request_cv_review' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 12. Job Platform
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/jobs', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_jobs' ),
+                'permission_callback' => '__return_true',
+                'args'                => array(
+                    'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                    'per_page' => array( 'default' => 20, 'sanitize_callback' => 'absint' ),
+                    'job_type' => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                    'industry' => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                    'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_job' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/jobs/(?P<id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_single_job' ),
+                'permission_callback' => '__return_true',
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'update_job' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => array( $this, 'delete_job' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/jobs/(?P<id>\d+)/click', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'track_job_outbound_click' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        register_rest_route( $this->namespace, '/jobs/(?P<id>\d+)/apply', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'submit_job_application' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/jobs/(?P<id>\d+)/applications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_job_applications' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/employer/register', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_employer_register' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        register_rest_route( $this->namespace, '/employer/jobs', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_employer_jobs' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
@@ -2601,6 +2678,545 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             </div>
             <?php
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // JOB PLATFORM
+    // ═══════════════════════════════════════════════════════════════
+
+    public function register_job_post_type() {
+        register_post_type( 'bpu_job', array(
+            'labels'             => array(
+                'name'          => __( 'Jobs', 'bpu' ),
+                'singular_name' => __( 'Job', 'bpu' ),
+                'menu_name'     => __( 'BPU Jobs', 'bpu' ),
+                'add_new_item'  => __( 'Post New Job', 'bpu' ),
+                'edit_item'     => __( 'Edit Job', 'bpu' ),
+                'all_items'     => __( 'All Jobs', 'bpu' ),
+            ),
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => true,
+            'query_var'          => false,
+            'capability_type'    => 'post',
+            'has_archive'        => false,
+            'hierarchical'       => false,
+            'menu_position'      => 26,
+            'menu_icon'          => 'dashicons-portfolio',
+            'supports'           => array( 'title', 'editor', 'custom-fields', 'author' ),
+            'show_in_rest'       => false,
+        ) );
+    }
+
+    public function register_job_application_post_type() {
+        register_post_type( 'bpu_job_application', array(
+            'labels'             => array(
+                'name'          => __( 'Job Applications', 'bpu' ),
+                'singular_name' => __( 'Application', 'bpu' ),
+                'menu_name'     => __( 'Applications', 'bpu' ),
+                'all_items'     => __( 'All Applications', 'bpu' ),
+            ),
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => 'edit.php?post_type=bpu_job',
+            'capability_type'    => 'post',
+            'has_archive'        => false,
+            'hierarchical'       => false,
+            'supports'           => array( 'title', 'custom-fields', 'author' ),
+            'show_in_rest'       => false,
+        ) );
+    }
+
+    public function register_employer_role() {
+        if ( ! get_role( 'bpu_employer' ) ) {
+            add_role( 'bpu_employer', __( 'BPU Employer', 'bpu' ), array( 'read' => true ) );
+        }
+    }
+
+    private function format_job_for_api( $post ) {
+        $get = function ( $key ) use ( $post ) {
+            return get_post_meta( $post->ID, $key, true );
+        };
+        $questions = maybe_unserialize( $get( '_bpu_screening_questions' ) );
+        return array(
+            'id'                  => $post->ID,
+            'title'               => $post->post_title,
+            'slug'                => $post->post_name,
+            'description'         => $post->post_content,
+            'company'             => (string) $get( '_bpu_company' ),
+            'location'            => (string) $get( '_bpu_location' ),
+            'employment_type'     => (string) $get( '_bpu_employment_type' ),
+            'industry'            => (string) $get( '_bpu_industry' ),
+            'salary_min'          => $get( '_bpu_salary_min' ) !== '' ? intval( $get( '_bpu_salary_min' ) ) : null,
+            'salary_max'          => $get( '_bpu_salary_max' ) !== '' ? intval( $get( '_bpu_salary_max' ) ) : null,
+            'salary_currency'     => $get( '_bpu_salary_currency' ) ?: 'GBP',
+            'job_type'            => $get( '_bpu_job_type' ) ?: 'outbound',
+            'apply_url'           => (string) $get( '_bpu_apply_url' ),
+            'expires_date'        => (string) $get( '_bpu_expires_date' ),
+            'impressions'         => intval( $get( '_bpu_impressions' ) ?: 0 ),
+            'clicks'              => intval( $get( '_bpu_clicks' ) ?: 0 ),
+            'applications_count'  => intval( $get( '_bpu_applications_count' ) ?: 0 ),
+            'screening_questions' => is_array( $questions ) ? $questions : array(),
+            'posted_date'         => $post->post_date,
+            'employer_id'         => intval( $post->post_author ),
+        );
+    }
+
+    public function get_jobs( WP_REST_Request $request ) {
+        $per_page  = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page      = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $job_type  = sanitize_text_field( $request->get_param( 'job_type' ) ?: '' );
+        $industry  = sanitize_text_field( $request->get_param( 'industry' ) ?: '' );
+        $search    = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+
+        $args = array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+
+        $meta_query = array( 'relation' => 'AND' );
+        if ( $job_type && in_array( $job_type, array( 'inbound', 'outbound' ), true ) ) {
+            $meta_query[] = array( 'key' => '_bpu_job_type', 'value' => $job_type );
+        }
+        if ( $industry ) {
+            $meta_query[] = array( 'key' => '_bpu_industry', 'value' => $industry, 'compare' => 'LIKE' );
+        }
+        if ( count( $meta_query ) > 1 ) {
+            $args['meta_query'] = $meta_query;
+        }
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query( $args );
+        $jobs  = array_map( array( $this, 'format_job_for_api' ), $query->posts );
+
+        return new WP_REST_Response( array(
+            'jobs'  => $jobs,
+            'total' => $query->found_posts,
+            'pages' => $query->max_num_pages,
+        ), 200 );
+    }
+
+    public function get_single_job( WP_REST_Request $request ) {
+        $job_id = intval( $request->get_param( 'id' ) );
+        $post   = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' || $post->post_status !== 'publish' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Track impression
+        $impressions = intval( get_post_meta( $job_id, '_bpu_impressions', true ) ?: 0 );
+        update_post_meta( $job_id, '_bpu_impressions', $impressions + 1 );
+
+        $job                = $this->format_job_for_api( $post );
+        $job['impressions'] = $impressions + 1;
+
+        return new WP_REST_Response( array( 'job' => $job ), 200 );
+    }
+
+    public function track_job_outbound_click( WP_REST_Request $request ) {
+        $job_id = intval( $request->get_param( 'id' ) );
+        $post   = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $clicks = intval( get_post_meta( $job_id, '_bpu_clicks', true ) ?: 0 );
+        update_post_meta( $job_id, '_bpu_clicks', $clicks + 1 );
+
+        return new WP_REST_Response( array( 'success' => true, 'clicks' => $clicks + 1 ), 200 );
+    }
+
+    public function create_job( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+        $is_admin    = in_array( 'administrator', (array) $user->roles, true );
+        $is_employer = in_array( 'bpu_employer',  (array) $user->roles, true );
+
+        if ( ! $is_admin && ! $is_employer ) {
+            return new WP_Error( 'bpu_forbidden', __( 'Only employers can post jobs.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body     = $request->get_json_params();
+        $title    = sanitize_text_field( $body['title'] ?? '' );
+        $job_type = in_array( $body['job_type'] ?? '', array( 'inbound', 'outbound' ), true ) ? $body['job_type'] : 'outbound';
+
+        if ( empty( $title ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Job title is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( 'outbound' === $job_type && empty( $body['apply_url'] ) ) {
+            return new WP_Error( 'bpu_missing', __( 'apply_url is required for outbound jobs.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'    => 'bpu_job',
+            'post_title'   => $title,
+            'post_content' => wp_kses_post( $body['description'] ?? '' ),
+            'post_status'  => $is_admin ? 'publish' : 'pending',
+            'post_author'  => $user_id,
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        $meta = array(
+            '_bpu_company'         => sanitize_text_field( $body['company'] ?? '' ),
+            '_bpu_location'        => sanitize_text_field( $body['location'] ?? '' ),
+            '_bpu_employment_type' => sanitize_text_field( $body['employment_type'] ?? '' ),
+            '_bpu_industry'        => sanitize_text_field( $body['industry'] ?? '' ),
+            '_bpu_job_type'        => $job_type,
+            '_bpu_apply_url'       => esc_url_raw( $body['apply_url'] ?? '' ),
+            '_bpu_salary_min'      => intval( $body['salary_min'] ?? 0 ),
+            '_bpu_salary_max'      => intval( $body['salary_max'] ?? 0 ),
+            '_bpu_salary_currency' => sanitize_text_field( $body['salary_currency'] ?? 'GBP' ),
+            '_bpu_expires_date'    => sanitize_text_field( $body['expires_date'] ?? '' ),
+            '_bpu_employer_id'     => $user_id,
+            '_bpu_impressions'     => 0,
+            '_bpu_clicks'          => 0,
+            '_bpu_applications_count' => 0,
+        );
+
+        if ( ! empty( $body['screening_questions'] ) && is_array( $body['screening_questions'] ) ) {
+            $questions = array_map( function ( $q ) {
+                return array(
+                    'id'       => sanitize_key( $q['id'] ?? uniqid( 'q_' ) ),
+                    'question' => sanitize_text_field( $q['question'] ?? '' ),
+                    'required' => ! empty( $q['required'] ),
+                );
+            }, $body['screening_questions'] );
+            $meta['_bpu_screening_questions'] = maybe_serialize( $questions );
+        }
+
+        foreach ( $meta as $key => $value ) {
+            update_post_meta( $post_id, $key, $value );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'job_id'  => $post_id,
+            'status'  => $is_admin ? 'published' : 'pending_review',
+        ), 201 );
+    }
+
+    public function update_job( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $job_id  = intval( $request->get_param( 'id' ) );
+        $post    = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $user     = get_userdata( $user_id );
+        $is_admin = in_array( 'administrator', (array) $user->roles, true );
+        if ( ! $is_admin && intval( $post->post_author ) !== $user_id ) {
+            return new WP_Error( 'bpu_forbidden', __( 'You can only edit your own jobs.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body   = $request->get_json_params();
+        $update = array( 'ID' => $job_id );
+        if ( isset( $body['title'] ) )       $update['post_title']   = sanitize_text_field( $body['title'] );
+        if ( isset( $body['description'] ) ) $update['post_content'] = wp_kses_post( $body['description'] );
+        wp_update_post( $update );
+
+        $str_fields = array( 'company', 'location', 'employment_type', 'industry', 'apply_url', 'expires_date', 'salary_currency' );
+        foreach ( $str_fields as $f ) {
+            if ( isset( $body[ $f ] ) ) {
+                update_post_meta( $job_id, "_bpu_$f", sanitize_text_field( $body[ $f ] ) );
+            }
+        }
+        foreach ( array( 'salary_min', 'salary_max' ) as $f ) {
+            if ( isset( $body[ $f ] ) ) {
+                update_post_meta( $job_id, "_bpu_$f", intval( $body[ $f ] ) );
+            }
+        }
+        if ( isset( $body['job_type'] ) && in_array( $body['job_type'], array( 'inbound', 'outbound' ), true ) ) {
+            update_post_meta( $job_id, '_bpu_job_type', $body['job_type'] );
+        }
+        if ( isset( $body['screening_questions'] ) && is_array( $body['screening_questions'] ) ) {
+            $questions = array_map( function ( $q ) {
+                return array(
+                    'id'       => sanitize_key( $q['id'] ?? uniqid( 'q_' ) ),
+                    'question' => sanitize_text_field( $q['question'] ?? '' ),
+                    'required' => ! empty( $q['required'] ),
+                );
+            }, $body['screening_questions'] );
+            update_post_meta( $job_id, '_bpu_screening_questions', maybe_serialize( $questions ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function delete_job( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $job_id  = intval( $request->get_param( 'id' ) );
+        $post    = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $user = get_userdata( $user_id );
+        if ( ! in_array( 'administrator', (array) $user->roles, true ) && intval( $post->post_author ) !== $user_id ) {
+            return new WP_Error( 'bpu_forbidden', __( 'Forbidden.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        wp_trash_post( $job_id );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function submit_job_application( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $job_id  = intval( $request->get_param( 'id' ) );
+        $post    = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' || $post->post_status !== 'publish' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+        if ( get_post_meta( $job_id, '_bpu_job_type', true ) !== 'inbound' ) {
+            return new WP_Error( 'bpu_invalid', __( 'This job requires an external application.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Prevent duplicates
+        $existing = get_posts( array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'meta_query'     => array(
+                array( 'key' => '_bpu_job_id',       'value' => $job_id ),
+                array( 'key' => '_bpu_applicant_id', 'value' => $user_id ),
+            ),
+        ) );
+        if ( ! empty( $existing ) ) {
+            return new WP_Error( 'bpu_duplicate', __( 'You have already applied to this job.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $user          = get_userdata( $user_id );
+        $body          = $request->get_body_params();
+        $cover_letter  = sanitize_textarea_field( $body['cover_letter'] ?? '' );
+        $answers_raw   = wp_unslash( $body['screening_answers'] ?? '[]' );
+        $answers       = json_decode( $answers_raw, true ) ?: array();
+
+        // CV: new upload > stored
+        $cv_id = intval( get_user_meta( $user_id, '_bpu_member_cv_id', true ) );
+        $files = $request->get_file_params();
+        if ( ! empty( $files['cv_file'] ) && UPLOAD_ERR_OK === $files['cv_file']['error'] ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $uploaded = media_handle_upload( 'cv_file', 0 );
+            if ( ! is_wp_error( $uploaded ) ) {
+                $cv_id = $uploaded;
+            }
+        }
+
+        $job_title = $post->post_title;
+        $company   = get_post_meta( $job_id, '_bpu_company', true );
+
+        $app_id = wp_insert_post( array(
+            'post_type'   => 'bpu_job_application',
+            'post_title'  => sprintf( '%s — %s (%s)', $user->display_name, $job_title, $company ),
+            'post_status' => 'pending',
+            'post_author' => $user_id,
+            'meta_input'  => array(
+                '_bpu_job_id'             => $job_id,
+                '_bpu_applicant_id'       => $user_id,
+                '_bpu_applicant_name'     => $user->display_name,
+                '_bpu_applicant_email'    => $user->user_email,
+                '_bpu_applicant_phone'    => sanitize_text_field( $body['phone'] ?? get_user_meta( $user_id, 'phone_number', true ) ),
+                '_bpu_cv_id'              => $cv_id,
+                '_bpu_cover_letter'       => $cover_letter,
+                '_bpu_screening_answers'  => maybe_serialize( $answers ),
+                '_bpu_status'             => 'pending',
+                '_bpu_applied_at'         => current_time( 'mysql' ),
+            ),
+        ) );
+
+        if ( is_wp_error( $app_id ) ) {
+            return $app_id;
+        }
+
+        // Increment application count
+        $count = intval( get_post_meta( $job_id, '_bpu_applications_count', true ) ?: 0 );
+        update_post_meta( $job_id, '_bpu_applications_count', $count + 1 );
+
+        // Notify employer
+        $employer_id = intval( get_post_meta( $job_id, '_bpu_employer_id', true ) );
+        $employer    = get_userdata( $employer_id );
+        if ( $employer ) {
+            wp_mail(
+                $employer->user_email,
+                sprintf( 'New application: %s', $job_title ),
+                sprintf( "Hello,\n\nA new application has been received for %s from %s (%s).\n\nLog in to your employer dashboard to review it.\n\nhttps://app.blackprofessionals.uk/employer/jobs/%d\n\nBPU Team", $job_title, $user->display_name, $user->user_email, $job_id ),
+                array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+            );
+        }
+
+        // Confirm to applicant
+        wp_mail(
+            $user->user_email,
+            sprintf( 'Application submitted: %s at %s', $job_title, $company ),
+            sprintf( "Hi %s,\n\nYour application for %s at %s has been submitted.\n\nWe'll be in touch if you're shortlisted. Good luck!\n\nBPU Team", $user->display_name, $job_title, $company ),
+            array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'application_id' => $app_id ), 201 );
+    }
+
+    public function get_job_applications( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $job_id  = intval( $request->get_param( 'id' ) );
+        $post    = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $user     = get_userdata( $user_id );
+        $is_admin = in_array( 'administrator', (array) $user->roles, true );
+        if ( ! $is_admin && intval( $post->post_author ) !== $user_id ) {
+            return new WP_Error( 'bpu_forbidden', __( 'Forbidden.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $apps = get_posts( array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'meta_query'     => array( array( 'key' => '_bpu_job_id', 'value' => $job_id ) ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $result = array_map( function ( $app ) {
+            $cv_id = get_post_meta( $app->ID, '_bpu_cv_id', true );
+            return array(
+                'id'               => $app->ID,
+                'applicant_name'   => get_post_meta( $app->ID, '_bpu_applicant_name', true ),
+                'applicant_email'  => get_post_meta( $app->ID, '_bpu_applicant_email', true ),
+                'applicant_phone'  => get_post_meta( $app->ID, '_bpu_applicant_phone', true ),
+                'cv_url'           => $cv_id ? wp_get_attachment_url( $cv_id ) : '',
+                'cover_letter'     => get_post_meta( $app->ID, '_bpu_cover_letter', true ),
+                'screening_answers'=> maybe_unserialize( get_post_meta( $app->ID, '_bpu_screening_answers', true ) ) ?: array(),
+                'status'           => get_post_meta( $app->ID, '_bpu_status', true ) ?: 'pending',
+                'applied_at'       => get_post_meta( $app->ID, '_bpu_applied_at', true ),
+            );
+        }, $apps );
+
+        return new WP_REST_Response( array( 'applications' => $result, 'total' => count( $result ) ), 200 );
+    }
+
+    public function get_employer_jobs( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id  = intval( $payload['user_id'] );
+        $user     = get_userdata( $user_id );
+        $is_admin = in_array( 'administrator', (array) $user->roles, true );
+
+        $args = array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => 50,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( ! $is_admin ) {
+            $args['author'] = $user_id;
+        }
+
+        $posts = get_posts( $args );
+        $jobs  = array();
+        foreach ( $posts as $post ) {
+            $job                = $this->format_job_for_api( $post );
+            $job['post_status'] = $post->post_status;
+            $jobs[]             = $job;
+        }
+
+        return new WP_REST_Response( array( 'jobs' => $jobs ), 200 );
+    }
+
+    public function handle_employer_register( WP_REST_Request $request ) {
+        $body         = $request->get_json_params();
+        $email        = sanitize_email( $body['email'] ?? '' );
+        $password     = $body['password'] ?? '';
+        $company_name = sanitize_text_field( $body['company_name'] ?? '' );
+        $contact_name = sanitize_text_field( $body['contact_name'] ?? '' );
+
+        if ( empty( $email ) || empty( $password ) || empty( $company_name ) || empty( $contact_name ) ) {
+            return new WP_Error( 'bpu_missing', __( 'All fields are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( ! is_email( $email ) ) {
+            return new WP_Error( 'bpu_invalid_email', __( 'Invalid email address.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( strlen( $password ) < 8 ) {
+            return new WP_Error( 'bpu_weak_password', __( 'Password must be at least 8 characters.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( email_exists( $email ) ) {
+            return new WP_Error( 'bpu_duplicate', __( 'An account with this email already exists.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $user_id = wp_create_user( sanitize_user( $email ), $password, $email );
+        if ( is_wp_error( $user_id ) ) {
+            return $user_id;
+        }
+
+        $user = new WP_User( $user_id );
+        $user->set_role( 'bpu_employer' );
+        wp_update_user( array( 'ID' => $user_id, 'display_name' => $contact_name ) );
+        update_user_meta( $user_id, '_bpu_company_name', $company_name );
+        update_user_meta( $user_id, '_bpu_contact_name', $contact_name );
+
+        $jwt = $this->generate_jwt( array(
+            'user_id'      => $user_id,
+            'email'        => $email,
+            'display_name' => $contact_name,
+            'username'     => $email,
+            'roles'        => array( 'bpu_employer' ),
+        ) );
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'token'        => $jwt,
+            'user_id'      => $user_id,
+            'company_name' => $company_name,
+        ), 201 );
     }
 }
 
