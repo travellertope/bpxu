@@ -9,6 +9,9 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
+// Guard against being loaded twice (e.g. if file exists in another plugin's folder)
+if ( defined( 'BPU_WJM_SOURCE_CPT' ) ) return;
+
 // ─────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────
