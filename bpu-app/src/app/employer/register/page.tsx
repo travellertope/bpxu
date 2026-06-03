@@ -75,7 +75,7 @@ export default function EmployerRegisterPage() {
                     <img
                         src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png"
                         alt="Black Professionals United"
-                        className="h-10 w-auto brightness-0 invert"
+                        className="h-10 w-auto self-start brightness-0 invert"
                     />
 
                     <div>
