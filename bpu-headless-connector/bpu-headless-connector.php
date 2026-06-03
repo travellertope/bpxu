@@ -3614,11 +3614,13 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
     }
 
     public function get_jobs( WP_REST_Request $request ) {
-        $per_page  = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
-        $page      = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
-        $job_type  = sanitize_text_field( $request->get_param( 'job_type' ) ?: '' );
-        $industry  = sanitize_text_field( $request->get_param( 'industry' ) ?: '' );
-        $search    = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $per_page    = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page        = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $job_type    = sanitize_text_field( $request->get_param( 'job_type' ) ?: '' );
+        $industry    = sanitize_text_field( $request->get_param( 'industry' ) ?: '' );
+        $search      = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $remote_only = (bool) $request->get_param( 'remote' );
+        $emp_type    = sanitize_text_field( $request->get_param( 'employment_type' ) ?: '' );
 
         $args = array(
             'post_type'      => 'bpu_job',
@@ -3645,6 +3647,12 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
         if ( $industry ) {
             $meta_query[] = array( 'key' => '_bpu_industry', 'value' => $industry, 'compare' => 'LIKE' );
+        }
+        if ( $remote_only ) {
+            $meta_query[] = array( 'key' => '_bpu_remote', 'value' => '1' );
+        }
+        if ( $emp_type ) {
+            $meta_query[] = array( 'key' => '_bpu_employment_type', 'value' => sanitize_text_field( $emp_type ) );
         }
         $args['meta_query'] = $meta_query;
         if ( $search ) {

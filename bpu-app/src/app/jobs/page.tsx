@@ -4,16 +4,17 @@ import JobBoard from './JobBoard';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
-async function fetchJobs(): Promise<Job[]> {
+async function fetchJobs(): Promise<{ jobs: Job[]; total: number }> {
     try {
-        const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs`, {
+        const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs?per_page=20`, {
             cache: 'no-store',
         });
-        if (!res.ok) return [];
+        if (!res.ok) return { jobs: [], total: 0 };
         const data = await res.json();
-        return Array.isArray(data) ? data : (data.jobs ?? []);
+        const jobs = Array.isArray(data) ? data : (data.jobs ?? []);
+        return { jobs, total: data.total ?? jobs.length };
     } catch {
-        return [];
+        return { jobs: [], total: 0 };
     }
 }
 
@@ -23,7 +24,7 @@ export const metadata = {
 };
 
 export default async function JobsPage() {
-    const [session, jobs] = await Promise.all([getBPUSession(), fetchJobs()]);
+    const [session, { jobs, total }] = await Promise.all([getBPUSession(), fetchJobs()]);
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -64,7 +65,7 @@ export default async function JobsPage() {
 
                 {/* Job board */}
                 <section className="wrap py-10">
-                    <JobBoard initialJobs={jobs} />
+                    <JobBoard initialJobs={jobs} initialTotal={total} />
                 </section>
             </main>
 
