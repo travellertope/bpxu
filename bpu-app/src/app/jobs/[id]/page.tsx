@@ -7,14 +7,16 @@ import ApplyWizardTrigger from './ApplyWizardTrigger';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
-async function fetchJob(id: string): Promise<Job | null> {
+async function fetchJob(id: string, skipImpression = false): Promise<Job | null> {
     try {
-        const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs/${id}`, {
+        const qs = skipImpression ? '?skip_impression=1' : '';
+        const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs/${id}${qs}`, {
             cache: 'no-store',
         });
         if (res.status === 404) return null;
         if (!res.ok) return null;
-        return await res.json();
+        const data = await res.json();
+        return data.job ?? null;
     } catch {
         return null;
     }
@@ -41,7 +43,7 @@ function formatDate(dateStr: string): string {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
-    const job = await fetchJob(id);
+    const job = await fetchJob(id, true);
     if (!job) return { title: 'Job not found | BPU Portal' };
     return {
         title: `${job.title} at ${job.company} | BPU Jobs`,
@@ -199,7 +201,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                         Clicking below will take you to the employer&apos;s site to complete your application.
                                     </p>
                                     {job.apply_url ? (
-                                        <OutboundApplyButton jobId={job.id} applyUrl={job.apply_url} />
+                                        <OutboundApplyButton jobId={job.id} />
                                     ) : (
                                         <p className="text-sm text-text-3 italic">
                                             Application link not available.

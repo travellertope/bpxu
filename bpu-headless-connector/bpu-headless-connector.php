@@ -2754,12 +2754,12 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'salary_currency'     => $get( '_bpu_salary_currency' ) ?: 'GBP',
             'job_type'            => $get( '_bpu_job_type' ) ?: 'outbound',
             'apply_url'           => (string) $get( '_bpu_apply_url' ),
-            'expires_date'        => (string) $get( '_bpu_expires_date' ),
+            'expires'             => (string) $get( '_bpu_expires_date' ),
             'impressions'         => intval( $get( '_bpu_impressions' ) ?: 0 ),
             'clicks'              => intval( $get( '_bpu_clicks' ) ?: 0 ),
-            'applications_count'  => intval( $get( '_bpu_applications_count' ) ?: 0 ),
+            'applications'        => intval( $get( '_bpu_applications_count' ) ?: 0 ),
             'screening_questions' => is_array( $questions ) ? $questions : array(),
-            'posted_date'         => $post->post_date,
+            'date_posted'         => $post->post_date,
             'employer_id'         => intval( $post->post_author ),
         );
     }
