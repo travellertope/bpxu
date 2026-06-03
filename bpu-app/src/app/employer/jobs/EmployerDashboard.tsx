@@ -28,6 +28,26 @@ export default function EmployerDashboard({ initialJobs, companyName }: Props) {
             </header>
 
             <main className="flex-1 wrap py-8 space-y-6">
+                {/* Nav tabs */}
+                <nav className="flex gap-1 border-b border-border -mt-2 mb-2">
+                    {[
+                        { label: 'My Jobs', href: '/employer/jobs' },
+                        { label: 'Company Profile', href: '/employer/profile' },
+                    ].map(tab => (
+                        <Link
+                            key={tab.href}
+                            href={tab.href}
+                            className="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+                            style={{
+                                borderColor: tab.href === '/employer/jobs' ? 'var(--brand)' : 'transparent',
+                                color: tab.href === '/employer/jobs' ? 'var(--brand)' : 'var(--text-2)',
+                            }}
+                        >
+                            {tab.label}
+                        </Link>
+                    ))}
+                </nav>
+
                 <div className="flex items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold">Your job listings</h1>

@@ -551,6 +551,24 @@ class BPU_Headless_Connector {
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
+        register_rest_route( $this->namespace, '/employer/profile', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_employer_profile' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/employer/profile', array(
+            'methods'             => WP_REST_Server::EDITABLE,
+            'callback'            => array( $this, 'update_employer_profile' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/employer/logo', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'upload_employer_logo' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
         register_rest_route( $this->namespace, '/paired/mentor-apply', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'submit_mentor_application' ),
@@ -3286,6 +3304,12 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         update_user_meta( $user_id, '_bpu_company_name', $company_name );
         update_user_meta( $user_id, '_bpu_contact_name', $contact_name );
 
+        // Create/find the employer taxonomy term and link to this user
+        $term_id = self::get_or_create_employer_term( $company_name );
+        if ( $term_id ) {
+            update_user_meta( $user_id, '_bpu_employer_term_id', $term_id );
+        }
+
         $jwt = $this->generate_jwt( array(
             'user_id'      => $user_id,
             'email'        => $email,
@@ -3300,6 +3324,166 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'user_id'      => $user_id,
             'company_name' => $company_name,
         ), 201 );
+    }
+
+    // ── Employer profile ──────────────────────────────────────────────
+
+    /** Returns the current employer's taxonomy term profile. */
+    public function get_employer_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Authentication required.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] ?? 0 );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $is_employer = in_array( 'bpu_employer', (array) $user->roles, true );
+        $is_admin    = in_array( 'administrator', (array) $user->roles, true );
+        if ( ! $is_employer && ! $is_admin ) {
+            return new WP_Error( 'bpu_forbidden', __( 'Employer account required.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $term_id = intval( get_user_meta( $user_id, '_bpu_employer_term_id', true ) );
+
+        // Auto-create term if user registered before this feature existed
+        if ( ! $term_id ) {
+            $company_name = (string) get_user_meta( $user_id, '_bpu_company_name', true );
+            if ( $company_name ) {
+                $term_id = (int) self::get_or_create_employer_term( $company_name );
+                if ( $term_id ) {
+                    update_user_meta( $user_id, '_bpu_employer_term_id', $term_id );
+                }
+            }
+        }
+
+        $profile = $term_id ? $this->get_employer_data( $term_id ) : null;
+
+        return new WP_REST_Response( array(
+            'profile'  => $profile,
+            'term_id'  => $term_id,
+        ), 200 );
+    }
+
+    /** Updates the current employer's taxonomy term profile. */
+    public function update_employer_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Authentication required.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] ?? 0 );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $is_employer = in_array( 'bpu_employer', (array) $user->roles, true );
+        $is_admin    = in_array( 'administrator', (array) $user->roles, true );
+        if ( ! $is_employer && ! $is_admin ) {
+            return new WP_Error( 'bpu_forbidden', __( 'Employer account required.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $term_id = intval( get_user_meta( $user_id, '_bpu_employer_term_id', true ) );
+        if ( ! $term_id ) {
+            return new WP_Error( 'bpu_no_profile', __( 'No employer profile found. Please contact support.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params() ?: array();
+
+        // Allow updating the term name (company name)
+        if ( ! empty( $body['name'] ) ) {
+            $new_name = sanitize_text_field( $body['name'] );
+            $existing = get_term_by( 'name', $new_name, 'bpu_employer' );
+            if ( $existing && (int) $existing->term_id !== $term_id ) {
+                return new WP_Error( 'bpu_duplicate', __( 'Another employer already uses that company name.', 'bpu' ), array( 'status' => 409 ) );
+            }
+            wp_update_term( $term_id, 'bpu_employer', array( 'name' => $new_name ) );
+            update_user_meta( $user_id, '_bpu_company_name', $new_name );
+        }
+
+        $allowed_meta = array( 'tagline', 'website', 'twitter', 'video', 'description' );
+        foreach ( $allowed_meta as $key ) {
+            if ( array_key_exists( $key, $body ) ) {
+                $value = $key === 'description'
+                    ? wp_kses_post( $body[ $key ] )
+                    : sanitize_text_field( $body[ $key ] );
+                update_term_meta( $term_id, $key, $value );
+            }
+        }
+
+        $profile = $this->get_employer_data( $term_id );
+        return new WP_REST_Response( array( 'success' => true, 'profile' => $profile ), 200 );
+    }
+
+    /** Handles company logo upload — stores as WP attachment and updates employer term meta. */
+    public function upload_employer_logo( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Authentication required.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] ?? 0 );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $is_employer = in_array( 'bpu_employer', (array) $user->roles, true );
+        $is_admin    = in_array( 'administrator', (array) $user->roles, true );
+        if ( ! $is_employer && ! $is_admin ) {
+            return new WP_Error( 'bpu_forbidden', __( 'Employer account required.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $term_id = intval( get_user_meta( $user_id, '_bpu_employer_term_id', true ) );
+        if ( ! $term_id ) {
+            return new WP_Error( 'bpu_no_profile', __( 'No employer profile found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $files = $request->get_file_params();
+        if ( empty( $files['logo'] ) ) {
+            return new WP_Error( 'bpu_no_file', __( 'No file uploaded.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $file = $files['logo'];
+        $allowed_types = array( 'image/jpeg', 'image/png', 'image/svg+xml', 'image/webp' );
+        if ( ! in_array( $file['type'], $allowed_types, true ) ) {
+            return new WP_Error( 'bpu_invalid_type', __( 'Logo must be a JPEG, PNG, SVG, or WebP image.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( $file['size'] > 2 * 1024 * 1024 ) {
+            return new WP_Error( 'bpu_too_large', __( 'Logo must be under 2 MB.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        // Temporarily override current user for attachment attribution
+        wp_set_current_user( $user_id );
+
+        $attachment_id = media_handle_sideload( array(
+            'name'     => $file['name'],
+            'type'     => $file['type'],
+            'tmp_name' => $file['tmp_name'],
+            'error'    => $file['error'],
+            'size'     => $file['size'],
+        ), 0 );
+
+        if ( is_wp_error( $attachment_id ) ) {
+            return $attachment_id;
+        }
+
+        $logo_url = wp_get_attachment_url( $attachment_id );
+        update_term_meta( $term_id, 'logo_url', $logo_url );
+        update_term_meta( $term_id, 'logo_attachment_id', $attachment_id );
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'logo_url' => $logo_url,
+        ), 200 );
     }
 
     // ── Mentor application ────────────────────────────────────────────
