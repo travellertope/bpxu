@@ -41,6 +41,78 @@ function formatDate(dateStr: string): string {
     }
 }
 
+function ApplyCard({ job, isInbound, session, employer, salary }: {
+    job: Job;
+    isInbound: boolean;
+    session: Awaited<ReturnType<typeof import('@/lib/auth').getBPUSession>>;
+    employer: Employer | null;
+    salary: string | null;
+}) {
+    return (
+        <div className="card card-p space-y-4">
+            <h2 className="section-title">Apply for this role</h2>
+
+            {isInbound ? (
+                <>
+                    {session.authenticated ? (
+                        <ApplyWizardTrigger job={job} user={session.user!} />
+                    ) : (
+                        <div className="space-y-3">
+                            <p className="text-sm text-text-2">
+                                You need to be signed in to apply for this role.
+                            </p>
+                            <a href={`/login?returnTo=/jobs/${job.id}`} className="btn btn-amber w-full justify-center">
+                                Sign in to apply
+                            </a>
+                            <a href={`/register?returnTo=/jobs/${job.id}`} className="btn btn-outline w-full justify-center text-sm">
+                                Create a free account
+                            </a>
+                        </div>
+                    )}
+                </>
+            ) : (
+                <>
+                    <div className="alert alert-amber text-sm">
+                        This role is hosted by a partner employer.
+                    </div>
+                    <p className="text-sm text-text-2">
+                        Clicking below will take you to the employer&apos;s site to complete your application.
+                    </p>
+                    {job.apply_url ? (
+                        <OutboundApplyButton jobId={job.id} />
+                    ) : (
+                        <p className="text-sm text-text-3 italic">Application link not available.</p>
+                    )}
+                </>
+            )}
+
+            <div className="divider" />
+
+            <div className="space-y-1.5">
+                <p className="text-xs text-text-3">
+                    <strong className="text-text-2">Company:</strong>{' '}
+                    {employer?.website
+                        ? <a href={employer.website} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">{job.company}</a>
+                        : job.company
+                    }
+                </p>
+                <p className="text-xs text-text-3"><strong className="text-text-2">Type:</strong> {job.employment_type}</p>
+                <p className="text-xs text-text-3"><strong className="text-text-2">Industry:</strong> {job.industry}</p>
+                {salary && <p className="text-xs text-text-3"><strong className="text-text-2">Salary:</strong> {salary}</p>}
+                {job.remote && <p className="text-xs text-text-3"><strong className="text-text-2">Location:</strong> Remote</p>}
+                {employer?.twitter && (
+                    <p className="text-xs text-text-3">
+                        <strong className="text-text-2">Twitter/X:</strong>{' '}
+                        <a href={`https://x.com/${employer.twitter.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">
+                            @{employer.twitter.replace(/^@/, '')}
+                        </a>
+                    </p>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const job = await fetchJob(id, true);
@@ -60,6 +132,10 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
     const employer: Employer | null = job.employer ?? null;
+
+    const hasDescription  = !!job.description?.trim();
+    const hasAboutSection = !!(employer && (employer.description || employer.video));
+    const hasLeftContent  = hasDescription || hasAboutSection;
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -177,141 +253,83 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                     </div>
                 </div>
 
-                {/* Two-column layout */}
-                <div className="flex flex-col lg:flex-row gap-6">
-                    {/* Left: Description + About Company */}
-                    <div className="flex-1 min-w-0 space-y-6">
-                        <div className="card card-p">
-                            <h2 className="section-title mb-4">Job Description</h2>
-                            <div
-                                className="prose prose-sm max-w-none text-text leading-relaxed"
-                                style={{ fontSize: '14px', lineHeight: '1.7' }}
-                                dangerouslySetInnerHTML={{ __html: job.description }}
-                            />
-                        </div>
-
-                        {/* About the company */}
-                        {employer && (employer.description || employer.video) && (
-                            <div className="card card-p">
-                                <div className="flex items-center gap-3 mb-4">
-                                    {employer.logo_url && (
-                                        <div
-                                            className="shrink-0 rounded-lg overflow-hidden border border-border bg-surface"
-                                            style={{ width: 40, height: 40 }}
-                                        >
-                                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                                            <img src={employer.logo_url} alt={employer.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                        </div>
-                                    )}
-                                    <h2 className="section-title">About {employer.name}</h2>
-                                </div>
-                                {employer.description && (
-                                    <div
-                                        className="prose prose-sm max-w-none text-text leading-relaxed mb-4"
-                                        style={{ fontSize: '14px', lineHeight: '1.7' }}
-                                        dangerouslySetInnerHTML={{ __html: employer.description }}
-                                    />
-                                )}
-                                {employer.video && (
-                                    <div className="mt-4 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                                        <iframe
-                                            src={employer.video}
-                                            className="w-full h-full"
-                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                            allowFullScreen
-                                            title={`${employer.name} video`}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                        )}
+                {/* ── No left content: centred apply layout ── */}
+                {!hasLeftContent ? (
+                    <div className="max-w-xl mx-auto w-full">
+                        <ApplyCard
+                            job={job}
+                            isInbound={isInbound}
+                            session={session}
+                            employer={employer}
+                            salary={salary}
+                        />
                     </div>
-
-                    {/* Right: Sidebar */}
-                    <div className="lg:w-80 shrink-0">
-                        <div className="card card-p space-y-4 sticky top-20">
-                            <h2 className="section-title">Apply for this role</h2>
-
-                            {isInbound ? (
-                                <>
-                                    {session.authenticated ? (
-                                        <ApplyWizardTrigger job={job} user={session.user!} />
-                                    ) : (
-                                        <div className="space-y-3">
-                                            <p className="text-sm text-text-2">
-                                                You need to be signed in to apply for this role.
-                                            </p>
-                                            <a
-                                                href={`/login?returnTo=/jobs/${job.id}`}
-                                                className="btn btn-amber w-full justify-center"
-                                            >
-                                                Sign in to apply
-                                            </a>
-                                            <a
-                                                href={`/register?returnTo=/jobs/${job.id}`}
-                                                className="btn btn-outline w-full justify-center text-sm"
-                                            >
-                                                Create a free account
-                                            </a>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    <div className="alert alert-amber text-sm">
-                                        This role is hosted by a partner employer.
-                                    </div>
-                                    <p className="text-sm text-text-2">
-                                        Clicking below will take you to the employer&apos;s site to complete your application.
-                                    </p>
-                                    {job.apply_url ? (
-                                        <OutboundApplyButton jobId={job.id} />
-                                    ) : (
-                                        <p className="text-sm text-text-3 italic">
-                                            Application link not available.
-                                        </p>
-                                    )}
-                                </>
+                ) : (
+                    /* ── Two-column layout when there IS content ── */
+                    <div className="flex flex-col lg:flex-row gap-6">
+                        {/* Left: Description + About Company */}
+                        <div className="flex-1 min-w-0 space-y-6">
+                            {hasDescription && (
+                                <div className="card card-p">
+                                    <h2 className="section-title mb-4">Job Description</h2>
+                                    <div
+                                        className="prose prose-sm max-w-none text-text leading-relaxed"
+                                        style={{ fontSize: '14px', lineHeight: '1.7' }}
+                                        dangerouslySetInnerHTML={{ __html: job.description }}
+                                    />
+                                </div>
                             )}
 
-                            <div className="divider" />
+                            {hasAboutSection && (
+                                <div className="card card-p">
+                                    <div className="flex items-center gap-3 mb-4">
+                                        {employer!.logo_url && (
+                                            <div
+                                                className="shrink-0 rounded-lg overflow-hidden border border-border bg-surface"
+                                                style={{ width: 40, height: 40 }}
+                                            >
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img src={employer!.logo_url} alt={employer!.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                            </div>
+                                        )}
+                                        <h2 className="section-title">About {employer!.name}</h2>
+                                    </div>
+                                    {employer!.description && (
+                                        <div
+                                            className="prose prose-sm max-w-none text-text leading-relaxed mb-4"
+                                            style={{ fontSize: '14px', lineHeight: '1.7' }}
+                                            dangerouslySetInnerHTML={{ __html: employer!.description }}
+                                        />
+                                    )}
+                                    {employer!.video && (
+                                        <div className="mt-4 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                                            <iframe
+                                                src={employer!.video}
+                                                className="w-full h-full"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                                allowFullScreen
+                                                title={`${employer!.name} video`}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
-                            <div className="space-y-1.5">
-                                <p className="text-xs text-text-3">
-                                    <strong className="text-text-2">Company:</strong>{' '}
-                                    {employer?.website
-                                        ? <a href={employer.website} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">{job.company}</a>
-                                        : job.company
-                                    }
-                                </p>
-                                <p className="text-xs text-text-3">
-                                    <strong className="text-text-2">Type:</strong> {job.employment_type}
-                                </p>
-                                <p className="text-xs text-text-3">
-                                    <strong className="text-text-2">Industry:</strong> {job.industry}
-                                </p>
-                                {salary && (
-                                    <p className="text-xs text-text-3">
-                                        <strong className="text-text-2">Salary:</strong> {salary}
-                                    </p>
-                                )}
-                                {job.remote && (
-                                    <p className="text-xs text-text-3">
-                                        <strong className="text-text-2">Location:</strong> Remote
-                                    </p>
-                                )}
-                                {employer?.twitter && (
-                                    <p className="text-xs text-text-3">
-                                        <strong className="text-text-2">Twitter/X:</strong>{' '}
-                                        <a href={`https://x.com/${employer.twitter.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">
-                                            @{employer.twitter.replace(/^@/, '')}
-                                        </a>
-                                    </p>
-                                )}
+                        {/* Right: Sidebar */}
+                        <div className="lg:w-80 shrink-0">
+                            <div className="sticky top-20">
+                                <ApplyCard
+                                    job={job}
+                                    isInbound={isInbound}
+                                    session={session}
+                                    employer={employer}
+                                    salary={salary}
+                                />
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
             </main>
 
             <footer className="py-6 text-center text-xs text-text-3 border-t border-border mt-8">
