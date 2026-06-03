@@ -70,6 +70,8 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_job_application_post_type' ) );
         add_action( 'init', array( $this, 'register_employer_role' ) );
         add_action( 'init', array( $this, 'register_employer_taxonomy' ) );
+        add_action( 'add_meta_boxes', array( $this, 'register_job_meta_boxes' ) );
+        add_action( 'save_post_bpu_job', array( $this, 'save_job_meta_boxes' ), 10, 2 );
         add_action( 'admin_menu', array( $this, 'register_employer_link_admin_page' ) );
         add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
         add_action( 'wp_ajax_bpu_employer_link_user',   array( $this, 'ajax_employer_link_user' ) );
@@ -2712,6 +2714,178 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
     // ═══════════════════════════════════════════════════════════════
     // JOB PLATFORM
     // ═══════════════════════════════════════════════════════════════
+
+    // ── Job meta boxes ────────────────────────────────────────────
+
+    public function register_job_meta_boxes() {
+        add_meta_box(
+            'bpu_job_details',
+            'Job Details',
+            array( $this, 'render_job_meta_box' ),
+            'bpu_job',
+            'normal',
+            'high'
+        );
+    }
+
+    public function render_job_meta_box( WP_Post $post ) {
+        wp_nonce_field( 'bpu_job_meta_save', 'bpu_job_meta_nonce' );
+        $get = fn( $k ) => get_post_meta( $post->ID, $k, true );
+
+        $location        = $get( '_bpu_location' );
+        $employment_type = $get( '_bpu_employment_type' );
+        $industry        = $get( '_bpu_industry' );
+        $job_type        = $get( '_bpu_job_type' ) ?: 'outbound';
+        $apply_url       = $get( '_bpu_apply_url' );
+        $expires         = $get( '_bpu_expires_date' );
+        $sal_min         = $get( '_bpu_salary_min' );
+        $sal_max         = $get( '_bpu_salary_max' );
+        $sal_currency    = $get( '_bpu_salary_currency' ) ?: 'GBP';
+        $remote          = (bool) $get( '_bpu_remote' );
+        $featured        = (bool) $get( '_bpu_featured' );
+        $filled          = (bool) $get( '_bpu_filled' );
+
+        $emp_types  = array( 'Full-time', 'Part-time', 'Freelance', 'Contract', 'Internship' );
+        $industries = array( 'Technology', 'Finance', 'Healthcare', 'Education', 'Legal', 'Marketing', 'Engineering', 'HR & Recruitment', 'Creative & Media', 'Public Sector', 'Consulting', 'Other' );
+        $currencies = array( 'GBP', 'USD', 'EUR' );
+
+        ?>
+        <style>
+        .bpu-meta-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px 24px; margin-bottom:16px; }
+        .bpu-meta-grid label, .bpu-meta-col label { display:block; font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em; color:#555; margin-bottom:4px; }
+        .bpu-meta-grid input, .bpu-meta-grid select, .bpu-meta-col input, .bpu-meta-col select { width:100%; }
+        .bpu-meta-flags { display:flex; gap:20px; margin-top:8px; }
+        .bpu-meta-flags label { font-weight:400; font-size:13px; text-transform:none; letter-spacing:0; color:#1e1e1e; display:flex; align-items:center; gap:6px; }
+        .bpu-meta-section-title { font-size:13px; font-weight:700; color:#1e1e1e; border-bottom:1px solid #eee; padding-bottom:6px; margin:16px 0 12px; }
+        .bpu-salary-row { display:grid; grid-template-columns:1fr 1fr 120px; gap:12px; }
+        </style>
+
+        <div class="bpu-meta-section-title">Location &amp; Role</div>
+        <div class="bpu-meta-grid">
+            <div>
+                <label for="bpu_location">Location</label>
+                <input type="text" id="bpu_location" name="bpu_location"
+                    value="<?php echo esc_attr( $location ); ?>"
+                    placeholder="e.g. London, United Kingdom" />
+            </div>
+            <div>
+                <label for="bpu_employment_type">Employment Type</label>
+                <select id="bpu_employment_type" name="bpu_employment_type">
+                    <?php foreach ( $emp_types as $t ) : ?>
+                        <option value="<?php echo esc_attr($t); ?>" <?php selected( $employment_type, $t ); ?>><?php echo esc_html($t); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="bpu_industry">Industry</label>
+                <select id="bpu_industry" name="bpu_industry">
+                    <?php foreach ( $industries as $i ) : ?>
+                        <option value="<?php echo esc_attr($i); ?>" <?php selected( $industry, $i ); ?>><?php echo esc_html($i); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="bpu_expires_date">Closing Date</label>
+                <input type="date" id="bpu_expires_date" name="bpu_expires_date"
+                    value="<?php echo esc_attr( $expires ); ?>" />
+            </div>
+        </div>
+
+        <div class="bpu-meta-flags">
+            <label>
+                <input type="checkbox" name="bpu_remote" value="1" <?php checked( $remote ); ?> />
+                Remote position
+            </label>
+            <label>
+                <input type="checkbox" name="bpu_featured" value="1" <?php checked( $featured ); ?> />
+                Featured listing
+            </label>
+            <label>
+                <input type="checkbox" name="bpu_filled" value="1" <?php checked( $filled ); ?> />
+                Position filled
+            </label>
+        </div>
+
+        <div class="bpu-meta-section-title">Salary</div>
+        <div class="bpu-salary-row">
+            <div>
+                <label for="bpu_salary_min">Minimum (£)</label>
+                <input type="number" id="bpu_salary_min" name="bpu_salary_min"
+                    value="<?php echo esc_attr( $sal_min ); ?>" min="0" step="1000" placeholder="e.g. 30000" />
+            </div>
+            <div>
+                <label for="bpu_salary_max">Maximum (£)</label>
+                <input type="number" id="bpu_salary_max" name="bpu_salary_max"
+                    value="<?php echo esc_attr( $sal_max ); ?>" min="0" step="1000" placeholder="e.g. 50000" />
+            </div>
+            <div>
+                <label for="bpu_salary_currency">Currency</label>
+                <select id="bpu_salary_currency" name="bpu_salary_currency">
+                    <?php foreach ( $currencies as $c ) : ?>
+                        <option value="<?php echo esc_attr($c); ?>" <?php selected( $sal_currency, $c ); ?>><?php echo esc_html($c); ?></option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+
+        <div class="bpu-meta-section-title">Application</div>
+        <div class="bpu-meta-grid">
+            <div>
+                <label for="bpu_job_type">Job Type</label>
+                <select id="bpu_job_type" name="bpu_job_type">
+                    <option value="outbound" <?php selected( $job_type, 'outbound' ); ?>>Outbound (partner site)</option>
+                    <option value="inbound"  <?php selected( $job_type, 'inbound' ); ?>>Inbound (apply on BPU)</option>
+                </select>
+            </div>
+            <div>
+                <label for="bpu_apply_url">Apply URL <span style="font-weight:400;text-transform:none;">(outbound only)</span></label>
+                <input type="url" id="bpu_apply_url" name="bpu_apply_url"
+                    value="<?php echo esc_url( $apply_url ); ?>"
+                    placeholder="https://employer.com/apply" />
+            </div>
+        </div>
+        <?php
+    }
+
+    public function save_job_meta_boxes( int $post_id, WP_Post $post ) {
+        if ( ! isset( $_POST['bpu_job_meta_nonce'] ) ) return;
+        if ( ! wp_verify_nonce( $_POST['bpu_job_meta_nonce'], 'bpu_job_meta_save' ) ) return;
+        if ( defined( 'DOING_AUTOSAVE' ) && DOING_AUTOSAVE ) return;
+        if ( ! current_user_can( 'edit_post', $post_id ) ) return;
+
+        $text_fields = array(
+            '_bpu_location'        => 'bpu_location',
+            '_bpu_employment_type' => 'bpu_employment_type',
+            '_bpu_industry'        => 'bpu_industry',
+            '_bpu_job_type'        => 'bpu_job_type',
+            '_bpu_expires_date'    => 'bpu_expires_date',
+            '_bpu_salary_currency' => 'bpu_salary_currency',
+        );
+        foreach ( $text_fields as $meta_key => $field ) {
+            if ( isset( $_POST[ $field ] ) ) {
+                update_post_meta( $post_id, $meta_key, sanitize_text_field( $_POST[ $field ] ) );
+            }
+        }
+
+        // Apply URL
+        if ( isset( $_POST['bpu_apply_url'] ) ) {
+            update_post_meta( $post_id, '_bpu_apply_url', esc_url_raw( $_POST['bpu_apply_url'] ) );
+        }
+
+        // Numeric salary
+        foreach ( array( '_bpu_salary_min' => 'bpu_salary_min', '_bpu_salary_max' => 'bpu_salary_max' ) as $meta_key => $field ) {
+            if ( isset( $_POST[ $field ] ) && $_POST[ $field ] !== '' ) {
+                update_post_meta( $post_id, $meta_key, intval( $_POST[ $field ] ) );
+            } else {
+                delete_post_meta( $post_id, $meta_key );
+            }
+        }
+
+        // Checkboxes
+        foreach ( array( '_bpu_remote' => 'bpu_remote', '_bpu_featured' => 'bpu_featured', '_bpu_filled' => 'bpu_filled' ) as $meta_key => $field ) {
+            update_post_meta( $post_id, $meta_key, isset( $_POST[ $field ] ) ? '1' : '0' );
+        }
+    }
 
     public function register_job_post_type() {
         register_post_type( 'bpu_job', array(
