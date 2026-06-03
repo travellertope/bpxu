@@ -1,8 +1,11 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Job } from './types';
+
+const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+const PER_PAGE = 20;
 
 function formatSalary(min?: number, max?: number): string | null {
     if (!min && !max) return null;
@@ -148,42 +151,75 @@ type TypeFilter = 'all' | 'inbound' | 'outbound';
 
 interface JobBoardProps {
     initialJobs: Job[];
+    initialTotal: number;
 }
 
-export default function JobBoard({ initialJobs }: JobBoardProps) {
+export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
     const [search, setSearch] = useState('');
     const [industry, setIndustry] = useState('All industries');
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
     const [remoteOnly, setRemoteOnly] = useState(false);
     const [empTypes, setEmpTypes] = useState<string[]>([]);
 
+    const [jobs, setJobs] = useState<Job[]>(initialJobs);
+    const [total, setTotal] = useState(initialTotal);
+    const [page, setPage] = useState(1);
+    const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
+
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     const toggleEmpType = (t: string) =>
         setEmpTypes(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
 
-    const filtered = useMemo(() => {
-        return initialJobs.filter(job => {
-            const q = search.toLowerCase();
-            const matchSearch =
-                !q ||
-                job.title.toLowerCase().includes(q) ||
-                job.company.toLowerCase().includes(q) ||
-                job.location.toLowerCase().includes(q);
+    const buildUrl = useCallback((p: number) => {
+        const params = new URLSearchParams({ page: String(p), per_page: String(PER_PAGE) });
+        if (search) params.set('search', search);
+        if (industry !== 'All industries') params.set('industry', industry);
+        if (typeFilter !== 'all') params.set('job_type', typeFilter);
+        if (remoteOnly) params.set('remote', '1');
+        if (empTypes.length === 1) params.set('employment_type', empTypes[0]);
+        return `${WP_BACKEND_URL}/wp-json/bpu/v1/jobs?${params}`;
+    }, [search, industry, typeFilter, remoteOnly, empTypes]);
 
-            const matchIndustry =
-                industry === 'All industries' || job.industry === industry;
+    // Refetch from page 1 whenever filters change (debounced for search)
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        const delay = search ? 350 : 0;
+        debounceRef.current = setTimeout(async () => {
+            setLoading(true);
+            try {
+                const res = await fetch(buildUrl(1));
+                if (res.ok) {
+                    const data = await res.json();
+                    setJobs(data.jobs ?? []);
+                    setTotal(data.total ?? 0);
+                    setPage(1);
+                }
+            } finally {
+                setLoading(false);
+            }
+        }, delay);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [search, industry, typeFilter, remoteOnly, empTypes]);
 
-            const matchType =
-                typeFilter === 'all' || job.job_type === typeFilter;
+    async function loadMore() {
+        const nextPage = page + 1;
+        setLoadingMore(true);
+        try {
+            const res = await fetch(buildUrl(nextPage));
+            if (res.ok) {
+                const data = await res.json();
+                setJobs(prev => [...prev, ...(data.jobs ?? [])]);
+                setPage(nextPage);
+            }
+        } finally {
+            setLoadingMore(false);
+        }
+    }
 
-            const matchRemote =
-                !remoteOnly || !!job.remote;
-
-            const matchEmpType =
-                empTypes.length === 0 || empTypes.includes(job.employment_type);
-
-            return matchSearch && matchIndustry && matchType && matchRemote && matchEmpType;
-        });
-    }, [initialJobs, search, industry, typeFilter, remoteOnly, empTypes]);
+    const hasMore = jobs.length < total;
 
     return (
         <div>
@@ -203,7 +239,8 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
                             <input
                                 id="job-search"
                                 type="text"
-                                className="field-input pl-9"
+                                className="field-input"
+                                style={{ paddingLeft: '2.25rem' }}
                                 placeholder="Keywords — job title or company…"
                                 value={search}
                                 onChange={e => setSearch(e.target.value)}
@@ -277,23 +314,39 @@ export default function JobBoard({ initialJobs }: JobBoardProps) {
 
             {/* Results count */}
             <p className="text-sm text-text-2 mb-4">
-                {filtered.length === 0
-                    ? 'No jobs match your filters'
-                    : `${filtered.length} role${filtered.length === 1 ? '' : 's'} found`}
+                {loading
+                    ? 'Loading…'
+                    : total === 0
+                        ? 'No jobs match your filters'
+                        : `${total.toLocaleString()} role${total === 1 ? '' : 's'} found`}
             </p>
 
             {/* Grid */}
-            {filtered.length === 0 ? (
+            {!loading && jobs.length === 0 ? (
                 <div className="empty">
                     <p className="text-base font-medium mb-1">No jobs found</p>
                     <p className="text-sm">Try adjusting your search or filters.</p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {filtered.map(job => (
-                        <JobCard key={job.id} job={job} />
-                    ))}
-                </div>
+                <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {jobs.map(job => (
+                            <JobCard key={job.id} job={job} />
+                        ))}
+                    </div>
+                    {hasMore && (
+                        <div className="mt-8 text-center">
+                            <button
+                                type="button"
+                                onClick={loadMore}
+                                disabled={loadingMore}
+                                className="btn btn-outline"
+                            >
+                                {loadingMore ? 'Loading…' : `Load more (${(total - jobs.length).toLocaleString()} remaining)`}
+                            </button>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );

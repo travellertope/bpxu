@@ -3614,11 +3614,13 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
     }
 
     public function get_jobs( WP_REST_Request $request ) {
-        $per_page  = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
-        $page      = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
-        $job_type  = sanitize_text_field( $request->get_param( 'job_type' ) ?: '' );
-        $industry  = sanitize_text_field( $request->get_param( 'industry' ) ?: '' );
-        $search    = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $per_page    = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page        = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $job_type    = sanitize_text_field( $request->get_param( 'job_type' ) ?: '' );
+        $industry    = sanitize_text_field( $request->get_param( 'industry' ) ?: '' );
+        $search      = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $remote_only = (bool) $request->get_param( 'remote' );
+        $emp_type    = sanitize_text_field( $request->get_param( 'employment_type' ) ?: '' );
 
         $args = array(
             'post_type'      => 'bpu_job',
@@ -3629,16 +3631,30 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'order'          => 'DESC',
         );
 
-        $meta_query = array( 'relation' => 'AND' );
+        $today      = gmdate( 'Y-m-d' );
+        $meta_query = array(
+            'relation' => 'AND',
+            // Exclude jobs where an expiry date is set and is in the past
+            array(
+                'relation' => 'OR',
+                array( 'key' => '_bpu_expires_date', 'value' => '', 'compare' => '=' ),
+                array( 'key' => '_bpu_expires_date', 'compare' => 'NOT EXISTS' ),
+                array( 'key' => '_bpu_expires_date', 'value' => $today, 'compare' => '>=' ),
+            ),
+        );
         if ( $job_type && in_array( $job_type, array( 'inbound', 'outbound' ), true ) ) {
             $meta_query[] = array( 'key' => '_bpu_job_type', 'value' => $job_type );
         }
         if ( $industry ) {
             $meta_query[] = array( 'key' => '_bpu_industry', 'value' => $industry, 'compare' => 'LIKE' );
         }
-        if ( count( $meta_query ) > 1 ) {
-            $args['meta_query'] = $meta_query;
+        if ( $remote_only ) {
+            $meta_query[] = array( 'key' => '_bpu_remote', 'value' => '1' );
         }
+        if ( $emp_type ) {
+            $meta_query[] = array( 'key' => '_bpu_employment_type', 'value' => sanitize_text_field( $emp_type ) );
+        }
+        $args['meta_query'] = $meta_query;
         if ( $search ) {
             $args['s'] = $search;
         }
@@ -3658,6 +3674,12 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         $post   = get_post( $job_id );
 
         if ( ! $post || $post->post_type !== 'bpu_job' || $post->post_status !== 'publish' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Return 404 for expired jobs
+        $expires = get_post_meta( $job_id, '_bpu_expires_date', true );
+        if ( $expires && $expires < gmdate( 'Y-m-d' ) ) {
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
