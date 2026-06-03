@@ -345,19 +345,62 @@ function RegisterForm() {
   ];
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-bg">
-      <div className="w-full max-w-lg fade-up">
+    <main className="min-h-screen flex">
 
-        {/* Brand */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 text-2xl font-extrabold tracking-tight">
-            <span className="text-brand">BPU</span>
-            <span className="text-text"> Portal</span>
+      {/* ── Left panel: image + brand ─────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-[40%] relative flex-col overflow-hidden sticky top-0 h-screen">
+        <div
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1200&q=80')` }}
+        />
+        <div
+          className="absolute inset-0"
+          style={{ background: 'linear-gradient(160deg,rgba(0,0,0,0.90) 0%,rgba(200,16,46,0.35) 100%)' }}
+        />
+        <div className="relative z-10 flex flex-col justify-between h-full p-12">
+          <img
+            src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png"
+            alt="Black Professionals United"
+            className="h-10 w-auto brightness-0 invert"
+          />
+          <div>
+            <h2 className="text-4xl font-extrabold text-white leading-[1.15] mb-4 tracking-tight">
+              Join 7,000+<br />Black<br />Professionals.
+            </h2>
+            <p className="text-white/65 leading-relaxed mb-8 text-sm max-w-xs">
+              Access job opportunities, AI-powered CV tools, accredited courses, and a thriving professional community built for you.
+            </p>
+            <div className="space-y-3">
+              {[
+                '✓  Free job matching & recommendations',
+                '✓  AI CV Clinic & career tools',
+                '✓  Mentorship via PAIRED',
+                '✓  Professional courses & events',
+              ].map(f => (
+                <p key={f} className="text-white/80 text-sm">{f}</p>
+              ))}
+            </div>
           </div>
-          <p className="mt-2 text-sm text-text-2">Black Professionals United</p>
+          <p className="text-white/25 text-xs">Photo: Unsplash / Brooke Cagle</p>
         </div>
+      </div>
 
-        <div className="card card-p space-y-6">
+      {/* ── Right panel: form (scrollable) ────────────────────────── */}
+      <div className="flex-1 bg-bg overflow-y-auto">
+        <div className="flex flex-col items-center py-10 px-6 min-h-full">
+          <div className="w-full max-w-lg fade-up">
+
+            {/* Logo — mobile only */}
+            <div className="lg:hidden text-center mb-8">
+              <img
+                src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png"
+                alt="Black Professionals United"
+                className="h-12 w-auto mx-auto mb-2"
+              />
+              <p className="text-xs text-text-3 font-medium uppercase tracking-widest">Member Portal</p>
+            </div>
+
+            <div className="card card-p space-y-6">
 
           {/* Progress header */}
           <div className="space-y-3">
@@ -591,18 +634,21 @@ function RegisterForm() {
             </form>
           )}
 
-          <p className="text-center text-sm text-text-2">
-            Already have an account?{' '}
-            <a href={loginHref} className="font-semibold text-brand-dark hover:underline">
-              Sign in
-            </a>
-          </p>
-        </div>
+            <p className="text-center text-sm text-text-2">
+              Already have an account?{' '}
+              <a href={loginHref} className="font-semibold text-brand-dark hover:underline">
+                Sign in
+              </a>
+            </p>
+            </div>
 
-        <p className="mt-6 text-center text-xs text-text-3">
-          Empowering Black professionals in the UK
-        </p>
+            <p className="mt-6 text-center text-xs text-text-3">
+              Empowering Black professionals in the UK
+            </p>
+          </div>
+        </div>
       </div>
+
     </main>
   );
 }

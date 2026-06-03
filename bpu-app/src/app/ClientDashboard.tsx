@@ -213,7 +213,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       <header className="topbar">
         <div className="topbar-inner">
           <a href="/" className="topbar-brand">
-            <span>BPU</span> Portal
+            <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" />
           </a>
 
           <div className="flex items-center gap-3">
