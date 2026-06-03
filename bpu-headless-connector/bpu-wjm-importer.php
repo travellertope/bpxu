@@ -132,7 +132,7 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
         'suppress_filters' => true,
     ] );
     if ( $existing ) {
-        return [ 'status' => 'skipped', 'msg' => "#{$id} "{$title}" — already imported (BPU #{$existing[0]})" ];
+        return [ 'status' => 'skipped', 'msg' => "#{$id} \"{$title}\" — already imported (BPU #{$existing[0]})" ];
     }
 
     // ── Read WP Job Manager meta ─────────────────────────────────
@@ -223,7 +223,7 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
     ], true );
 
     if ( is_wp_error( $bpu_id ) ) {
-        return [ 'status' => 'error', 'msg' => "#{$id} "{$title}" — " . $bpu_id->get_error_message() ];
+        return [ 'status' => 'error', 'msg' => "#{$id} \"{$title}\" — " . $bpu_id->get_error_message() ];
     }
 
     // ── Attach employer taxonomy term ─────────────────────────────
