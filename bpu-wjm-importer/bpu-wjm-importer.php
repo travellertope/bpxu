@@ -261,7 +261,7 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
 
     $flags = array_filter( [ $remote ? 'remote' : '', $featured ? 'featured' : '', $filled ? 'filled' : '' ] );
     $flags_str = $flags ? ' [' . implode( ', ', $flags ) . ']' : '';
-    return [ 'status' => 'imported', 'msg' => "#{$id} "{$title}" → BPU #{$bpu_id} [{$job_type}, {$employment_type}, {$industry}]{$flags_str}" ];
+    return [ 'status' => 'imported', 'msg' => "#{$id} \"{$title}\" -> BPU #{$bpu_id} [{$job_type}, {$employment_type}, {$industry}]{$flags_str}" ];
 }
 
 // ─────────────────────────────────────────────────────────────────
