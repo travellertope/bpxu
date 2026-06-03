@@ -70,6 +70,10 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_job_application_post_type' ) );
         add_action( 'init', array( $this, 'register_employer_role' ) );
         add_action( 'init', array( $this, 'register_employer_taxonomy' ) );
+        add_action( 'admin_menu', array( $this, 'register_employer_link_admin_page' ) );
+        add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
+        add_action( 'wp_ajax_bpu_employer_link_user',   array( $this, 'ajax_employer_link_user' ) );
+        add_action( 'wp_ajax_bpu_employer_unlink_user', array( $this, 'ajax_employer_unlink_user' ) );
     }
 
     /**
@@ -2779,6 +2783,312 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'show_admin_column' => true,
             'rewrite'           => false,
         ) );
+    }
+
+    // ── Employer ↔ User link admin page ──────────────────────────
+
+    public function register_employer_link_admin_page() {
+        add_submenu_page(
+            'edit.php?post_type=bpu_job',
+            'Link Employers to Users',
+            'Employer Accounts',
+            'manage_options',
+            'bpu-employer-accounts',
+            array( $this, 'render_employer_link_admin_page' )
+        );
+    }
+
+    public function render_employer_link_admin_page() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Not allowed.' );
+
+        $nonce    = wp_create_nonce( 'bpu_employer_link_nonce' );
+        $terms    = get_terms( array( 'taxonomy' => 'bpu_employer', 'hide_empty' => false, 'orderby' => 'name', 'order' => 'ASC' ) );
+        if ( is_wp_error( $terms ) ) $terms = array();
+
+        // Build term → linked user map
+        $term_users = array();
+        foreach ( $terms as $term ) {
+            $linked = get_users( array(
+                'meta_key'   => '_bpu_employer_term_id',
+                'meta_value' => $term->term_id,
+                'number'     => 10,
+                'fields'     => array( 'ID', 'display_name', 'user_email' ),
+            ) );
+            $logo_url = get_term_meta( $term->term_id, 'logo_url', true );
+            $term_users[ $term->term_id ] = array(
+                'term'     => $term,
+                'logo_url' => $logo_url,
+                'users'    => $linked,
+                'jobs'     => $term->count,
+            );
+        }
+        ?>
+        <div class="wrap" id="bpu-employer-wrap">
+            <h1>Employer Accounts</h1>
+            <p>Link WordPress users with the <code>bpu_employer</code> role to their company's employer term.
+               Linked users can manage their company profile (logo, tagline, about text, etc.) from the employer dashboard.</p>
+
+            <?php if ( empty( $terms ) ) : ?>
+                <div class="notice notice-warning inline"><p>No employer terms found. Run the WJM importer first, or create employers via the BPU Job Board.</p></div>
+            <?php else : ?>
+
+            <div id="bpu-employer-msg" style="display:none;margin-bottom:12px;"></div>
+
+            <table class="widefat striped" style="margin-top:16px;">
+                <thead>
+                    <tr>
+                        <th style="width:40px;"></th>
+                        <th>Company</th>
+                        <th>Jobs</th>
+                        <th>Linked account(s)</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php foreach ( $term_users as $tid => $data ) :
+                    $term     = $data['term'];
+                    $logo_url = $data['logo_url'];
+                    $users    = $data['users'];
+                    $initials = implode( '', array_map( fn($w) => strtoupper( $w[0] ?? '' ),
+                                array_slice( explode( ' ', $term->name ), 0, 2 ) ) );
+                ?>
+                    <tr id="bpu-erow-<?php echo esc_attr( $tid ); ?>">
+                        <td style="vertical-align:middle;">
+                            <?php if ( $logo_url ) : ?>
+                                <img src="<?php echo esc_url( $logo_url ); ?>" style="width:36px;height:36px;object-fit:contain;border-radius:4px;border:1px solid #ddd;" />
+                            <?php else : ?>
+                                <div style="width:36px;height:36px;border-radius:4px;background:#e8f0fe;color:#1a56db;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;border:1px solid #ddd;">
+                                    <?php echo esc_html( $initials ); ?>
+                                </div>
+                            <?php endif; ?>
+                        </td>
+                        <td style="vertical-align:middle;">
+                            <strong><?php echo esc_html( $term->name ); ?></strong>
+                            <br><small style="color:#888;">Term ID: <?php echo (int) $tid; ?></small>
+                        </td>
+                        <td style="vertical-align:middle;"><?php echo (int) $data['jobs']; ?></td>
+                        <td style="vertical-align:middle;" id="bpu-eusers-<?php echo esc_attr( $tid ); ?>">
+                            <?php if ( $users ) :
+                                foreach ( $users as $u ) : ?>
+                                    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                                        <span><?php echo esc_html( $u->display_name ); ?> <small style="color:#888;">(<?php echo esc_html( $u->user_email ); ?>)</small></span>
+                                        <button class="button button-small bpu-unlink-btn"
+                                            data-term="<?php echo esc_attr( $tid ); ?>"
+                                            data-user="<?php echo esc_attr( $u->ID ); ?>"
+                                            data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                            Unlink
+                                        </button>
+                                    </div>
+                                <?php endforeach;
+                            else : ?>
+                                <em style="color:#aaa;">No account linked</em>
+                            <?php endif; ?>
+                        </td>
+                        <td style="vertical-align:middle;min-width:260px;">
+                            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                                <input type="text"
+                                    class="bpu-user-search"
+                                    data-term="<?php echo esc_attr( $tid ); ?>"
+                                    placeholder="Search by name or email…"
+                                    style="width:200px;"
+                                    autocomplete="off"
+                                />
+                                <div class="bpu-user-results" data-term="<?php echo esc_attr( $tid ); ?>"
+                                    style="display:none;position:absolute;background:#fff;border:1px solid #ddd;z-index:9999;max-width:280px;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.12);">
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+
+            <?php endif; ?>
+        </div>
+
+        <style>
+        .bpu-user-results a { display:block; padding:7px 12px; font-size:13px; text-decoration:none; color:#1e1e1e; }
+        .bpu-user-results a:hover { background:#f0f0f0; }
+        #bpu-employer-wrap td { position:relative; }
+        </style>
+
+        <script>
+        (function($){
+            const nonce = '<?php echo esc_js( $nonce ); ?>';
+
+            // ── Live user search ──────────────────────────────────
+            let searchTimer = null;
+            $(document).on('input', '.bpu-user-search', function(){
+                const $input  = $(this);
+                const termId  = $input.data('term');
+                const q       = $input.val().trim();
+                const $res    = $('.bpu-user-results[data-term="' + termId + '"]');
+
+                clearTimeout(searchTimer);
+                if ( q.length < 2 ) { $res.hide().empty(); return; }
+
+                searchTimer = setTimeout(function(){
+                    $.post(ajaxurl, { action: 'bpu_employer_search_users', nonce, q }, function(r){
+                        $res.empty();
+                        if ( !r.success || !r.data.length ) {
+                            $res.html('<a href="#">No users found</a>').show();
+                            return;
+                        }
+                        r.data.forEach(function(u){
+                            $res.append(
+                                $('<a href="#">').text(u.display_name + ' (' + u.user_email + ')')
+                                    .data({ user: u.ID, term: termId })
+                            );
+                        });
+                        $res.show();
+                    });
+                }, 300);
+            });
+
+            // ── Pick a user from search results ───────────────────
+            $(document).on('click', '.bpu-user-results a', function(e){
+                e.preventDefault();
+                const $a     = $(this);
+                const userId = $a.data('user');
+                const termId = $a.data('term');
+                if ( !userId ) return;
+
+                const $res    = $('.bpu-user-results[data-term="' + termId + '"]');
+                const $input  = $('.bpu-user-search[data-term="' + termId + '"]');
+                $res.hide().empty();
+                $input.val('');
+
+                $.post(ajaxurl, { action: 'bpu_employer_link_user', nonce, term_id: termId, user_id: userId }, function(r){
+                    if ( !r.success ) { showMsg(r.data || 'Error linking user.', 'error'); return; }
+                    $('#bpu-eusers-' + termId).html(r.data.users_html);
+                    showMsg(r.data.message, 'success');
+                });
+            });
+
+            // ── Unlink ────────────────────────────────────────────
+            $(document).on('click', '.bpu-unlink-btn', function(){
+                const $btn   = $(this);
+                const termId = $btn.data('term');
+                const userId = $btn.data('user');
+                if ( !confirm('Unlink this user from the employer term?') ) return;
+
+                $.post(ajaxurl, { action: 'bpu_employer_unlink_user', nonce, term_id: termId, user_id: userId }, function(r){
+                    if ( !r.success ) { showMsg(r.data || 'Error unlinking.', 'error'); return; }
+                    $('#bpu-eusers-' + termId).html(r.data.users_html);
+                    showMsg(r.data.message, 'success');
+                });
+            });
+
+            // Close dropdown on outside click
+            $(document).on('click', function(e){
+                if ( !$(e.target).closest('.bpu-user-search, .bpu-user-results').length ) {
+                    $('.bpu-user-results').hide().empty();
+                }
+            });
+
+            function showMsg(msg, type){
+                const colour = type === 'success' ? '#d1e7dd' : '#f8d7da';
+                const border = type === 'success' ? '#a3cfbb' : '#f1aeb5';
+                $('#bpu-employer-msg')
+                    .html('<div style="padding:10px 14px;border:1px solid ' + border + ';background:' + colour + ';border-radius:4px;">' + msg + '</div>')
+                    .show();
+                setTimeout(function(){ $('#bpu-employer-msg').fadeOut(); }, 4000);
+            }
+        })(jQuery);
+        </script>
+        <?php
+    }
+
+    public function ajax_employer_search_users() {
+        check_ajax_referer( 'bpu_employer_link_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+
+        $q = sanitize_text_field( $_POST['q'] ?? '' );
+        if ( strlen( $q ) < 2 ) wp_send_json_success( array() );
+
+        $users = get_users( array(
+            'role__in'   => array( 'bpu_employer', 'administrator' ),
+            'search'     => '*' . $q . '*',
+            'search_columns' => array( 'display_name', 'user_email', 'user_login' ),
+            'number'     => 10,
+            'fields'     => array( 'ID', 'display_name', 'user_email' ),
+        ) );
+
+        wp_send_json_success( $users );
+    }
+
+    public function ajax_employer_link_user() {
+        check_ajax_referer( 'bpu_employer_link_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+
+        $term_id = intval( $_POST['term_id'] ?? 0 );
+        $user_id = intval( $_POST['user_id'] ?? 0 );
+
+        if ( ! $term_id || ! $user_id ) wp_send_json_error( 'Invalid data.' );
+
+        $term = get_term( $term_id, 'bpu_employer' );
+        if ( ! $term || is_wp_error( $term ) ) wp_send_json_error( 'Employer term not found.' );
+
+        $user = get_userdata( $user_id );
+        if ( ! $user ) wp_send_json_error( 'User not found.' );
+
+        // Ensure user has bpu_employer role
+        if ( ! in_array( 'bpu_employer', (array) $user->roles, true ) && ! in_array( 'administrator', (array) $user->roles, true ) ) {
+            $user->add_role( 'bpu_employer' );
+        }
+
+        update_user_meta( $user_id, '_bpu_employer_term_id', $term_id );
+        update_user_meta( $user_id, '_bpu_company_name', $term->name );
+
+        wp_send_json_success( array(
+            'message'   => esc_html( $user->display_name ) . ' linked to <strong>' . esc_html( $term->name ) . '</strong>.',
+            'users_html'=> $this->build_linked_users_html( $term_id ),
+        ) );
+    }
+
+    public function ajax_employer_unlink_user() {
+        check_ajax_referer( 'bpu_employer_link_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+
+        $term_id = intval( $_POST['term_id'] ?? 0 );
+        $user_id = intval( $_POST['user_id'] ?? 0 );
+
+        if ( ! $term_id || ! $user_id ) wp_send_json_error( 'Invalid data.' );
+
+        delete_user_meta( $user_id, '_bpu_employer_term_id' );
+
+        $term = get_term( $term_id, 'bpu_employer' );
+        $name = $term && ! is_wp_error( $term ) ? $term->name : "term #{$term_id}";
+
+        $user = get_userdata( $user_id );
+        $uname = $user ? $user->display_name : "user #{$user_id}";
+
+        wp_send_json_success( array(
+            'message'   => esc_html( $uname ) . ' unlinked from <strong>' . esc_html( $name ) . '</strong>.',
+            'users_html'=> $this->build_linked_users_html( $term_id ),
+        ) );
+    }
+
+    private function build_linked_users_html( int $term_id ): string {
+        $nonce = wp_create_nonce( 'bpu_employer_link_nonce' );
+        $users = get_users( array(
+            'meta_key'   => '_bpu_employer_term_id',
+            'meta_value' => $term_id,
+            'number'     => 10,
+            'fields'     => array( 'ID', 'display_name', 'user_email' ),
+        ) );
+        if ( ! $users ) return '<em style="color:#aaa;">No account linked</em>';
+        $html = '';
+        foreach ( $users as $u ) {
+            $html .= '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">'
+                . '<span>' . esc_html( $u->display_name ) . ' <small style="color:#888;">(' . esc_html( $u->user_email ) . ')</small></span>'
+                . '<button class="button button-small bpu-unlink-btn"'
+                . ' data-term="' . esc_attr( $term_id ) . '"'
+                . ' data-user="' . esc_attr( $u->ID ) . '"'
+                . ' data-nonce="' . esc_attr( $nonce ) . '">'
+                . 'Unlink</button></div>';
+        }
+        return $html;
     }
 
     /**

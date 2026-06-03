@@ -382,21 +382,33 @@ function bpu_wjm_admin_page() {
            Already-imported jobs are skipped automatically — safe to re-run.</p>
 
         <h2>Field mapping</h2>
-        <table class="widefat fixed striped" style="max-width:700px;margin-bottom:20px;">
-            <thead><tr><th>WP Job Manager</th><th>BPU Job Platform</th></tr></thead>
+        <table class="widefat fixed striped" style="max-width:780px;margin-bottom:20px;">
+            <thead><tr><th style="width:40%">WP Job Manager source</th><th>BPU destination</th></tr></thead>
             <tbody>
                 <tr><td><code>post_title</code></td><td>Job title</td></tr>
                 <tr><td><code>post_content</code></td><td>Job description</td></tr>
-                <tr><td><code>_company_name</code></td><td>Company</td></tr>
-                <tr><td><code>_job_location</code></td><td>Location</td></tr>
-                <tr><td><code>_application</code> (URL)</td><td>Apply URL → outbound job</td></tr>
-                <tr><td><code>_application</code> (email)</td><td>mailto: apply URL → outbound job</td></tr>
-                <tr><td><code>_job_expires</code></td><td>Closing date</td></tr>
-                <tr><td><code>_job_salary</code> / <code>_salary</code></td><td>Salary min / max (parsed)</td></tr>
-                <tr><td><code>job_listing_type</code> taxonomy</td><td>Employment type (Full-time, Part-time…)</td></tr>
-                <tr><td><code>job_listing_category</code> taxonomy</td><td>Industry (Technology, Finance…)</td></tr>
+                <tr><td><code>_job_location</code></td><td><code>_bpu_location</code></td></tr>
+                <tr><td><code>_application</code> (URL)</td><td><code>_bpu_apply_url</code> → outbound job</td></tr>
+                <tr><td><code>_application</code> (email)</td><td><code>_bpu_apply_url</code> as mailto: → outbound</td></tr>
+                <tr><td><code>_links_to</code> (Page Links To)</td><td>Fallback apply URL when <code>_application</code> is empty</td></tr>
+                <tr><td><code>_job_expires</code></td><td><code>_bpu_expires_date</code></td></tr>
+                <tr><td><code>_job_salary</code></td><td><code>_bpu_salary_min</code> / <code>_bpu_salary_max</code> (parsed)</td></tr>
+                <tr><td><code>_job_salary_currency</code></td><td><code>_bpu_salary_currency</code></td></tr>
+                <tr><td><code>_remote_position</code></td><td><code>_bpu_remote</code></td></tr>
+                <tr><td><code>_featured</code></td><td><code>_bpu_featured</code></td></tr>
+                <tr><td><code>_filled</code></td><td><code>_bpu_filled</code></td></tr>
+                <tr><td><code>job_listing_type</code> taxonomy</td><td><code>_bpu_employment_type</code> (Full-time, Part-time…)</td></tr>
+                <tr><td><code>job_listing_category</code> taxonomy</td><td><code>_bpu_industry</code> (Technology, Finance…)</td></tr>
                 <tr><td><code>publish</code> / <code>expired</code> status</td><td>Published in BPU</td></tr>
                 <tr><td><code>pending</code> status</td><td>Pending review in BPU</td></tr>
+                <tr><th colspan="2" style="background:#f6f7f7;padding-top:10px;">Employer term (creates/updates <code>bpu_employer</code> taxonomy)</th></tr>
+                <tr><td><code>_company_name</code></td><td>Employer term name</td></tr>
+                <tr><td><code>_thumbnail_id</code> (post featured image)</td><td>Employer term <code>logo_url</code></td></tr>
+                <tr><td><code>_company_tagline</code></td><td>Employer term <code>tagline</code></td></tr>
+                <tr><td><code>_company_website</code></td><td>Employer term <code>website</code></td></tr>
+                <tr><td><code>_company_twitter</code></td><td>Employer term <code>twitter</code></td></tr>
+                <tr><td><code>_company_video</code></td><td>Employer term <code>video</code></td></tr>
+                <tr><td><code>about_company</code> (ACF wysiwyg)</td><td>Employer term <code>description</code></td></tr>
             </tbody>
         </table>
 
