@@ -132,7 +132,7 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
         'suppress_filters' => true,
     ] );
     if ( $existing ) {
-        return [ 'status' => 'skipped', 'msg' => "#{$id} "{$title}" — already imported (BPU #{$existing[0]})" ];
+        return [ 'status' => 'skipped', 'msg' => "#{$id} \"{$title}\" — already imported (BPU #{$existing[0]})" ];
     }
 
     // ── Read WP Job Manager meta ─────────────────────────────────
@@ -195,7 +195,7 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
     ], true );
 
     if ( is_wp_error( $bpu_id ) ) {
-        return [ 'status' => 'error', 'msg' => "#{$id} "{$title}" — " . $bpu_id->get_error_message() ];
+        return [ 'status' => 'error', 'msg' => "#{$id} \"{$title}\" — " . $bpu_id->get_error_message() ];
     }
 
     // ── Write BPU meta ────────────────────────────────────────────
@@ -220,7 +220,7 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
         update_post_meta( $bpu_id, $key, $value );
     }
 
-    return [ 'status' => 'imported', 'msg' => "#{$id} "{$title}" → BPU #{$bpu_id} [{$job_type}, {$employment_type}, {$industry}]" ];
+    return [ 'status' => 'imported', 'msg' => "#{$id} \"{$title}\" → BPU #{$bpu_id} [{$job_type}, {$employment_type}, {$industry}]" ];
 }
 
 // ─────────────────────────────────────────────────────────────────
