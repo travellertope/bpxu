@@ -15,9 +15,9 @@ export async function GET(request: Request) {
     const wpCookie = cookieStore.getAll().find(c => c.name.startsWith('wordpress_logged_in_'));
     const wpCookieHeader = wpCookie ? `${wpCookie.name}=${wpCookie.value}` : '';
 
-    // Asynchronously trigger click tracking back to WordPress click-logs tables
-    // We do NOT await this so the browser redirect remains incredibly fast (<50ms)
-    BPUApi.trackJobClick(parseInt(jobId), null, wpCookieHeader).catch(err => {
+    // Await tracking before redirecting — fire-and-forget is unreliable in serverless
+    // environments because the runtime is reclaimed as soon as the response is sent.
+    await BPUApi.trackJobClick(parseInt(jobId), null, wpCookieHeader).catch(err => {
         console.error('Click Tracking Error:', err);
     });
 
