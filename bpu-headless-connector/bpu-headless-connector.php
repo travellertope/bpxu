@@ -74,7 +74,9 @@ class BPU_Headless_Connector {
         add_action( 'save_post_bpu_job', array( $this, 'save_job_meta_boxes' ), 10, 2 );
         add_action( 'admin_menu', array( $this, 'register_employer_link_admin_page' ) );
         add_action( 'admin_menu', array( $this, 'register_job_reports_admin_page' ) );
+        add_action( 'admin_menu', array( $this, 'register_spam_cleanup_admin_page' ) );
         add_action( 'wp_ajax_bpu_reports_export_csv', array( $this, 'ajax_reports_export_csv' ) );
+        add_action( 'wp_ajax_bpu_delete_spam_users', array( $this, 'ajax_delete_spam_users' ) );
         add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
         add_action( 'wp_ajax_bpu_employer_link_user',   array( $this, 'ajax_employer_link_user' ) );
         add_action( 'wp_ajax_bpu_employer_unlink_user', array( $this, 'ajax_employer_unlink_user' ) );
@@ -1804,6 +1806,40 @@ Rules:
 
         if ( empty( $username ) || empty( $email ) || empty( $password ) ) {
             return new WP_Error( 'missing_fields', __( 'Username, email, and password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // ── Honeypot: bots fill hidden fields, humans don't ──
+        if ( ! empty( $body['website'] ) || ! empty( $body['_confirm_email'] ) ) {
+            return new WP_Error( 'invalid_request', __( 'Registration failed.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // ── Rate limit: max 5 registrations per IP per hour ──
+        $ip       = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+        $reg_key  = 'bpu_reg_rate_' . md5( $ip );
+        $reg_hits = (int) get_transient( $reg_key );
+        if ( $reg_hits >= 5 ) {
+            return new WP_Error( 'too_many_attempts', __( 'Too many registration attempts. Please try again later.', 'bpu' ), array( 'status' => 429 ) );
+        }
+        set_transient( $reg_key, $reg_hits + 1, HOUR_IN_SECONDS );
+
+        // ── Block URL-as-username (e.g. www.something.com) ──
+        if ( preg_match( '/\.(com|uk|net|org|io|in|co|info|biz|xyz|top|site|online|store|shop|blogspot|wordpress)\b/i', $username ) ) {
+            return new WP_Error( 'invalid_username', __( 'That username is not allowed.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( preg_match( '#https?://#i', $username ) ) {
+            return new WP_Error( 'invalid_username', __( 'That username is not allowed.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // ── Block disposable / known spam email domains ──
+        $disposable_domains = array(
+            'mailinator.com', 'guerrillamail.com', 'throwam.com', 'tempmail.com',
+            'yopmail.com', 'sharklasers.com', 'spam4.me', 'trashmail.com',
+            'dispostable.com', 'maildrop.cc', 'fakeinbox.com', 'getnada.com',
+            'discard.email', 'mailnull.com', 'spamgourmet.com', 'mytemp.email',
+        );
+        $email_domain = strtolower( substr( strrchr( $email, '@' ), 1 ) );
+        if ( in_array( $email_domain, $disposable_domains, true ) ) {
+            return new WP_Error( 'invalid_email', __( 'Please use a permanent email address to register.', 'bpu' ), array( 'status' => 400 ) );
         }
 
         if ( username_exists( $username ) ) {
@@ -4314,6 +4350,176 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => 'pending' ), 201 );
+    }
+
+    // ── Spam User Cleanup ─────────────────────────────────────────
+
+    public function register_spam_cleanup_admin_page() {
+        add_menu_page(
+            'Spam User Cleanup',
+            'Spam Cleanup',
+            'manage_options',
+            'bpu-spam-cleanup',
+            array( $this, 'render_spam_cleanup_page' ),
+            'dashicons-shield-alt',
+            99
+        );
+    }
+
+    /** Identify likely spam users based on common patterns. */
+    private function get_spam_candidates(): array {
+        global $wpdb;
+
+        // URL-like username patterns: contains a dot + common TLD or starts with www
+        $users = get_users( array(
+            'number'  => -1,
+            'fields'  => array( 'ID', 'user_login', 'user_email', 'user_registered' ),
+            'role__not_in' => array( 'administrator', 'editor', 'bpu_employer' ),
+        ) );
+
+        $spam = array();
+        $url_pattern = '/\.(com|uk|net|org|io|in|co|info|biz|xyz|top|site|online|store|shop|blogspot|wordpress|ru|cn|cc)\b/i';
+        $crypto_pattern = '/\b(bitcoin|coinbase|binance|crypto|nft|token|invest|forex|trading|wallet|usdt|btc|eth)\b/i';
+
+        foreach ( $users as $u ) {
+            $reasons = array();
+            if ( preg_match( $url_pattern, $u->user_login ) )          $reasons[] = 'URL as username';
+            if ( preg_match( '#https?://#i', $u->user_login ) )         $reasons[] = 'URL as username';
+            if ( str_starts_with( strtolower( $u->user_login ), 'www.' ) ) $reasons[] = 'URL as username';
+            if ( preg_match( $crypto_pattern, $u->user_login ) )        $reasons[] = 'Crypto/spam keyword';
+            if ( preg_match( $crypto_pattern, $u->user_email ) )        $reasons[] = 'Crypto/spam keyword in email';
+            if ( strlen( $u->user_login ) > 40 )                        $reasons[] = 'Unusually long username';
+            // Username looks like random chars (8+ consonants in a row)
+            if ( preg_match( '/[bcdfghjklmnpqrstvwxyz]{8,}/i', $u->user_login ) ) $reasons[] = 'Random-looking username';
+
+            if ( $reasons ) {
+                $spam[] = array(
+                    'id'         => $u->ID,
+                    'login'      => $u->user_login,
+                    'email'      => $u->user_email,
+                    'registered' => $u->user_registered,
+                    'reasons'    => implode( ', ', $reasons ),
+                );
+            }
+        }
+
+        usort( $spam, fn( $a, $b ) => strcmp( $b['registered'], $a['registered'] ) );
+        return $spam;
+    }
+
+    public function render_spam_cleanup_page() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Not allowed.' );
+
+        $candidates = $this->get_spam_candidates();
+        $nonce      = wp_create_nonce( 'bpu_delete_spam_users' );
+        $count      = count( $candidates );
+        ?>
+        <div class="wrap">
+            <h1>🛡️ Spam User Cleanup</h1>
+            <p>The scanner checks for URL-as-username, crypto/investment keywords, and random-character patterns — common in registration spam. It excludes admins and employer accounts.</p>
+
+            <?php if ( $count === 0 ) : ?>
+                <div class="notice notice-success"><p><strong>No spam users detected.</strong> Your user database looks clean.</p></div>
+            <?php else : ?>
+                <div class="notice notice-warning"><p><strong><?php echo $count; ?> suspected spam user<?php echo $count !== 1 ? 's' : ''; ?> found.</strong> Review below, then delete all or select specific ones.</p></div>
+
+                <div style="margin:16px 0;display:flex;gap:12px;align-items:center;">
+                    <button id="bpu-delete-all" class="button button-primary" style="background:#d63638;border-color:#d63638;">
+                        Delete all <?php echo $count; ?> spam users
+                    </button>
+                    <button id="bpu-delete-selected" class="button">Delete selected</button>
+                    <span id="bpu-result" style="margin-left:8px;font-weight:600;"></span>
+                </div>
+
+                <table class="widefat striped" style="max-width:900px;">
+                    <thead>
+                        <tr>
+                            <th style="width:32px;"><input type="checkbox" id="bpu-check-all" /></th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Registered</th>
+                            <th>Flagged for</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ( $candidates as $u ) : ?>
+                        <tr>
+                            <td><input type="checkbox" class="bpu-spam-cb" value="<?php echo esc_attr( $u['id'] ); ?>" /></td>
+                            <td><code><?php echo esc_html( $u['login'] ); ?></code></td>
+                            <td><?php echo esc_html( $u['email'] ); ?></td>
+                            <td><?php echo esc_html( date( 'd M Y', strtotime( $u['registered'] ) ) ); ?></td>
+                            <td style="color:#d63638;"><?php echo esc_html( $u['reasons'] ); ?></td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+
+                <script>
+                (function() {
+                    const allIds = <?php echo wp_json_encode( array_column( $candidates, 'id' ) ); ?>;
+                    const nonce  = <?php echo wp_json_encode( $nonce ); ?>;
+                    const result = document.getElementById('bpu-result');
+
+                    document.getElementById('bpu-check-all').addEventListener('change', function() {
+                        document.querySelectorAll('.bpu-spam-cb').forEach(cb => cb.checked = this.checked);
+                    });
+
+                    async function doDelete(ids) {
+                        if ( ! ids.length ) { result.textContent = 'No users selected.'; return; }
+                        if ( ! confirm(`Delete ${ids.length} user(s)? This cannot be undone.`) ) return;
+                        result.textContent = 'Deleting…';
+                        const fd = new FormData();
+                        fd.append('action', 'bpu_delete_spam_users');
+                        fd.append('nonce', nonce);
+                        fd.append('ids', JSON.stringify(ids));
+                        const r = await fetch(ajaxurl, { method: 'POST', body: fd });
+                        const d = await r.json();
+                        if (d.success) {
+                            result.style.color = 'green';
+                            result.textContent = `✓ Deleted ${d.data.deleted} user(s).`;
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            result.style.color = 'red';
+                            result.textContent = 'Error: ' + (d.data || 'unknown');
+                        }
+                    }
+
+                    document.getElementById('bpu-delete-all').addEventListener('click', () => doDelete(allIds));
+                    document.getElementById('bpu-delete-selected').addEventListener('click', () => {
+                        const ids = [...document.querySelectorAll('.bpu-spam-cb:checked')].map(cb => parseInt(cb.value));
+                        doDelete(ids);
+                    });
+                })();
+                </script>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+
+    public function ajax_delete_spam_users() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Not allowed.', 403 );
+        if ( ! check_ajax_referer( 'bpu_delete_spam_users', 'nonce', false ) ) wp_send_json_error( 'Bad nonce.', 403 );
+
+        $ids = json_decode( stripslashes( $_POST['ids'] ?? '[]' ), true );
+        if ( ! is_array( $ids ) ) wp_send_json_error( 'Invalid payload.' );
+
+        $current = get_current_user_id();
+        $deleted = 0;
+        require_once ABSPATH . 'wp-admin/includes/user.php';
+
+        foreach ( $ids as $id ) {
+            $id = intval( $id );
+            if ( ! $id || $id === $current ) continue;
+            // Double-check: never delete admins
+            $user = get_userdata( $id );
+            if ( ! $user ) continue;
+            if ( in_array( 'administrator', (array) $user->roles, true ) ) continue;
+
+            wp_delete_user( $id );
+            $deleted++;
+        }
+
+        wp_send_json_success( array( 'deleted' => $deleted ) );
     }
 }
 
