@@ -273,8 +273,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                 <div className="card card-p">
                                     <h2 className="section-title mb-4">Job Description</h2>
                                     <div
-                                        className="prose prose-sm max-w-none text-text leading-relaxed"
-                                        style={{ fontSize: '14px', lineHeight: '1.7' }}
+                                        className="job-description"
                                         dangerouslySetInnerHTML={{ __html: job.description }}
                                     />
                                 </div>
@@ -296,8 +295,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                     </div>
                                     {employer!.description && (
                                         <div
-                                            className="prose prose-sm max-w-none text-text leading-relaxed mb-4"
-                                            style={{ fontSize: '14px', lineHeight: '1.7' }}
+                                            className="job-description mb-4"
                                             dangerouslySetInnerHTML={{ __html: employer!.description }}
                                         />
                                     )}
