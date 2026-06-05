@@ -75,6 +75,8 @@ class BPU_Headless_Connector {
         add_action( 'admin_menu', array( $this, 'register_employer_link_admin_page' ) );
         add_action( 'admin_menu', array( $this, 'register_job_reports_admin_page' ) );
         add_action( 'admin_menu', array( $this, 'register_spam_cleanup_admin_page' ) );
+        add_filter( 'manage_bpu_job_posts_columns',       array( $this, 'job_list_columns' ) );
+        add_action( 'manage_bpu_job_posts_custom_column', array( $this, 'job_list_column_content' ), 10, 2 );
         add_action( 'wp_ajax_bpu_reports_export_csv', array( $this, 'ajax_reports_export_csv' ) );
         add_action( 'wp_ajax_bpu_delete_spam_users', array( $this, 'ajax_delete_spam_users' ) );
         add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
@@ -2925,6 +2927,37 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
     }
 
+    // ── All Jobs list table columns ───────────────────────────────
+
+    public function job_list_columns( array $columns ): array {
+        // Insert expiry date after the title column
+        $new = array();
+        foreach ( $columns as $key => $label ) {
+            $new[ $key ] = $label;
+            if ( $key === 'title' ) {
+                $new['bpu_expires'] = __( 'Closes', 'bpu' );
+            }
+        }
+        return $new;
+    }
+
+    public function job_list_column_content( string $column, int $post_id ): void {
+        if ( $column === 'bpu_expires' ) {
+            $date = get_post_meta( $post_id, '_bpu_expires_date', true );
+            if ( $date ) {
+                $ts      = strtotime( $date );
+                $today   = strtotime( gmdate( 'Y-m-d' ) );
+                $expired = $ts < $today;
+                $label   = date_i18n( 'd M Y', $ts );
+                echo $expired
+                    ? '<span style="color:#d63638;">' . esc_html( $label ) . ' (expired)</span>'
+                    : esc_html( $label );
+            } else {
+                echo '<span style="color:#aaa;">—</span>';
+            }
+        }
+    }
+
     public function register_job_post_type() {
         register_post_type( 'bpu_job', array(
             'labels'             => array(
@@ -2940,13 +2973,14 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'show_ui'            => true,
             'show_in_menu'       => true,
             'query_var'          => false,
+            'rewrite'            => array( 'slug' => 'jobs', 'with_front' => false ),
             'capability_type'    => 'post',
             'has_archive'        => false,
             'hierarchical'       => false,
             'menu_position'      => 26,
             'menu_icon'          => 'dashicons-portfolio',
-            'supports'           => array( 'title', 'editor', 'custom-fields', 'author' ),
-            'show_in_rest'       => false,
+            'supports'           => array( 'title', 'editor', 'custom-fields', 'author', 'slug' ),
+            'show_in_rest'       => true,
         ) );
     }
 
