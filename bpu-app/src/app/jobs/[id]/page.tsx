@@ -135,7 +135,6 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
 
     const hasDescription  = !!job.description?.trim();
     const hasAboutSection = !!(employer && (employer.description || employer.video));
-    const hasLeftContent  = hasDescription || hasAboutSection;
 
     return (
         <div className="min-h-screen flex flex-col">
@@ -253,81 +252,74 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                     </div>
                 </div>
 
-                {/* ── No left content: centred apply layout ── */}
-                {!hasLeftContent ? (
-                    <div className="max-w-xl mx-auto w-full">
-                        <ApplyCard
-                            job={job}
-                            isInbound={isInbound}
-                            session={session}
-                            employer={employer}
-                            salary={salary}
-                        />
-                    </div>
-                ) : (
-                    /* ── Two-column layout when there IS content ── */
-                    <div className="flex flex-col lg:flex-row gap-6">
-                        {/* Left: Description + About Company */}
-                        <div className="flex-1 min-w-0 space-y-6">
-                            {hasDescription && (
-                                <div className="card card-p">
-                                    <h2 className="section-title mb-4">Job Description</h2>
-                                    <div
-                                        className="job-description"
-                                        dangerouslySetInnerHTML={{ __html: job.description }}
-                                    />
-                                </div>
-                            )}
-
-                            {hasAboutSection && (
-                                <div className="card card-p">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        {employer!.logo_url && (
-                                            <div
-                                                className="shrink-0 rounded-lg overflow-hidden border border-border bg-surface"
-                                                style={{ width: 40, height: 40 }}
-                                            >
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img src={employer!.logo_url} alt={employer!.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-                                            </div>
-                                        )}
-                                        <h2 className="section-title">About {employer!.name}</h2>
-                                    </div>
-                                    {employer!.description && (
-                                        <div
-                                            className="job-description mb-4"
-                                            dangerouslySetInnerHTML={{ __html: employer!.description }}
-                                        />
-                                    )}
-                                    {employer!.video && (
-                                        <div className="mt-4 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
-                                            <iframe
-                                                src={employer!.video}
-                                                className="w-full h-full"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                                allowFullScreen
-                                                title={`${employer!.name} video`}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Right: Sidebar */}
-                        <div className="lg:w-80 shrink-0">
-                            <div className="sticky top-20">
-                                <ApplyCard
-                                    job={job}
-                                    isInbound={isInbound}
-                                    session={session}
-                                    employer={employer}
-                                    salary={salary}
+                {/* ── Always two-column: description left, apply card right ── */}
+                <div className="flex flex-col lg:flex-row gap-6 items-start">
+                    {/* Left: Description + About Company */}
+                    <div className="flex-1 min-w-0 space-y-6">
+                        {hasDescription && (
+                            <div className="card card-p">
+                                <h2 className="section-title mb-4">Job Description</h2>
+                                <div
+                                    className="job-description"
+                                    dangerouslySetInnerHTML={{ __html: job.description }}
                                 />
                             </div>
+                        )}
+
+                        {hasAboutSection && (
+                            <div className="card card-p">
+                                <div className="flex items-center gap-3 mb-4">
+                                    {employer!.logo_url && (
+                                        <div
+                                            className="shrink-0 rounded-lg overflow-hidden border border-border bg-surface"
+                                            style={{ width: 40, height: 40 }}
+                                        >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={employer!.logo_url} alt={employer!.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                                        </div>
+                                    )}
+                                    <h2 className="section-title">About {employer!.name}</h2>
+                                </div>
+                                {employer!.description && (
+                                    <div
+                                        className="job-description mb-4"
+                                        dangerouslySetInnerHTML={{ __html: employer!.description }}
+                                    />
+                                )}
+                                {employer!.video && (
+                                    <div className="mt-4 rounded-lg overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                                        <iframe
+                                            src={employer!.video}
+                                            className="w-full h-full"
+                                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                            allowFullScreen
+                                            title={`${employer!.name} video`}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {!hasDescription && !hasAboutSection && (
+                            <div className="card card-p text-sm text-text-3 italic">
+                                No additional details provided for this role.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right: Apply card — sticks to top */}
+                    <div className="lg:w-80 shrink-0 w-full">
+                        <div className="sticky top-20">
+                            <ApplyCard
+                                job={job}
+                                isInbound={isInbound}
+                                session={session}
+                                employer={employer}
+                                salary={salary}
+                            />
                         </div>
                     </div>
-                )}
+                </div>
             </main>
 
             <footer className="py-6 text-center text-xs text-text-3 border-t border-border mt-8">
