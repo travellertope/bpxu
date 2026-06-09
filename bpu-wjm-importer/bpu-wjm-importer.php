@@ -155,7 +155,17 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
     $company_website   = (string) $get( '_company_website' );
     $company_twitter   = (string) $get( '_company_twitter' );
     $company_video     = (string) $get( '_company_video' );
-    $company_about     = (string) $get( 'about_company' );  // ACF wysiwyg field
+    $company_about     = '';
+    // ACF wysiwyg — try field name first, then field key as fallback
+    if ( function_exists( 'get_field' ) ) {
+        $company_about = (string) get_field( 'about_company', $id );
+    }
+    if ( $company_about === '' ) {
+        $company_about = (string) $get( 'about_company' );
+    }
+    if ( $company_about === '' ) {
+        $company_about = (string) $get( 'field_67e3cbdd2421b' );
+    }
     $company_logo_id   = intval( get_post_thumbnail_id( $id ) );
 
     // ── Taxonomies ───────────────────────────────────────────────
