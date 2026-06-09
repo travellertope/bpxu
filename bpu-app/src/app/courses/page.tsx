@@ -4,7 +4,7 @@ import CourseBoard from './CourseBoard';
 
 export const metadata = {
     title: 'Courses | BPU Portal',
-    description: 'Browse accredited professional development courses curated for Black professionals in the UK.',
+    description: 'Our members are empowered to achieve their career goals through exclusive free courses from The Skills Network.',
 };
 
 export default async function CoursesPage() {
@@ -39,17 +39,28 @@ export default async function CoursesPage() {
                         borderBottom: '1px solid var(--border)',
                     }}
                 >
-                    <div className="wrap">
-                        <h1 className="text-4xl font-extrabold tracking-tight mb-3">
-                            Professional Development Courses
+                    <div className="wrap" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '20px' }}>
+                        <h1 className="text-4xl font-extrabold tracking-tight">
+                            Free Courses for BPU Members
                         </h1>
                         <p className="text-text-2 text-lg max-w-2xl mx-auto">
-                            Discover a diverse range of courses that cover various industries and subjects, providing you with the tools to thrive in your career. From leadership development to digital marketing and everything in between, our free courses offer valuable insights and practical knowledge.
+                            Our members are empowered to achieve their career goals. The Skills Network offers our members exclusive access to free courses for skill enhancement. Whether you seek career advancement, a new path, or entrepreneurial ventures, continuous learning is the key to success.
                         </p>
-                        <p className="text-sm text-text-3 max-w-xl mx-auto mt-3">
-                            All courses are fully accredited and recognised throughout the UK and internationally.
-                        </p>
-                        <p className="mt-3 text-sm text-text-3">
+
+                        {/* Partnership badge */}
+                        <div
+                            className="card card-p inline-flex items-center gap-4"
+                            style={{ padding: '12px 20px', display: 'inline-flex' }}
+                        >
+                            <span className="text-xs font-semibold text-text-3 uppercase tracking-widest whitespace-nowrap">In partnership with</span>
+                            <img
+                                src="https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/The-Skills-Network-r9nhxuf2p4vw81jcuu758g0092znp6rk36twiaf1dm.png"
+                                alt="The Skills Network"
+                                style={{ height: '36px', width: 'auto', display: 'block' }}
+                            />
+                        </div>
+
+                        <p className="text-sm text-text-3">
                             {courses.length > 0
                                 ? `${courses.length} course${courses.length === 1 ? '' : 's'} available`
                                 : 'Check back soon for new courses'}
