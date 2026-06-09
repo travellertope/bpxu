@@ -19,7 +19,7 @@ export default async function MemberPortal() {
     BPUApi.getJobRecommendations(user.id, jwt),
     BPUApi.getCourses(jwt),
     BPUApi.getCVClinicReviews(jwt),
-    BPUApi.getEvents(),
+    BPUApi.getRegisteredEvents(jwt),
   ]);
 
   return (

@@ -474,6 +474,15 @@ class BPU_Headless_Connector {
         ) );
 
         // ──────────────────────────────────────────────────────
+        // 9b. Member Registered Events (JWT Bearer)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/registered-events', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_registered_events' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
         // 10. Member Preferences (Pro — JWT Bearer)
         // ──────────────────────────────────────────────────────
         register_rest_route( $this->namespace, '/member/preferences', array(
@@ -2603,6 +2612,74 @@ Rules:
     /**
      * GET /events — Paginated upcoming event list using The Events Calendar.
      */
+    public function get_registered_events( WP_REST_Request $request ) {
+        $user_id = get_current_user_id();
+
+        // Query Tribe attendee records belonging to this WP user.
+        // Covers both RSVP (tribe_rsvp_attendees) and ticket (tribe_attendee) post types.
+        $attendees = get_posts( array(
+            'post_type'      => array( 'tribe_rsvp_attendees', 'tribe_attendee' ),
+            'posts_per_page' => -1,
+            'post_status'    => 'publish',
+            'meta_query'     => array(
+                array(
+                    'key'   => '_tribe_rsvp_attendee_user_id',
+                    'value' => $user_id,
+                ),
+            ),
+        ) );
+
+        $event_ids = array();
+        foreach ( $attendees as $attendee ) {
+            $event_id = get_post_meta( $attendee->ID, '_tribe_rsvp_event', true )
+                ?: get_post_meta( $attendee->ID, '_tribe_tpp_event', true );
+            if ( $event_id ) {
+                $event_ids[] = (int) $event_id;
+            }
+        }
+        $event_ids = array_unique( $event_ids );
+
+        if ( empty( $event_ids ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'events' => array() ), 200 );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'tribe_events',
+            'post_status'    => 'publish',
+            'post__in'       => $event_ids,
+            'posts_per_page' => -1,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_EventStartDate',
+            'order'          => 'ASC',
+        ) );
+
+        $events = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id  = get_the_ID();
+                $events[] = array(
+                    'id'           => $post_id,
+                    'title'        => get_the_title(),
+                    'description'  => wp_strip_all_tags( get_the_excerpt() ),
+                    'start_date'   => get_post_meta( $post_id, '_EventStartDate', true ),
+                    'end_date'     => get_post_meta( $post_id, '_EventEndDate',   true ),
+                    'venue'        => get_post_meta( $post_id, '_EventVenueID', true )
+                        ? tribe_get_venue( $post_id ) : '',
+                    'cost'         => get_post_meta( $post_id, '_EventCost', true ) ?: 'Free',
+                    'url'          => get_the_permalink(),
+                    'image'        => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'is_virtual'   => (bool) get_post_meta( $post_id, '_tribe_events_venue_show_map', true ),
+                    'register_url' => function_exists( 'tribe_get_tickets_link' )
+                        ? tribe_get_tickets_link( $post_id ) : get_the_permalink(),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'events' => $events ), 200 );
+    }
+
     public function get_events( WP_REST_Request $request ) {
         $page     = max( 1, $request->get_param( 'page' ) );
         $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );

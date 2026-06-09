@@ -249,7 +249,7 @@ export class BPUApi {
     /**
      * Get upcoming events from The Events Calendar via BPU connector
      */
-    static async getEvents(perPage = 12): Promise<EventItem[]> {
+    static async getEvents(perPage = 50): Promise<EventItem[]> {
         try {
             const response = await fetch(
                 `${WP_BACKEND_URL}/wp-json/bpu/v1/events?per_page=${perPage}`,
@@ -260,6 +260,20 @@ export class BPUApi {
             return data.events || [];
         } catch (error) {
             console.error('Failed to fetch events:', error);
+            return [];
+        }
+    }
+
+    static async getRegisteredEvents(jwt: string): Promise<EventItem[]> {
+        try {
+            const response = await fetch(
+                `${WP_BACKEND_URL}/wp-json/bpu/v1/member/registered-events`,
+                { cache: 'no-store', headers: { 'Authorization': `Bearer ${jwt}` } }
+            );
+            if (!response.ok) return [];
+            const data = await response.json();
+            return data.events || [];
+        } catch {
             return [];
         }
     }

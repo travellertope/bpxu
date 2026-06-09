@@ -717,19 +717,27 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
         {/* ════ EVENTS ══════════════════════════════════════ */}
         {tab === 'events' && (
           <div className="space-y-4 fade-up">
-            <div>
-              <h2 className="text-xl font-bold">Upcoming events</h2>
-              <p className="section-sub">BPU networking events, workshops, and community meetups.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">My Events</h2>
+                <p className="section-sub">Events you&apos;ve registered for through BPU.</p>
+              </div>
+              <a href="/events" className="btn btn-outline btn-sm shrink-0">Browse all events →</a>
             </div>
 
             {events.length === 0
               ? (
-                <div className="empty">
-                  No upcoming events right now — check back soon.
+                <div className="card card-p text-center py-12 space-y-4">
+                  <p className="text-3xl">🗓️</p>
+                  <div>
+                    <p className="font-semibold">No registered events yet</p>
+                    <p className="text-sm text-text-2 mt-1">Browse upcoming BPU events and register to see them here.</p>
+                  </div>
+                  <a href="/events" className="btn btn-amber btn-sm inline-flex mx-auto">Browse events →</a>
                 </div>
               )
               : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="space-y-3">
                   {events.map(ev => {
                     const start = ev.start_date
                       ? new Date(ev.start_date).toLocaleDateString('en-GB', {
@@ -741,45 +749,44 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                           hour: '2-digit', minute: '2-digit',
                         })
                       : '';
+                    const isPast = ev.start_date ? new Date(ev.start_date) < new Date() : false;
                     return (
-                      <div key={ev.id} className="card card-p card-lift flex flex-col gap-3">
+                      <div
+                        key={ev.id}
+                        className="card card-p flex gap-4 items-start"
+                        style={{ opacity: isPast ? 0.6 : 1 }}
+                      >
                         {ev.image && (
                           <img
                             src={ev.image}
                             alt={ev.title}
-                            className="w-full rounded-lg object-cover"
-                            style={{ height: '140px' }}
+                            className="rounded-lg object-cover shrink-0"
+                            style={{ width: '72px', height: '72px' }}
                           />
                         )}
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="badge badge-purple text-xs">
-                            {ev.is_virtual ? 'Online' : 'In Person'}
-                          </span>
-                          <span className="text-xs font-semibold text-brand">
-                            {ev.cost === 'Free' || !ev.cost ? 'Free' : ev.cost}
-                          </span>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="badge badge-purple text-xs">
+                              {ev.is_virtual ? 'Online' : 'In Person'}
+                            </span>
+                            {isPast && <span className="badge badge-gray text-xs">Past</span>}
+                            <span className="text-xs font-semibold text-brand ml-auto">
+                              {ev.cost === 'Free' || !ev.cost ? 'Free' : ev.cost}
+                            </span>
+                          </div>
+                          <p className="font-semibold text-sm leading-snug">{ev.title}</p>
+                          {start && (
+                            <p className="text-xs text-text-2">{start}{time ? ` · ${time}` : ''}</p>
+                          )}
+                          {ev.venue && <p className="text-xs text-text-3 truncate">{ev.venue}</p>}
                         </div>
-                        <p className="font-semibold text-sm leading-snug">{ev.title}</p>
-                        {start && (
-                          <p className="text-xs text-text-2">
-                            {start}{time ? ` · ${time}` : ''}
-                          </p>
-                        )}
-                        {ev.venue && (
-                          <p className="text-xs text-text-3 truncate">{ev.venue}</p>
-                        )}
-                        {ev.description && (
-                          <p className="text-xs text-text-2 leading-relaxed line-clamp-2">
-                            {ev.description}
-                          </p>
-                        )}
                         <a
                           href={ev.register_url || ev.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="btn btn-amber btn-sm mt-auto"
+                          className="btn btn-ghost btn-sm shrink-0"
                         >
-                          Register →
+                          View →
                         </a>
                       </div>
                     );
