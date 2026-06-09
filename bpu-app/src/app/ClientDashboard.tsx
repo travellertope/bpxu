@@ -372,7 +372,14 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
               <div className="card card-p space-y-4">
                 <p className="section-title">CV Clinic</p>
                 {cvUrl
-                  ? <div className="alert alert-green text-sm">CV on file — <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Download</a></div>
+                  ? <div className="alert alert-green text-sm flex items-center justify-between gap-3">
+                      <span>CV on file</span>
+                      <div className="flex items-center gap-2">
+                        <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Download</a>
+                        <span className="text-text-3">·</span>
+                        <button onClick={() => { setTab('cv'); setCvTab('upload'); }} className="underline font-semibold">Replace</button>
+                      </div>
+                    </div>
                   : <div className="alert alert-amber text-sm">No CV uploaded yet. Upload a PDF to auto-fill your profile.</div>
                 }
                 <button onClick={() => setTab('cv')} className="btn btn-outline btn-sm">
@@ -571,10 +578,15 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                   {/* Current CV */}
                   {cvUrl && (
                     <div className="alert alert-green flex items-center justify-between gap-4">
-                      <span className="text-sm">CV on file</span>
-                      <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
-                        Download
-                      </a>
+                      <span className="text-sm font-medium">CV on file</span>
+                      <div className="flex items-center gap-2">
+                        <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
+                          Download
+                        </a>
+                        <label htmlFor="cv-file" className="btn btn-outline btn-sm" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                          Replace
+                        </label>
+                      </div>
                     </div>
                   )}
 
@@ -583,7 +595,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                     <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
                       <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
                       <p className="text-base font-semibold">
-                        {uploading ? 'Reading your CV…' : 'Click to upload your CV'}
+                        {uploading ? 'Reading your CV…' : cvUrl ? 'Click to replace your CV' : 'Click to upload your CV'}
                       </p>
                       <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
                       <input
