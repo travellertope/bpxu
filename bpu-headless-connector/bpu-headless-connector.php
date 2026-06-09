@@ -3613,7 +3613,12 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         } else {
             $term_id = (int) $term->term_id;
         }
+        // Description goes into the built-in term description column, not term meta
+        if ( isset( $meta['description'] ) && $meta['description'] !== '' ) {
+            wp_update_term( $term_id, 'bpu_employer', array( 'description' => $meta['description'] ) );
+        }
         foreach ( $meta as $key => $value ) {
+            if ( $key === 'description' ) continue; // handled above
             if ( $value !== '' && $value !== null ) {
                 update_term_meta( $term_id, $key, $value );
             }
@@ -3637,8 +3642,29 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'tagline'     => (string) $gm( 'tagline' ),
             'twitter'     => (string) $gm( 'twitter' ),
             'video'       => (string) $gm( 'video' ),
-            'description' => (string) $gm( 'description' ),
+            // Use the built-in WP term description (wp_term_taxonomy.description),
+            // not term meta — this is what the WP admin edit page writes to.
+            'description' => (string) $term->description,
         );
+    }
+
+    private function make_excerpt( string $html, ?array $employer, int $length = 140 ): string {
+        // Strip HTML tags and normalise whitespace
+        $text = wp_strip_all_tags( $html );
+        $text = preg_replace( '/\s+/', ' ', $text );
+        $text = trim( $text );
+
+        // Fall back to employer description if job has no content
+        if ( $text === '' && $employer && ! empty( $employer['description'] ) ) {
+            $text = wp_strip_all_tags( $employer['description'] );
+            $text = preg_replace( '/\s+/', ' ', $text );
+            $text = trim( $text );
+        }
+
+        if ( $text === '' ) return '';
+        return mb_strlen( $text ) > $length
+            ? rtrim( mb_substr( $text, 0, $length ) ) . '…'
+            : $text;
     }
 
     private function format_job_for_api( $post ) {
@@ -3648,11 +3674,22 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         $questions = maybe_unserialize( $get( '_bpu_screening_questions' ) );
 
         // Resolve bpu_employer taxonomy term
-        $employer_terms = wp_get_post_terms( $post->ID, 'bpu_employer', array( 'fields' => 'ids' ) );
+        $employer_terms   = wp_get_post_terms( $post->ID, 'bpu_employer', array( 'fields' => 'ids' ) );
         $employer_term_id = ( ! is_wp_error( $employer_terms ) && ! empty( $employer_terms ) ) ? (int) $employer_terms[0] : 0;
-        $employer = $this->get_employer_data( $employer_term_id );
 
-        // Fall back to plain meta for company name if no taxonomy term yet
+        // If the job has no term assigned, try looking up by company name and auto-tagging
+        if ( ! $employer_term_id ) {
+            $company_meta = (string) $get( '_bpu_company' );
+            if ( $company_meta ) {
+                $found = get_term_by( 'name', $company_meta, 'bpu_employer' );
+                if ( $found && ! is_wp_error( $found ) ) {
+                    $employer_term_id = (int) $found->term_id;
+                    wp_set_post_terms( $post->ID, array( $employer_term_id ), 'bpu_employer' );
+                }
+            }
+        }
+
+        $employer     = $this->get_employer_data( $employer_term_id );
         $company_name = $employer ? $employer['name'] : (string) $get( '_bpu_company' );
 
         return array(
@@ -3660,6 +3697,7 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'title'               => $post->post_title,
             'slug'                => $post->post_name,
             'description'         => $post->post_content,
+            'excerpt'             => $this->make_excerpt( $post->post_content, $employer ),
             'company'             => $company_name,
             'location'            => (string) $get( '_bpu_location' ),
             'employment_type'     => (string) $get( '_bpu_employment_type' ),
@@ -4245,13 +4283,35 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             update_user_meta( $user_id, '_bpu_company_name', $new_name );
         }
 
-        $allowed_meta = array( 'tagline', 'website', 'twitter', 'video', 'description' );
+        $allowed_meta = array( 'tagline', 'website', 'twitter', 'video' );
         foreach ( $allowed_meta as $key ) {
             if ( array_key_exists( $key, $body ) ) {
-                $value = $key === 'description'
-                    ? wp_kses_post( $body[ $key ] )
-                    : sanitize_text_field( $body[ $key ] );
-                update_term_meta( $term_id, $key, $value );
+                update_term_meta( $term_id, $key, sanitize_text_field( $body[ $key ] ) );
+            }
+        }
+        // Description lives in the built-in wp_term_taxonomy.description column
+        if ( array_key_exists( 'description', $body ) ) {
+            wp_update_term( $term_id, 'bpu_employer', array(
+                'description' => wp_kses_post( $body['description'] ),
+            ) );
+        }
+
+        // Re-tag any BPU jobs whose _bpu_company matches this employer name
+        // so they all resolve to the correct term (fixes stale/missing taxonomy links)
+        $term = get_term( $term_id, 'bpu_employer' );
+        if ( $term && ! is_wp_error( $term ) ) {
+            $matching_jobs = get_posts( array(
+                'post_type'      => 'bpu_job',
+                'post_status'    => array( 'publish', 'pending', 'draft' ),
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => array( array(
+                    'key'   => '_bpu_company',
+                    'value' => $term->name,
+                ) ),
+            ) );
+            foreach ( $matching_jobs as $job_id ) {
+                wp_set_post_terms( $job_id, array( $term_id ), 'bpu_employer' );
             }
         }
 

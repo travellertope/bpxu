@@ -281,6 +281,13 @@ body {
 ───────────────────────────────────────── */
 .divider { height: 1px; background: var(--border); }
 
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
 /* ─────────────────────────────────────────
    EMPTY STATE
 ───────────────────────────────────────── */

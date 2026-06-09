@@ -26,6 +26,7 @@ export interface Job {
     salary_min?: number;
     salary_max?: number;
     description: string;
+    excerpt?: string;
     apply_url?: string;
     expires?: string;
     date_posted: string;

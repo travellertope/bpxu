@@ -64,10 +64,15 @@ function CompanyAvatar({ name, logoUrl }: { name: string; logoUrl?: string }) {
     );
 }
 
+function stripHtml(html: string): string {
+    return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function JobCard({ job }: JobCardProps) {
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
     const logoUrl = job.employer?.logo_url || undefined;
+    const excerpt = job.excerpt ?? '';
 
     return (
         <Link
@@ -88,8 +93,8 @@ function JobCard({ job }: JobCardProps) {
                         )}
                     </div>
                     <p className="text-sm text-text-2 mt-0.5 truncate">{job.company}</p>
-                    {job.employer?.tagline && (
-                        <p className="text-xs text-text-3 mt-0.5 truncate">{job.employer.tagline}</p>
+                    {excerpt && (
+                        <p className="text-xs text-text-2 mt-1 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{excerpt}</p>
                     )}
                 </div>
             </div>
