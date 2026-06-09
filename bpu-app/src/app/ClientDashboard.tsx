@@ -133,14 +133,34 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed.');
       setCvUrl(data.cv_url);
-      const parsed = data.parsed_data || {};
-      setProfile(prev => ({ ...prev, ...parsed }));
-      setEditForm(prev => ({ ...prev, ...parsed }));
-      if (parsed.work_experiences?.length)  setExperiences(parsed.work_experiences);
-      if (parsed.education_history?.length) setEducations(parsed.education_history);
-      if (parsed.certifications?.length)    setCertifications(parsed.certifications);
-      if (parsed.languages)                 setCvLanguages(parsed.languages);
-      setCvParsedAt(new Date().toLocaleString());
+
+      // Re-fetch the full profile from WP to get all ACF-saved fields
+      const profileRes = await fetch('/api/member/profile', { cache: 'no-store' });
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData.profile) {
+          setProfile(profileData.profile);
+          setEditForm(profileData.profile);
+        }
+        if (profileData.experiences?.length)    setExperiences(profileData.experiences);
+        if (profileData.educations?.length)     setEducations(profileData.educations);
+        if (profileData.certifications?.length) setCertifications(profileData.certifications);
+        if (profileData.languages)              setCvLanguages(profileData.languages);
+        if (profileData.cv_parsed_at)           setCvParsedAt(profileData.cv_parsed_at);
+      } else {
+        // Fallback: merge only non-empty parsed fields into form state
+        const parsed = data.parsed_data || {};
+        const nonEmpty = Object.fromEntries(
+          Object.entries(parsed).filter(([, v]) => v !== '' && v !== null && v !== undefined && !Array.isArray(v))
+        );
+        setProfile(prev => ({ ...prev, ...nonEmpty }));
+        setEditForm(prev => ({ ...prev, ...nonEmpty }));
+        if (parsed.work_experiences?.length)  setExperiences(parsed.work_experiences);
+        if (parsed.education_history?.length) setEducations(parsed.education_history);
+        if (parsed.certifications?.length)    setCertifications(parsed.certifications);
+        if (parsed.languages)                 setCvLanguages(parsed.languages);
+        setCvParsedAt(new Date().toLocaleString());
+      }
       setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated automatically.' });
     } catch (err: unknown) {
       setUploadMsg({ type: 'err', text: err instanceof Error ? err.message : 'Upload error.' });
