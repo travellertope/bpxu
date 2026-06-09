@@ -209,9 +209,6 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                     </div>
                                     <h1 className="text-2xl font-bold mb-1">{job.title}</h1>
                                     <p className="text-text-2 text-lg">{job.company}</p>
-                                    {employer?.tagline && (
-                                        <p className="text-sm text-text-3 mt-0.5">{employer.tagline}</p>
-                                    )}
                                 </div>
                             </div>
 

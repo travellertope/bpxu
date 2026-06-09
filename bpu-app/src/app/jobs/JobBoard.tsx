@@ -96,7 +96,7 @@ function JobCard({ job }: JobCardProps) {
                     </div>
                     <p className="text-sm text-text-2 mt-0.5 truncate">{job.company}</p>
                     {excerpt && (
-                        <p className="text-xs text-text-3 mt-1 line-clamp-2 leading-snug">{excerpt}</p>
+                        <p className="text-xs text-text-3 mt-1 line-clamp-2 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{excerpt}</p>
                     )}
                 </div>
             </div>
