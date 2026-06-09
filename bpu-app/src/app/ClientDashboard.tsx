@@ -681,33 +681,67 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
         {/* ════ COURSES ═════════════════════════════════════ */}
         {tab === 'courses' && (
           <div className="space-y-4 fade-up">
-            <div>
-              <h2 className="text-xl font-bold">Accredited courses</h2>
-              <p className="section-sub">Progress is tracked in Tutor LMS.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">My Courses</h2>
+                <p className="section-sub">Courses you&apos;re enrolled in through BPU.</p>
+              </div>
+              <a href="/courses" className="btn btn-outline btn-sm shrink-0">Browse all courses →</a>
             </div>
 
             {courses.length === 0
-              ? <div className="empty">No courses available right now.</div>
+              ? (
+                <div className="card card-p text-center py-12 space-y-4">
+                  <p className="text-3xl">🎓</p>
+                  <div>
+                    <p className="font-semibold">No enrolled courses yet</p>
+                    <p className="text-sm text-text-2 mt-1">Browse BPU&apos;s accredited courses and enrol to see them here.</p>
+                  </div>
+                  <a href="/courses" className="btn btn-amber btn-sm inline-flex mx-auto">Browse courses →</a>
+                </div>
+              )
               : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {courses.map(c => (
-                    <div key={c.id} className="card card-p card-lift flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">{c.category}</span>
-                        <span className={`badge ${c.status === 'In Progress' ? 'badge-amber' : 'badge-gray'}`}>
-                          {c.status}
-                        </span>
+                <div className="space-y-3">
+                  {courses.map(c => {
+                    const statusColor = c.status === 'Completed' ? 'badge-green' : c.status === 'In Progress' ? 'badge-amber' : 'badge-gray';
+                    return (
+                      <div key={c.id} className="card card-p flex gap-4 items-start">
+                        {c.image && (
+                          <img
+                            src={c.image}
+                            alt={c.title}
+                            className="rounded-lg object-cover shrink-0"
+                            style={{ width: '72px', height: '72px' }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">{c.category}</span>
+                            <span className={`badge ${statusColor} ml-auto`}>{c.status}</span>
+                          </div>
+                          <p className="font-semibold text-sm leading-snug">{c.title}</p>
+                          <p className="text-xs text-text-3">by {c.provider}{c.duration ? ` · ${c.duration}` : ''}</p>
+                          {typeof c.progress === 'number' && c.progress > 0 && c.status !== 'Completed' && (
+                            <div className="space-y-1">
+                              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${c.progress}%`, background: 'var(--brand)' }}
+                                />
+                              </div>
+                              <p className="text-xs text-text-3">{c.progress}% complete</p>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleCourseOpen(c)}
+                          className="btn btn-ghost btn-sm shrink-0"
+                        >
+                          {c.status === 'Completed' ? 'Review →' : 'Continue →'}
+                        </button>
                       </div>
-                      <p className="font-semibold text-sm leading-snug">{c.title}</p>
-                      <p className="text-xs text-text-2">by {c.provider}</p>
-                      <button
-                        onClick={() => handleCourseOpen(c)}
-                        className="btn btn-outline btn-sm mt-auto"
-                      >
-                        Start learning →
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             }
