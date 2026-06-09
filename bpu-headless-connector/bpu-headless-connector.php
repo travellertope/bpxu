@@ -270,6 +270,7 @@ class BPU_Headless_Connector {
                 'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
                 'search'   => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
                 'category' => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'tag'      => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
             ),
         ) );
 
@@ -794,6 +795,7 @@ class BPU_Headless_Connector {
         $page     = max( 1, $request->get_param( 'page' ) );
         $search   = $request->get_param( 'search' );
         $category = $request->get_param( 'category' );
+        $tag      = $request->get_param( 'tag' );
 
         $query_args = array(
             'post_type'      => 'courses',
@@ -808,14 +810,27 @@ class BPU_Headless_Connector {
             $query_args['s'] = $search;
         }
 
+        $tax_query = array();
+
         if ( ! empty( $category ) ) {
-            $query_args['tax_query'] = array(
-                array(
-                    'taxonomy' => 'course-category',
-                    'field'    => 'name',
-                    'terms'    => $category,
-                ),
+            $tax_query[] = array(
+                'taxonomy' => 'course-category',
+                'field'    => 'name',
+                'terms'    => $category,
             );
+        }
+
+        if ( ! empty( $tag ) ) {
+            $tax_query[] = array(
+                'taxonomy' => 'course-tag',
+                'field'    => 'name',
+                'terms'    => $tag,
+            );
+        }
+
+        if ( ! empty( $tax_query ) ) {
+            $tax_query['relation']       = 'AND';
+            $query_args['tax_query']     = $tax_query;
         }
 
         $query = new WP_Query( $query_args );
@@ -825,19 +840,23 @@ class BPU_Headless_Connector {
         if ( $query->have_posts() ) {
             while ( $query->have_posts() ) {
                 $query->the_post();
-                $post_id = get_the_ID();
-                $courses[] = array(
-                    'id'            => $post_id,
-                    'title'         => get_the_title(),
-                    'excerpt'       => wp_strip_all_tags( get_the_excerpt() ),
-                    'provider'      => get_post_meta( $post_id, '_tutor_course_instructor', true )
+                $post_id    = get_the_ID();
+                $categories = wp_get_post_terms( $post_id, 'course-category', array( 'fields' => 'names' ) );
+                $tags       = wp_get_post_terms( $post_id, 'course-tag',      array( 'fields' => 'names' ) );
+                $courses[]  = array(
+                    'id'             => $post_id,
+                    'title'          => get_the_title(),
+                    'excerpt'        => wp_strip_all_tags( get_the_excerpt() ),
+                    'provider'       => get_post_meta( $post_id, '_tutor_course_instructor', true )
                         ? get_userdata( (int) get_post_meta( $post_id, '_tutor_course_instructor', true ) )->display_name ?? 'BPU Partner'
                         : 'BPU Partner',
-                    'category'      => wp_get_post_terms( $post_id, 'course-category', array( 'fields' => 'names' ) )[0] ?? 'Professional Development',
+                    'category'       => ! empty( $categories ) && ! is_wp_error( $categories ) ? $categories[0] : 'Professional Development',
+                    'categories'     => ! is_wp_error( $categories ) ? array_values( $categories ) : array(),
+                    'tags'           => ! is_wp_error( $tags )       ? array_values( $tags )       : array(),
                     'learn_more_url' => get_the_permalink(),
-                    'image'         => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
-                    'duration'      => get_post_meta( $post_id, '_course_duration', true ) ?: '',
-                    'level'         => get_post_meta( $post_id, '_tutor_course_level', true ) ?: '',
+                    'image'          => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'duration'       => get_post_meta( $post_id, '_course_duration', true ) ?: '',
+                    'level'          => get_post_meta( $post_id, '_tutor_course_level', true ) ?: '',
                 );
             }
             wp_reset_postdata();

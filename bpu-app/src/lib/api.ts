@@ -15,6 +15,8 @@ export interface CourseItem {
     excerpt: string;
     provider: string;
     category: string;
+    categories: string[];
+    tags: string[];
     learn_more_url: string;
     image: string;
     duration: string;
@@ -206,6 +208,8 @@ export class BPUApi {
                 excerpt: (c.excerpt as string) || '',
                 provider: (c.provider as string) || 'BPU Partner',
                 category: (c.category as string) || 'Professional Development',
+                categories: (c.categories as string[]) || [],
+                tags: (c.tags as string[]) || [],
                 learn_more_url: (c.learn_more_url as string) || '#',
                 image: (c.image as string) || '',
                 duration: (c.duration as string) || '',
@@ -233,6 +237,8 @@ export class BPUApi {
                 excerpt: (c.excerpt as string) || '',
                 provider: (c.provider as string) || 'BPU Partner',
                 category: (c.category as string) || 'Professional Development',
+                categories: (c.categories as string[]) || [],
+                tags: (c.tags as string[]) || [],
                 learn_more_url: (c.learn_more_url as string) || '#',
                 image: (c.image as string) || '',
                 duration: (c.duration as string) || '',
