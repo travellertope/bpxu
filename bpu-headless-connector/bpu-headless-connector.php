@@ -3648,11 +3648,22 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         $questions = maybe_unserialize( $get( '_bpu_screening_questions' ) );
 
         // Resolve bpu_employer taxonomy term
-        $employer_terms = wp_get_post_terms( $post->ID, 'bpu_employer', array( 'fields' => 'ids' ) );
+        $employer_terms   = wp_get_post_terms( $post->ID, 'bpu_employer', array( 'fields' => 'ids' ) );
         $employer_term_id = ( ! is_wp_error( $employer_terms ) && ! empty( $employer_terms ) ) ? (int) $employer_terms[0] : 0;
-        $employer = $this->get_employer_data( $employer_term_id );
 
-        // Fall back to plain meta for company name if no taxonomy term yet
+        // If the job has no term assigned, try looking up by company name and auto-tagging
+        if ( ! $employer_term_id ) {
+            $company_meta = (string) $get( '_bpu_company' );
+            if ( $company_meta ) {
+                $found = get_term_by( 'name', $company_meta, 'bpu_employer' );
+                if ( $found && ! is_wp_error( $found ) ) {
+                    $employer_term_id = (int) $found->term_id;
+                    wp_set_post_terms( $post->ID, array( $employer_term_id ), 'bpu_employer' );
+                }
+            }
+        }
+
+        $employer     = $this->get_employer_data( $employer_term_id );
         $company_name = $employer ? $employer['name'] : (string) $get( '_bpu_company' );
 
         return array(
@@ -4252,6 +4263,25 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
                     ? wp_kses_post( $body[ $key ] )
                     : sanitize_text_field( $body[ $key ] );
                 update_term_meta( $term_id, $key, $value );
+            }
+        }
+
+        // Re-tag any BPU jobs whose _bpu_company matches this employer name
+        // so they all resolve to the correct term (fixes stale/missing taxonomy links)
+        $term = get_term( $term_id, 'bpu_employer' );
+        if ( $term && ! is_wp_error( $term ) ) {
+            $matching_jobs = get_posts( array(
+                'post_type'      => 'bpu_job',
+                'post_status'    => array( 'publish', 'pending', 'draft' ),
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => array( array(
+                    'key'   => '_bpu_company',
+                    'value' => $term->name,
+                ) ),
+            ) );
+            foreach ( $matching_jobs as $job_id ) {
+                wp_set_post_terms( $job_id, array( $term_id ), 'bpu_employer' );
             }
         }
 
