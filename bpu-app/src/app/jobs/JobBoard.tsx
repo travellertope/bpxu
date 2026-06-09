@@ -72,8 +72,9 @@ function JobCard({ job }: JobCardProps) {
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
     const logoUrl = job.employer?.logo_url || undefined;
-    const excerpt = job.description
-        ? (() => { const t = stripHtml(job.description); return t.length > 130 ? t.slice(0, 130).trimEnd() + '…' : t; })()
+    const excerptSource = job.description || job.employer?.description || '';
+    const excerpt = excerptSource
+        ? (() => { const t = stripHtml(excerptSource); return t.length > 130 ? t.slice(0, 130).trimEnd() + '…' : t; })()
         : '';
 
     return (
@@ -96,7 +97,7 @@ function JobCard({ job }: JobCardProps) {
                     </div>
                     <p className="text-sm text-text-2 mt-0.5 truncate">{job.company}</p>
                     {excerpt && (
-                        <p className="text-xs text-text-3 mt-1 line-clamp-2 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{excerpt}</p>
+                        <p className="text-xs text-text-2 mt-1 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{excerpt}</p>
                     )}
                 </div>
             </div>
