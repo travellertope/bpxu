@@ -17,9 +17,9 @@ export default async function MemberPortal() {
 
   const [jobs, courses, reviews, events] = await Promise.all([
     BPUApi.getJobRecommendations(user.id, jwt),
-    BPUApi.getCourses(jwt),
+    BPUApi.getEnrolledCourses(jwt),
     BPUApi.getCVClinicReviews(jwt),
-    BPUApi.getEvents(),
+    BPUApi.getRegisteredEvents(jwt),
   ]);
 
   return (

@@ -12,10 +12,15 @@ export interface JobListing {
 export interface CourseItem {
     id: number;
     title: string;
+    excerpt: string;
     provider: string;
     category: string;
     learn_more_url: string;
-    status?: 'Not Started' | 'In Progress' | 'Completed';
+    image: string;
+    duration: string;
+    level: string;
+    status?: 'Not Started' | 'In Progress' | 'Enrolled' | 'Completed';
+    progress?: number;
 }
 
 export interface CVReview {
@@ -187,10 +192,10 @@ export class BPUApi {
     /**
      * Get Courses Directory (Headless Tutor LMS List)
      */
-    static async getCourses(_unused?: string): Promise<CourseItem[]> {
+    static async getCourses(): Promise<CourseItem[]> {
         try {
             const response = await fetch(
-                `${WP_BACKEND_URL}/wp-json/bpu/v1/courses?per_page=12`,
+                `${WP_BACKEND_URL}/wp-json/bpu/v1/courses?per_page=50`,
                 { cache: 'no-store' }
             );
             if (!response.ok) return [];
@@ -198,13 +203,44 @@ export class BPUApi {
             return (data.courses || []).map((c: Record<string, unknown>) => ({
                 id: c.id as number,
                 title: c.title as string,
+                excerpt: (c.excerpt as string) || '',
                 provider: (c.provider as string) || 'BPU Partner',
                 category: (c.category as string) || 'Professional Development',
                 learn_more_url: (c.learn_more_url as string) || '#',
+                image: (c.image as string) || '',
+                duration: (c.duration as string) || '',
+                level: (c.level as string) || '',
                 status: 'Not Started' as const,
+                progress: 0,
             }));
         } catch (error) {
             console.error('Failed to fetch courses:', error);
+            return [];
+        }
+    }
+
+    static async getEnrolledCourses(jwt: string): Promise<CourseItem[]> {
+        try {
+            const response = await fetch(
+                `${WP_BACKEND_URL}/wp-json/bpu/v1/member/enrolled-courses`,
+                { cache: 'no-store', headers: { 'Authorization': `Bearer ${jwt}` } }
+            );
+            if (!response.ok) return [];
+            const data = await response.json();
+            return (data.courses || []).map((c: Record<string, unknown>) => ({
+                id: c.id as number,
+                title: c.title as string,
+                excerpt: (c.excerpt as string) || '',
+                provider: (c.provider as string) || 'BPU Partner',
+                category: (c.category as string) || 'Professional Development',
+                learn_more_url: (c.learn_more_url as string) || '#',
+                image: (c.image as string) || '',
+                duration: (c.duration as string) || '',
+                level: (c.level as string) || '',
+                status: (c.status as CourseItem['status']) || 'Enrolled',
+                progress: (c.progress as number) || 0,
+            }));
+        } catch {
             return [];
         }
     }
@@ -249,7 +285,7 @@ export class BPUApi {
     /**
      * Get upcoming events from The Events Calendar via BPU connector
      */
-    static async getEvents(perPage = 12): Promise<EventItem[]> {
+    static async getEvents(perPage = 50): Promise<EventItem[]> {
         try {
             const response = await fetch(
                 `${WP_BACKEND_URL}/wp-json/bpu/v1/events?per_page=${perPage}`,
@@ -260,6 +296,20 @@ export class BPUApi {
             return data.events || [];
         } catch (error) {
             console.error('Failed to fetch events:', error);
+            return [];
+        }
+    }
+
+    static async getRegisteredEvents(jwt: string): Promise<EventItem[]> {
+        try {
+            const response = await fetch(
+                `${WP_BACKEND_URL}/wp-json/bpu/v1/member/registered-events`,
+                { cache: 'no-store', headers: { 'Authorization': `Bearer ${jwt}` } }
+            );
+            if (!response.ok) return [];
+            const data = await response.json();
+            return data.events || [];
+        } catch {
             return [];
         }
     }

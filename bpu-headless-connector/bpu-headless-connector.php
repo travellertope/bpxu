@@ -266,9 +266,18 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'get_courses' ),
             'permission_callback' => '__return_true',
             'args'                => array(
-                'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 50, 'sanitize_callback' => 'absint' ),
                 'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'search'   => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'category' => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
             ),
+        ) );
+
+        // 3c. Enrolled courses for the authenticated member (JWT Bearer)
+        register_rest_route( $this->namespace, '/member/enrolled-courses', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_enrolled_courses' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
         // 4. CV Upload & Gemini Pro Autofill parser (Pro — JWT Bearer)
@@ -471,6 +480,15 @@ class BPU_Headless_Connector {
                 'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
                 'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
             ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 9b. Member Registered Events (JWT Bearer)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/registered-events', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_registered_events' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
         // ──────────────────────────────────────────────────────
@@ -690,21 +708,117 @@ class BPU_Headless_Connector {
     }
 
     /**
+     * GET /member/enrolled-courses — returns courses the JWT user is enrolled in, with progress.
+     */
+    public function get_enrolled_courses( WP_REST_Request $request ) {
+        $user_id = get_current_user_id();
+
+        // Get all course IDs this user is enrolled in via Tutor LMS enrolment records.
+        $enrolled_ids = array();
+        if ( function_exists( 'tutor_utils' ) ) {
+            $enrolled_courses = tutor_utils()->get_enrolled_courses_ids_by_user( $user_id );
+            if ( is_array( $enrolled_courses ) ) {
+                $enrolled_ids = array_map( 'intval', $enrolled_courses );
+            }
+        }
+
+        // Fallback: query tutor_enrolled post type directly.
+        if ( empty( $enrolled_ids ) ) {
+            $enrol_posts = get_posts( array(
+                'post_type'      => 'tutor_enrolled',
+                'post_status'    => 'completed',
+                'author'         => $user_id,
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+            ) );
+            foreach ( $enrol_posts as $ep_id ) {
+                $cid = (int) wp_get_post_parent_id( $ep_id );
+                if ( $cid ) $enrolled_ids[] = $cid;
+            }
+            $enrolled_ids = array_unique( $enrolled_ids );
+        }
+
+        if ( empty( $enrolled_ids ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'courses' => array() ), 200 );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'courses',
+            'post_status'    => 'publish',
+            'post__in'       => $enrolled_ids,
+            'posts_per_page' => -1,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $courses = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id  = get_the_ID();
+                $percent  = function_exists( 'tutor_utils' )
+                    ? (int) tutor_utils()->get_course_completed_percent( $post_id, $user_id )
+                    : 0;
+                $completed = function_exists( 'tutor_utils' )
+                    ? (bool) tutor_utils()->is_completed_course( $post_id, $user_id )
+                    : false;
+                $status = $completed ? 'Completed' : ( $percent > 0 ? 'In Progress' : 'Enrolled' );
+                $courses[] = array(
+                    'id'             => $post_id,
+                    'title'          => get_the_title(),
+                    'excerpt'        => wp_strip_all_tags( get_the_excerpt() ),
+                    'provider'       => get_post_meta( $post_id, '_tutor_course_instructor', true )
+                        ? ( get_userdata( (int) get_post_meta( $post_id, '_tutor_course_instructor', true ) )->display_name ?? 'BPU Partner' )
+                        : 'BPU Partner',
+                    'category'       => wp_get_post_terms( $post_id, 'course-category', array( 'fields' => 'names' ) )[0] ?? 'Professional Development',
+                    'learn_more_url' => get_the_permalink(),
+                    'image'          => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'duration'       => get_post_meta( $post_id, '_course_duration', true ) ?: '',
+                    'level'          => get_post_meta( $post_id, '_tutor_course_level', true ) ?: '',
+                    'status'         => $status,
+                    'progress'       => $percent,
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'courses' => $courses ), 200 );
+    }
+
+    /**
      * GET /courses — Paginated course listing sourced directly from Tutor LMS post type.
      * Works regardless of whether Tutor LMS exposes its own REST routes.
      */
     public function get_courses( WP_REST_Request $request ) {
         $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
         $page     = max( 1, $request->get_param( 'page' ) );
+        $search   = $request->get_param( 'search' );
+        $category = $request->get_param( 'category' );
 
-        $query = new WP_Query( array(
-            'post_type'      => 'courses',   // Tutor LMS post type
+        $query_args = array(
+            'post_type'      => 'courses',
             'post_status'    => 'publish',
             'posts_per_page' => $per_page,
             'paged'          => $page,
             'orderby'        => 'date',
             'order'          => 'DESC',
-        ) );
+        );
+
+        if ( ! empty( $search ) ) {
+            $query_args['s'] = $search;
+        }
+
+        if ( ! empty( $category ) ) {
+            $query_args['tax_query'] = array(
+                array(
+                    'taxonomy' => 'course-category',
+                    'field'    => 'name',
+                    'terms'    => $category,
+                ),
+            );
+        }
+
+        $query = new WP_Query( $query_args );
 
         $courses = array();
 
@@ -2603,6 +2717,74 @@ Rules:
     /**
      * GET /events — Paginated upcoming event list using The Events Calendar.
      */
+    public function get_registered_events( WP_REST_Request $request ) {
+        $user_id = get_current_user_id();
+
+        // Query Tribe attendee records belonging to this WP user.
+        // Covers both RSVP (tribe_rsvp_attendees) and ticket (tribe_attendee) post types.
+        $attendees = get_posts( array(
+            'post_type'      => array( 'tribe_rsvp_attendees', 'tribe_attendee' ),
+            'posts_per_page' => -1,
+            'post_status'    => 'publish',
+            'meta_query'     => array(
+                array(
+                    'key'   => '_tribe_rsvp_attendee_user_id',
+                    'value' => $user_id,
+                ),
+            ),
+        ) );
+
+        $event_ids = array();
+        foreach ( $attendees as $attendee ) {
+            $event_id = get_post_meta( $attendee->ID, '_tribe_rsvp_event', true )
+                ?: get_post_meta( $attendee->ID, '_tribe_tpp_event', true );
+            if ( $event_id ) {
+                $event_ids[] = (int) $event_id;
+            }
+        }
+        $event_ids = array_unique( $event_ids );
+
+        if ( empty( $event_ids ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'events' => array() ), 200 );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'tribe_events',
+            'post_status'    => 'publish',
+            'post__in'       => $event_ids,
+            'posts_per_page' => -1,
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_EventStartDate',
+            'order'          => 'ASC',
+        ) );
+
+        $events = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id  = get_the_ID();
+                $events[] = array(
+                    'id'           => $post_id,
+                    'title'        => get_the_title(),
+                    'description'  => wp_strip_all_tags( get_the_excerpt() ),
+                    'start_date'   => get_post_meta( $post_id, '_EventStartDate', true ),
+                    'end_date'     => get_post_meta( $post_id, '_EventEndDate',   true ),
+                    'venue'        => get_post_meta( $post_id, '_EventVenueID', true )
+                        ? tribe_get_venue( $post_id ) : '',
+                    'cost'         => get_post_meta( $post_id, '_EventCost', true ) ?: 'Free',
+                    'url'          => get_the_permalink(),
+                    'image'        => get_the_post_thumbnail_url( $post_id, 'medium' ) ?: '',
+                    'is_virtual'   => (bool) get_post_meta( $post_id, '_tribe_events_venue_show_map', true ),
+                    'register_url' => function_exists( 'tribe_get_tickets_link' )
+                        ? tribe_get_tickets_link( $post_id ) : get_the_permalink(),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'events' => $events ), 200 );
+    }
+
     public function get_events( WP_REST_Request $request ) {
         $page     = max( 1, $request->get_param( 'page' ) );
         $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
