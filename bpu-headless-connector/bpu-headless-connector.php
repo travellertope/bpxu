@@ -1271,16 +1271,16 @@ Rules:
         }
 
         // ── Structured array fields ───────────────────────────
-        // work_experiences → bpu_experiences (same key used by the PAIRED importer)
+        // work_experiences → bpu_experiences
         if ( ! empty( $data['work_experiences'] ) && is_array( $data['work_experiences'] ) ) {
             $experiences = array_map( function( $e ) {
                 return [
-                    'title'        => sanitize_text_field( $e['title']       ?? '' ),
-                    'company'      => sanitize_text_field( $e['company']     ?? '' ),
-                    'start_date'   => sanitize_text_field( $e['start_date']  ?? '' ),
-                    'end_date'     => sanitize_text_field( $e['end_date']    ?? '' ),
-                    'is_present'   => ! empty( $e['is_current'] ) ? '1' : '0',
-                    'contribution' => sanitize_textarea_field( $e['description'] ?? '' ),
+                    'title'       => sanitize_text_field( $e['title']       ?? '' ),
+                    'company'     => sanitize_text_field( $e['company']     ?? '' ),
+                    'start_date'  => sanitize_text_field( $e['start_date']  ?? '' ),
+                    'end_date'    => sanitize_text_field( $e['end_date']    ?? '' ),
+                    'is_current'  => ! empty( $e['is_current'] ),
+                    'description' => sanitize_textarea_field( $e['description'] ?? '' ),
                 ];
             }, $data['work_experiences'] );
             update_user_meta( $user_id, 'bpu_experiences', $experiences );
@@ -1831,12 +1831,26 @@ Rules:
             );
         }
 
-        // Build user profile payload
+        // Build user profile payload — ACF fields with user meta fallback
         $acf_profile = array();
         if ( function_exists( 'get_fields' ) ) {
             $fields = get_fields( 'user_' . $user_id );
             if ( $fields ) {
                 $acf_profile = $fields;
+            }
+        }
+
+        $flat_keys = array(
+            'first_name', 'last_name', 'phone_number', 'current_employment_status',
+            'level_of_education', 'industry', 'industryfield_of_expertise',
+            'years_of_experience', 'skills_separate', 'user_bio', 'residence', 'linkedin_profile',
+        );
+        foreach ( $flat_keys as $key ) {
+            if ( empty( $acf_profile[ $key ] ) ) {
+                $meta = get_user_meta( $user_id, $key, true );
+                if ( $meta !== '' && $meta !== false ) {
+                    $acf_profile[ $key ] = $meta;
+                }
             }
         }
 
@@ -2158,11 +2172,26 @@ Rules:
             return new WP_Error( 'sso_user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
+        // Read ACF fields, then fill any missing flat fields from raw user meta as fallback.
         $acf_profile = array();
         if ( function_exists( 'get_fields' ) ) {
             $fields = get_fields( 'user_' . $user_id );
             if ( $fields ) {
                 $acf_profile = $fields;
+            }
+        }
+
+        $flat_keys = array(
+            'first_name', 'last_name', 'phone_number', 'current_employment_status',
+            'level_of_education', 'industry', 'industryfield_of_expertise',
+            'years_of_experience', 'skills_separate', 'user_bio', 'residence', 'linkedin_profile',
+        );
+        foreach ( $flat_keys as $key ) {
+            if ( empty( $acf_profile[ $key ] ) ) {
+                $meta = get_user_meta( $user_id, $key, true );
+                if ( $meta !== '' && $meta !== false ) {
+                    $acf_profile[ $key ] = $meta;
+                }
             }
         }
 

@@ -161,7 +161,15 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
         if (parsed.languages)                 setCvLanguages(parsed.languages);
         setCvParsedAt(new Date().toLocaleString());
       }
-      setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated automatically.' });
+      const parsed = data.parsed_data || {};
+      const parts: string[] = [];
+      if (parsed.first_name || parsed.last_name) parts.push('name');
+      if (parsed.work_experiences?.length) parts.push(`${parsed.work_experiences.length} job${parsed.work_experiences.length !== 1 ? 's' : ''}`);
+      if (parsed.education_history?.length) parts.push(`${parsed.education_history.length} education entr${parsed.education_history.length !== 1 ? 'ies' : 'y'}`);
+      if (parsed.skills_separate) parts.push('skills');
+      if (parsed.user_bio) parts.push('bio');
+      const summary = parts.length ? ` Extracted: ${parts.join(', ')}.` : ' No data could be extracted — check the PDF is readable.';
+      setUploadMsg({ type: 'ok', text: `CV uploaded — your profile has been updated automatically.${summary}` });
     } catch (err: unknown) {
       setUploadMsg({ type: 'err', text: err instanceof Error ? err.message : 'Upload error.' });
     } finally {
