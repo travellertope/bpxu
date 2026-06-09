@@ -3,14 +3,6 @@
 import { useState, useMemo } from 'react';
 import { CourseItem } from '@/lib/api';
 
-const LEVEL_ORDER = ['beginner', 'intermediate', 'advanced', 'expert'];
-
-function LevelBadge({ level }: { level: string }) {
-    const l = level.toLowerCase();
-    const color = l === 'beginner' ? 'badge-green' : l === 'intermediate' ? 'badge-amber' : l === 'advanced' ? 'badge-purple' : 'badge-gray';
-    return <span className={`badge ${color}`} style={{ fontSize: '11px' }}>{level}</span>;
-}
-
 function CourseCard({ course }: { course: CourseItem }) {
     return (
         <div className="card card-lift flex flex-col overflow-hidden">
@@ -36,10 +28,14 @@ function CourseCard({ course }: { course: CourseItem }) {
             )}
 
             <div className="flex flex-col gap-3 p-5 flex-1">
-                {/* Category + level */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">{course.category}</span>
-                    {course.level && <LevelBadge level={course.level} />}
+                {/* Discipline + country tags */}
+                <div className="flex flex-wrap gap-1.5">
+                    {course.categories.map(cat => (
+                        <span key={cat} className="badge badge-gray" style={{ fontSize: '11px' }}>{cat}</span>
+                    ))}
+                    {course.tags.map(tag => (
+                        <span key={tag} className="badge badge-purple" style={{ fontSize: '11px' }}>{tag}</span>
+                    ))}
                 </div>
 
                 {/* Title */}
@@ -78,35 +74,43 @@ interface Props {
 }
 
 export default function CourseBoard({ courses }: Props) {
-    const [search, setSearch]     = useState('');
-    const [category, setCategory] = useState('All');
-    const [level, setLevel]       = useState('All');
+    const [search,     setSearch]     = useState('');
+    const [discipline, setDiscipline] = useState('All');
+    const [country,    setCountry]    = useState('All');
 
-    const categories = useMemo(() => {
-        const cats = Array.from(new Set(courses.map(c => c.category).filter(Boolean)));
-        return ['All', ...cats.sort()];
+    const disciplines = useMemo(() => {
+        const set = new Set<string>();
+        courses.forEach(c => c.categories.forEach(cat => set.add(cat)));
+        return ['All', ...Array.from(set).sort()];
     }, [courses]);
 
-    const levels = useMemo(() => {
-        const lvls = Array.from(new Set(courses.map(c => c.level).filter(Boolean)));
-        lvls.sort((a, b) => LEVEL_ORDER.indexOf(a.toLowerCase()) - LEVEL_ORDER.indexOf(b.toLowerCase()));
-        return ['All', ...lvls];
+    const countries = useMemo(() => {
+        const set = new Set<string>();
+        courses.forEach(c => c.tags.forEach(tag => set.add(tag)));
+        return ['All', ...Array.from(set).sort()];
     }, [courses]);
 
     const filtered = useMemo(() => {
+        const q = search.toLowerCase();
         return courses.filter(c => {
-            if (search && !c.title.toLowerCase().includes(search.toLowerCase()) && !c.excerpt.toLowerCase().includes(search.toLowerCase())) return false;
-            if (category !== 'All' && c.category !== category) return false;
-            if (level !== 'All' && c.level !== level) return false;
+            if (q && !c.title.toLowerCase().includes(q) && !c.excerpt.toLowerCase().includes(q)) return false;
+            if (discipline !== 'All' && !c.categories.includes(discipline)) return false;
+            if (country !== 'All' && !c.tags.includes(country)) return false;
             return true;
         });
-    }, [courses, search, category, level]);
+    }, [courses, search, discipline, country]);
+
+    const activeFilters = [
+        discipline !== 'All' && { label: discipline, clear: () => setDiscipline('All') },
+        country    !== 'All' && { label: country,    clear: () => setCountry('All') },
+    ].filter(Boolean) as { label: string; clear: () => void }[];
 
     return (
         <div>
             {/* Filters */}
-            <div className="card card-p mb-8 space-y-3">
-                <div className="flex flex-col sm:flex-row gap-3">
+            <div className="card card-p mb-8">
+                <div className="flex flex-col lg:flex-row gap-3">
+                    {/* Search — takes up remaining space */}
                     <div className="flex-1 relative">
                         <svg
                             className="absolute left-3 top-1/2 -translate-y-1/2 text-text-3 pointer-events-none"
@@ -117,36 +121,67 @@ export default function CourseBoard({ courses }: Props) {
                         </svg>
                         <input
                             type="text"
-                            className="field-input"
+                            className="field-input w-full"
                             style={{ paddingLeft: '2.25rem' }}
-                            placeholder="Search courses…"
+                            placeholder="Search courses by title or keyword…"
                             value={search}
                             onChange={e => setSearch(e.target.value)}
                         />
                     </div>
 
-                    <select
-                        className="field-input sm:w-52"
-                        value={category}
-                        onChange={e => setCategory(e.target.value)}
-                    >
-                        {categories.map(cat => (
-                            <option key={cat} value={cat}>{cat === 'All' ? 'All categories' : cat}</option>
-                        ))}
-                    </select>
+                    <div className="flex gap-3">
+                        {/* Discipline (course-category) */}
+                        <div className="flex-1 lg:flex-none lg:w-52">
+                            <select
+                                className="field-input w-full"
+                                value={discipline}
+                                onChange={e => setDiscipline(e.target.value)}
+                            >
+                                {disciplines.map(d => (
+                                    <option key={d} value={d}>{d === 'All' ? 'All disciplines' : d}</option>
+                                ))}
+                            </select>
+                        </div>
 
-                    {levels.length > 2 && (
-                        <select
-                            className="field-input sm:w-44"
-                            value={level}
-                            onChange={e => setLevel(e.target.value)}
-                        >
-                            {levels.map(l => (
-                                <option key={l} value={l}>{l === 'All' ? 'All levels' : l}</option>
-                            ))}
-                        </select>
-                    )}
+                        {/* Country (course-tag) — only show if tags exist */}
+                        {countries.length > 1 && (
+                            <div className="flex-1 lg:flex-none lg:w-44">
+                                <select
+                                    className="field-input w-full"
+                                    value={country}
+                                    onChange={e => setCountry(e.target.value)}
+                                >
+                                    {countries.map(ct => (
+                                        <option key={ct} value={ct}>{ct === 'All' ? 'All countries' : ct}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* Active filter chips */}
+                {activeFilters.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                        {activeFilters.map(f => (
+                            <button
+                                key={f.label}
+                                onClick={f.clear}
+                                className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                                style={{ background: 'var(--brand-bg)', color: 'var(--brand)' }}
+                            >
+                                {f.label}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                            </button>
+                        ))}
+                        <button
+                            onClick={() => { setDiscipline('All'); setCountry('All'); setSearch(''); }}
+                            className="text-xs text-text-3 hover:text-text underline"
+                        >
+                            Clear all
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Count */}

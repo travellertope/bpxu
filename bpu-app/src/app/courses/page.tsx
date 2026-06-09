@@ -44,7 +44,10 @@ export default async function CoursesPage() {
                             Professional Development Courses
                         </h1>
                         <p className="text-text-2 text-lg max-w-2xl mx-auto">
-                            Accredited courses from BPU partners — build skills, earn certificates, and advance your career. From leadership and finance to technology and creative industries.
+                            Discover a diverse range of courses that cover various industries and subjects, providing you with the tools to thrive in your career. From leadership development to digital marketing and everything in between, our free courses offer valuable insights and practical knowledge.
+                        </p>
+                        <p className="text-sm text-text-3 max-w-xl mx-auto mt-3">
+                            All courses are fully accredited and recognised throughout the UK and internationally.
                         </p>
                         <p className="mt-3 text-sm text-text-3">
                             {courses.length > 0
