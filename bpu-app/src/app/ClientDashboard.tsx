@@ -286,15 +286,41 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
-              {[
-                { val: jobs.length,    label: 'Job matches'  },
-                { val: courses.length, label: 'Courses'      },
-                { val: reviews.length, label: 'CV reviews'   },
-              ].map(s => (
-                <div key={s.label} className="card card-p text-center">
+              {(() => {
+                const inProgress = courses.filter(c => c.status === 'In Progress').length;
+                const completed  = courses.filter(c => c.status === 'Completed').length;
+                const upcomingEvents = events.filter(ev => ev.start_date && new Date(ev.start_date) >= new Date()).length;
+                return [
+                  {
+                    val:   courses.length,
+                    label: courses.length === 0 ? 'Enrolled courses' : inProgress > 0 ? `${inProgress} in progress` : completed > 0 ? `${completed} completed` : 'Enrolled',
+                    sub:   'Courses',
+                    tab:   'courses' as Tab,
+                  },
+                  {
+                    val:   upcomingEvents,
+                    label: upcomingEvents === 1 ? 'Upcoming event' : 'Upcoming events',
+                    sub:   'Events',
+                    tab:   'events' as Tab,
+                  },
+                  {
+                    val:   reviews.length,
+                    label: reviews.length === 1 ? 'Review received' : 'Reviews received',
+                    sub:   'CV Clinic',
+                    tab:   'cv' as Tab,
+                  },
+                ];
+              })().map(s => (
+                <button
+                  key={s.sub}
+                  onClick={() => setTab(s.tab)}
+                  className="card card-p text-center hover:border-brand transition-colors cursor-pointer"
+                  style={{ background: 'none', width: '100%' }}
+                >
                   <div className="stat-val">{s.val}</div>
                   <div className="stat-label">{s.label}</div>
-                </div>
+                  <div className="text-xs text-text-3 mt-1">{s.sub}</div>
+                </button>
               ))}
             </div>
 
