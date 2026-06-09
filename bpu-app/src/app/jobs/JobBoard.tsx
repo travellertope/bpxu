@@ -72,10 +72,7 @@ function JobCard({ job }: JobCardProps) {
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
     const logoUrl = job.employer?.logo_url || undefined;
-    const excerptSource = job.description || job.employer?.description || '';
-    const excerpt = excerptSource
-        ? (() => { const t = stripHtml(excerptSource); return t.length > 130 ? t.slice(0, 130).trimEnd() + '…' : t; })()
-        : '';
+    const excerpt = job.excerpt ?? '';
 
     return (
         <Link

@@ -3648,6 +3648,25 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
     }
 
+    private function make_excerpt( string $html, ?array $employer, int $length = 140 ): string {
+        // Strip HTML tags and normalise whitespace
+        $text = wp_strip_all_tags( $html );
+        $text = preg_replace( '/\s+/', ' ', $text );
+        $text = trim( $text );
+
+        // Fall back to employer description if job has no content
+        if ( $text === '' && $employer && ! empty( $employer['description'] ) ) {
+            $text = wp_strip_all_tags( $employer['description'] );
+            $text = preg_replace( '/\s+/', ' ', $text );
+            $text = trim( $text );
+        }
+
+        if ( $text === '' ) return '';
+        return mb_strlen( $text ) > $length
+            ? rtrim( mb_substr( $text, 0, $length ) ) . '…'
+            : $text;
+    }
+
     private function format_job_for_api( $post ) {
         $get = function ( $key ) use ( $post ) {
             return get_post_meta( $post->ID, $key, true );
@@ -3678,6 +3697,7 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'title'               => $post->post_title,
             'slug'                => $post->post_name,
             'description'         => $post->post_content,
+            'excerpt'             => $this->make_excerpt( $post->post_content, $employer ),
             'company'             => $company_name,
             'location'            => (string) $get( '_bpu_location' ),
             'employment_type'     => (string) $get( '_bpu_employment_type' ),
