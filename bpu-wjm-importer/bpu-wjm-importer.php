@@ -442,7 +442,7 @@ function bpu_wjm_ajax_employer_resync() {
             'tagline'     => $company_tagline,
             'twitter'     => $company_twitter,
             'video'       => $company_video,
-            'description' => $company_about,
+            'description' => $company_about, // written to built-in term description column
         ] );
 
         if ( $term_id ) {

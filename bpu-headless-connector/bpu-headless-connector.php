@@ -3613,7 +3613,12 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         } else {
             $term_id = (int) $term->term_id;
         }
+        // Description goes into the built-in term description column, not term meta
+        if ( isset( $meta['description'] ) && $meta['description'] !== '' ) {
+            wp_update_term( $term_id, 'bpu_employer', array( 'description' => $meta['description'] ) );
+        }
         foreach ( $meta as $key => $value ) {
+            if ( $key === 'description' ) continue; // handled above
             if ( $value !== '' && $value !== null ) {
                 update_term_meta( $term_id, $key, $value );
             }
@@ -3637,7 +3642,9 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'tagline'     => (string) $gm( 'tagline' ),
             'twitter'     => (string) $gm( 'twitter' ),
             'video'       => (string) $gm( 'video' ),
-            'description' => (string) $gm( 'description' ),
+            // Use the built-in WP term description (wp_term_taxonomy.description),
+            // not term meta — this is what the WP admin edit page writes to.
+            'description' => (string) $term->description,
         );
     }
 
@@ -4256,14 +4263,17 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             update_user_meta( $user_id, '_bpu_company_name', $new_name );
         }
 
-        $allowed_meta = array( 'tagline', 'website', 'twitter', 'video', 'description' );
+        $allowed_meta = array( 'tagline', 'website', 'twitter', 'video' );
         foreach ( $allowed_meta as $key ) {
             if ( array_key_exists( $key, $body ) ) {
-                $value = $key === 'description'
-                    ? wp_kses_post( $body[ $key ] )
-                    : sanitize_text_field( $body[ $key ] );
-                update_term_meta( $term_id, $key, $value );
+                update_term_meta( $term_id, $key, sanitize_text_field( $body[ $key ] ) );
             }
+        }
+        // Description lives in the built-in wp_term_taxonomy.description column
+        if ( array_key_exists( 'description', $body ) ) {
+            wp_update_term( $term_id, 'bpu_employer', array(
+                'description' => wp_kses_post( $body['description'] ),
+            ) );
         }
 
         // Re-tag any BPU jobs whose _bpu_company matches this employer name
