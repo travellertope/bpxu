@@ -1038,6 +1038,51 @@ class BPU_Headless_Connector {
     }
 
     /**
+     * Call Gemini API with automatic fallback: tries gemini-2.5-flash first, then gemini-2.0-flash.
+     * Returns decoded response array on success, WP_Error on failure.
+     */
+    private function gemini_request( array $body, string $api_key, int $timeout = 90 ) {
+        $models = array( 'gemini-2.5-flash', 'gemini-2.0-flash' );
+        $base   = 'https://generativelanguage.googleapis.com/v1beta/models/';
+
+        foreach ( $models as $model ) {
+            $url      = $base . $model . ':generateContent?key=' . $api_key;
+            $response = wp_remote_post( $url, array(
+                'headers' => array( 'Content-Type' => 'application/json' ),
+                'body'    => wp_json_encode( $body ),
+                'timeout' => $timeout,
+            ) );
+
+            if ( is_wp_error( $response ) ) {
+                return new WP_Error( 'gemini_request_failed', $response->get_error_message(), array( 'status' => 502 ) );
+            }
+
+            $status = wp_remote_retrieve_response_code( $response );
+            $raw    = wp_remote_retrieve_body( $response );
+
+            if ( 200 === $status ) {
+                return json_decode( $raw, true );
+            }
+
+            // 503 = overloaded, 429 = rate limit — try fallback model
+            if ( in_array( $status, array( 429, 503 ), true ) ) {
+                continue;
+            }
+
+            // Any other error code is not retryable
+            $decoded = json_decode( $raw, true );
+            $message = $decoded['error']['message'] ?? "Gemini returned status {$status}";
+            return new WP_Error( 'gemini_api_error', $message, array( 'status' => 502 ) );
+        }
+
+        return new WP_Error(
+            'gemini_unavailable',
+            __( 'The AI service is currently experiencing high demand. Please try again in a few minutes.', 'bpu' ),
+            array( 'status' => 503 )
+        );
+    }
+
+    /**
      * ATS-style CV analysis via Gemini (returns score, strengths, weaknesses, recommendation).
      */
     private function analyze_cv_with_gemini( $base64_pdf, $target_role, $job_description = '' ) {
@@ -1046,8 +1091,6 @@ class BPU_Headless_Connector {
         if ( empty( $api_key ) ) {
             return new WP_Error( 'gemini_missing_api_key', __( 'Gemini API Key is not configured.', 'bpu' ), array( 'status' => 500 ) );
         }
-
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $api_key;
 
         $prompt = sprintf(
             'You are an expert ATS system and Senior HR Recruiter. Review the candidate\'s CV for the role of "%s".%s
@@ -1077,29 +1120,15 @@ Return only the JSON object, no markdown.',
                     ),
                 ),
             ),
-            'generationConfig' => array(
-                'responseMimeType' => 'application/json',
-            ),
+            'generationConfig' => array( 'responseMimeType' => 'application/json' ),
         );
 
-        $response = wp_remote_post( $url, array(
-            'headers' => array( 'Content-Type' => 'application/json' ),
-            'body'    => wp_json_encode( $body ),
-            'timeout' => 90,
-        ) );
+        $data = $this->gemini_request( $body, $api_key, 90 );
 
-        if ( is_wp_error( $response ) ) {
-            return new WP_Error( 'gemini_request_failed', $response->get_error_message(), array( 'status' => 502 ) );
+        if ( is_wp_error( $data ) ) {
+            return $data;
         }
 
-        $status = wp_remote_retrieve_response_code( $response );
-        $raw    = wp_remote_retrieve_body( $response );
-
-        if ( 200 !== $status ) {
-            return new WP_Error( 'gemini_api_error', 'Gemini returned status ' . $status, array( 'status' => 502 ) );
-        }
-
-        $data = json_decode( $raw, true );
         $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
         if ( empty( $text ) ) {
@@ -1120,10 +1149,10 @@ Return only the JSON object, no markdown.',
     }
 
     /**
-     * Parse base64 PDF CV directly via Google Gemini Pro Multimodal API
+     * Parse base64 PDF CV via Google Gemini Multimodal API.
+     * Tries gemini-2.5-flash then falls back to gemini-2.0-flash on 429/503.
      */
     private function parse_cv_with_gemini( $base64_pdf ) {
-        // Retrieve Gemini/Vertex API Key defined as a constant
         $api_key = defined( 'GEMINI_API_KEY' ) ? GEMINI_API_KEY : get_option( 'bpu_gemini_api_key', '' );
 
         if ( empty( $api_key ) ) {
@@ -1133,9 +1162,6 @@ Return only the JSON object, no markdown.',
                 array( 'status' => 500 )
             );
         }
-
-        // Gemini Multimodal API URL
-        $url = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=' . $api_key;
 
         $prompt = 'You are a professional CV parser. Extract all information from this PDF CV and return a single valid JSON object with the following keys.
 
@@ -1168,46 +1194,25 @@ Rules:
             'contents' => array(
                 array(
                     'parts' => array(
-                        array(
-                            'text' => $prompt
-                        ),
+                        array( 'text' => $prompt ),
                         array(
                             'inlineData' => array(
                                 'mimeType' => 'application/pdf',
-                                'data'     => $base64_pdf
-                            )
-                        )
-                    )
-                )
+                                'data'     => $base64_pdf,
+                            ),
+                        ),
+                    ),
+                ),
             ),
-            'generationConfig' => array(
-                'responseMimeType' => 'application/json' // Forces JSON outputs
-            )
+            'generationConfig' => array( 'responseMimeType' => 'application/json' ),
         );
 
-        $response = wp_safe_remote_post( $url, array(
-            'headers' => array( 'Content-Type' => 'application/json' ),
-            'body'    => wp_json_encode( $body ),
-            'timeout' => 45, // CV parsing can take some time
-        ) );
+        $data = $this->gemini_request( $body, $api_key, 60 );
 
-        if ( is_wp_error( $response ) ) {
-            return $response;
+        if ( is_wp_error( $data ) ) {
+            return $data;
         }
 
-        $response_code = wp_remote_retrieve_response_code( $response );
-        $response_body = wp_remote_retrieve_body( $response );
-
-        if ( 200 !== $response_code ) {
-            return new WP_Error(
-                'gemini_api_error',
-                __( 'Gemini API returned error: ' . $response_body, 'bpu' ),
-                array( 'status' => 500 )
-            );
-        }
-
-        $data = json_decode( $response_body, true );
-        
         if ( ! isset( $data['candidates'][0]['content']['parts'][0]['text'] ) ) {
             return new WP_Error(
                 'gemini_invalid_response',
@@ -1217,7 +1222,7 @@ Rules:
         }
 
         $raw_json_text = $data['candidates'][0]['content']['parts'][0]['text'];
-        $parsed_data = json_decode( trim( $raw_json_text ), true );
+        $parsed_data   = json_decode( trim( $raw_json_text ), true );
 
         if ( empty( $parsed_data ) ) {
             return new WP_Error(
