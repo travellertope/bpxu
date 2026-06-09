@@ -373,6 +373,100 @@ function bpu_wjm_ajax_import_batch() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+// RE-SYNC EMPLOYER DATA
+// ─────────────────────────────────────────────────────────────────
+
+add_action( 'wp_ajax_bpu_wjm_employer_resync', 'bpu_wjm_ajax_employer_resync' );
+function bpu_wjm_ajax_employer_resync() {
+    check_ajax_referer( 'bpu_wjm_nonce', 'nonce' );
+    if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Unauthorized' );
+    if ( ! class_exists( 'BPU_Headless_Connector' ) ) wp_send_json_error( 'BPU Headless Connector plugin is not active.' );
+
+    $offset   = max( 0, intval( $_POST['offset'] ?? 0 ) );
+    $per_page = 30;
+
+    // Get BPU jobs that were imported from WJM (have the stamp meta)
+    $bpu_jobs = get_posts( [
+        'post_type'        => BPU_WJM_TARGET_CPT,
+        'post_status'      => [ 'publish', 'pending', 'draft' ],
+        'posts_per_page'   => $per_page,
+        'offset'           => $offset,
+        'orderby'          => 'ID',
+        'order'            => 'ASC',
+        'meta_key'         => BPU_WJM_STAMP,
+        'suppress_filters' => true,
+    ] );
+
+    $updated = 0; $skipped = 0; $errors = 0;
+    $log     = [];
+
+    foreach ( $bpu_jobs as $bpu_job ) {
+        $wjm_id = intval( get_post_meta( $bpu_job->ID, BPU_WJM_STAMP, true ) );
+        if ( ! $wjm_id ) { $skipped++; continue; }
+
+        $wjm_post = get_post( $wjm_id );
+        if ( ! $wjm_post || $wjm_post->post_type !== BPU_WJM_SOURCE_CPT ) {
+            $log[] = "#{$bpu_job->ID} — WJM source #{$wjm_id} not found, skipped";
+            $skipped++;
+            continue;
+        }
+
+        $get = fn( $key ) => get_post_meta( $wjm_id, $key, true );
+
+        $company         = (string) $get( '_company_name' );
+        $company_tagline = (string) $get( '_company_tagline' );
+        $company_website = (string) $get( '_company_website' );
+        $company_twitter = (string) $get( '_company_twitter' );
+        $company_video   = (string) $get( '_company_video' );
+
+        // ACF about_company — try multiple methods
+        $company_about = '';
+        if ( function_exists( 'get_field' ) ) {
+            $company_about = (string) get_field( 'about_company', $wjm_id );
+        }
+        if ( $company_about === '' ) $company_about = (string) $get( 'about_company' );
+        if ( $company_about === '' ) $company_about = (string) $get( 'field_67e3cbdd2421b' );
+
+        // Logo
+        $logo_url        = '';
+        $company_logo_id = intval( get_post_thumbnail_id( $wjm_id ) );
+        if ( $company_logo_id ) {
+            $img = wp_get_attachment_image_src( $company_logo_id, 'full' );
+            if ( $img ) $logo_url = $img[0];
+        }
+
+        $employer_name = $company ?: 'Unknown Company';
+        $term_id = BPU_Headless_Connector::get_or_create_employer_term( $employer_name, [
+            'logo_url'    => $logo_url,
+            'website'     => $company_website,
+            'tagline'     => $company_tagline,
+            'twitter'     => $company_twitter,
+            'video'       => $company_video,
+            'description' => $company_about,
+        ] );
+
+        if ( $term_id ) {
+            // Re-assign the taxonomy term to the BPU job
+            wp_set_post_terms( $bpu_job->ID, [ $term_id ], 'bpu_employer' );
+            $log[] = "✓ #{$bpu_job->ID} \"{$bpu_job->post_title}\" — employer \"{$employer_name}\" synced" . ( $company_about ? ' (with description)' : ' (no description)' );
+            $updated++;
+        } else {
+            $log[] = "✗ #{$bpu_job->ID} — could not create/update employer term";
+            $errors++;
+        }
+    }
+
+    wp_send_json_success( [
+        'processed' => count( $bpu_jobs ),
+        'updated'   => $updated,
+        'skipped'   => $skipped,
+        'errors'    => $errors,
+        'has_more'  => count( $bpu_jobs ) === $per_page,
+        'log'       => $log,
+    ] );
+}
+
+// ─────────────────────────────────────────────────────────────────
 // ADMIN PAGE
 // ─────────────────────────────────────────────────────────────────
 
@@ -429,6 +523,34 @@ function bpu_wjm_admin_page() {
             <button id="bpu-scan-btn" class="button button-primary button-large">
                 Scan WP Job Manager
             </button>
+        </div>
+
+        <hr style="margin:32px 0;">
+
+        <h2>Re-sync Employer Data</h2>
+        <p>Already-imported jobs are <strong>skipped</strong> by the importer above. Use this tool to update employer term data (logo, tagline, website, twitter, video, <strong>company description</strong>) from WJM source posts without re-importing.</p>
+        <p><em>Safe to run multiple times. Only updates employer taxonomy terms — job posts are not changed.</em></p>
+
+        <div id="bpu-resync-section">
+            <button id="bpu-resync-btn" class="button button-secondary button-large">
+                Re-sync Employer Data
+            </button>
+        </div>
+
+        <div id="bpu-resync-progress-wrap" style="display:none;margin-top:16px;">
+            <div style="background:#f0f0f0;border-radius:4px;height:20px;overflow:hidden;">
+                <div id="bpu-resync-bar" style="background:#2271b1;height:100%;width:0%;transition:width .3s;"></div>
+            </div>
+            <p id="bpu-resync-label" style="margin-top:8px;font-style:italic;">Starting…</p>
+        </div>
+
+        <div id="bpu-resync-results-wrap" style="display:none;margin-top:16px;"></div>
+
+        <div id="bpu-resync-log-wrap" style="display:none;margin-top:16px;">
+            <details>
+                <summary style="cursor:pointer;font-weight:600;">Sync log</summary>
+                <pre id="bpu-resync-log" style="max-height:300px;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;padding:12px;font-size:12px;border-radius:4px;margin-top:8px;"></pre>
+            </details>
         </div>
 
         <div id="bpu-scan-results" style="display:none;margin-top:20px;">
@@ -569,6 +691,76 @@ function bpu_wjm_admin_page() {
 
             if (totals.imported > 0) {
                 html += '<hr><p><em>Once verified, you can deactivate and delete this plugin.</em></p>';
+            }
+        }
+    })(jQuery);
+
+    // ── Re-sync employer data ──────────────────────────────────────
+    (function($) {
+        const nonce = '<?php echo wp_create_nonce( 'bpu_wjm_nonce' ); ?>';
+        let resyncTotals = { updated: 0, skipped: 0, errors: 0 };
+        let resyncLog    = [];
+
+        $('#bpu-resync-btn').on('click', function() {
+            if ( ! confirm('Re-sync employer data for all imported jobs? This may take a while.') ) return;
+            $(this).prop('disabled', true);
+            resyncTotals = { updated: 0, skipped: 0, errors: 0 };
+            resyncLog    = [];
+            $('#bpu-resync-results-wrap').hide();
+            $('#bpu-resync-log-wrap').hide();
+            $('#bpu-resync-bar').css('width', '0%');
+            $('#bpu-resync-progress-wrap').show();
+            runResyncBatch(0, null);
+        });
+
+        function runResyncBatch(offset, totalJobs) {
+            $.post(ajaxurl, { action: 'bpu_wjm_employer_resync', nonce, offset }, function(r) {
+                if (!r.success) {
+                    showResyncResults(true, r.data || 'Unknown error');
+                    return;
+                }
+                const d = r.data;
+                resyncTotals.updated  += d.updated;
+                resyncTotals.skipped  += d.skipped;
+                resyncTotals.errors   += d.errors;
+                resyncLog = resyncLog.concat(d.log);
+
+                const done = offset + d.processed;
+                // Estimate total from first batch if not yet known
+                if (totalJobs === null) totalJobs = d.has_more ? done * 3 : done; // rough estimate
+                const pct = totalJobs > 0 ? Math.min(95, Math.round(done / totalJobs * 100)) : 50;
+                $('#bpu-resync-bar').css('width', (d.has_more ? pct : 100) + '%');
+                $('#bpu-resync-label').text('Syncing… ' + done + ' jobs processed');
+
+                if (d.has_more) {
+                    runResyncBatch(offset + d.processed, totalJobs);
+                } else {
+                    showResyncResults(false, null);
+                }
+            }).fail(function() {
+                showResyncResults(true, 'Network error — please try again.');
+            });
+        }
+
+        function showResyncResults(hadError, errMsg) {
+            $('#bpu-resync-progress-wrap').hide();
+            $('#bpu-resync-btn').prop('disabled', false);
+            const colour = hadError || resyncTotals.errors > 0 ? 'notice-warning' : 'notice-success';
+            let html = '<div class="notice ' + colour + '" style="padding:12px 16px;">';
+            if (hadError) {
+                html += '<p><strong>Sync stopped:</strong> ' + (errMsg || 'unknown error') + '</p>';
+            } else {
+                html += '<p><strong>Employer data sync complete.</strong></p>';
+            }
+            html += '<p>✅ Updated: <strong>' + resyncTotals.updated + '</strong> &nbsp;|&nbsp; ' +
+                    '⏭ Skipped: <strong>' + resyncTotals.skipped + '</strong> &nbsp;|&nbsp; ' +
+                    '❌ Errors: <strong>' + resyncTotals.errors + '</strong></p>';
+            html += '</div>';
+            $('#bpu-resync-results-wrap').html(html).show();
+
+            if (resyncLog.length) {
+                $('#bpu-resync-log').text(resyncLog.join('\n'));
+                $('#bpu-resync-log-wrap').show();
             }
         }
     })(jQuery);
