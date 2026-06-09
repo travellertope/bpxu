@@ -33,20 +33,31 @@ export default async function EventsPage() {
             <main className="flex-1">
                 {/* Hero */}
                 <section
-                    className="py-14 text-center"
+                    className="py-20 text-center"
                     style={{
-                        background: 'linear-gradient(135deg, var(--brand-bg) 0%, var(--surface) 100%)',
+                        position: 'relative',
+                        overflow: 'hidden',
                         borderBottom: '1px solid var(--border)',
                     }}
                 >
-                    <div className="wrap">
-                        <h1 className="text-4xl font-extrabold tracking-tight mb-3">
+                    {/* Background image */}
+                    <div style={{
+                        position: 'absolute', inset: 0,
+                        backgroundImage: 'url(https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1600&q=80)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center 40%',
+                    }} />
+                    {/* Dark overlay */}
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,10,20,0.60)' }} />
+
+                    <div className="wrap" style={{ position: 'relative', zIndex: 1 }}>
+                        <h1 className="text-4xl font-extrabold tracking-tight mb-4" style={{ color: '#fff' }}>
                             Upcoming Events
                         </h1>
-                        <p className="text-text-2 text-lg max-w-2xl mx-auto">
+                        <p className="text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.82)' }}>
                             Networking events, workshops, panel discussions, and community meetups — all curated for Black professionals in the UK.
                         </p>
-                        <p className="mt-3 text-sm text-text-3">
+                        <p className="mt-4 text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
                             {events.length > 0 ? `${events.length} upcoming event${events.length === 1 ? '' : 's'}` : 'Check back soon for upcoming events'}
                         </p>
                     </div>
