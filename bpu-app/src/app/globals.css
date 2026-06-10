@@ -240,6 +240,9 @@ body {
 .badge-green  { background: var(--ok-bg);     color: var(--ok); }
 .badge-gray   { background: var(--bg);        color: var(--text-2); border: 1px solid var(--border); }
 .badge-red    { background: var(--err-bg);    color: var(--err); }
+.badge-blue   { background: #eff6ff;          color: #1d4ed8; border: 1px solid #bfdbfe; }
+.badge-teal   { background: #f0fdfa;          color: #0f766e; border: 1px solid #99f6e4; }
+.badge-orange { background: #fff7ed;          color: #c2410c; border: 1px solid #fed7aa; }
 
 /* ─────────────────────────────────────────
    AVATAR CIRCLE
