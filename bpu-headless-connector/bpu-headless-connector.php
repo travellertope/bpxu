@@ -3165,18 +3165,29 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
     // ── All Jobs list table columns ───────────────────────────────
 
     public function job_list_columns( array $columns ): array {
-        // Insert expiry date after the title column
         $new = array();
         foreach ( $columns as $key => $label ) {
             $new[ $key ] = $label;
             if ( $key === 'title' ) {
-                $new['bpu_expires'] = __( 'Closes', 'bpu' );
+                $new['bpu_location'] = __( 'Location', 'bpu' );
+                $new['bpu_expires']  = __( 'Closes', 'bpu' );
             }
         }
         return $new;
     }
 
     public function job_list_column_content( string $column, int $post_id ): void {
+        if ( $column === 'bpu_location' ) {
+            $location = get_post_meta( $post_id, '_bpu_location', true );
+            $remote   = get_post_meta( $post_id, '_bpu_remote', true );
+            if ( $remote ) {
+                echo '<span style="color:#0a7c42;">Remote</span>';
+            } elseif ( $location ) {
+                echo esc_html( $location );
+            } else {
+                echo '<span style="color:#aaa;">—</span>';
+            }
+        }
         if ( $column === 'bpu_expires' ) {
             $date = get_post_meta( $post_id, '_bpu_expires_date', true );
             if ( $date ) {
