@@ -605,6 +605,22 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'submit_mentor_application' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-approve/(?P<user_id>\d+)', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'approve_mentor_application' ),
+            'permission_callback' => function () {
+                return current_user_can( 'promote_users' );
+            },
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-reject/(?P<user_id>\d+)', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'reject_mentor_application' ),
+            'permission_callback' => function () {
+                return current_user_can( 'promote_users' );
+            },
+        ) );
     }
 
     /**
@@ -4690,6 +4706,62 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => 'pending' ), 201 );
+    }
+
+    public function approve_mentor_application( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'user_id' ) );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $status = get_user_meta( $user_id, 'bpu_mentor_application_status', true );
+        if ( $status !== 'pending' ) {
+            return new WP_Error( 'bpu_invalid_status', __( 'No pending application for this user.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        update_user_meta( $user_id, 'bpu_mentor_application_status', 'approved' );
+        $user->set_role( 'mentor' );
+
+        wp_mail(
+            $user->user_email,
+            '[BPU PAIRED] Your mentor application has been approved!',
+            "Congratulations!\n\nYour mentor application has been approved. " .
+            "Your profile is now visible in the PAIRED mentor directory.\n\n" .
+            "Thank you for joining our mentorship community!"
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => 'approved' ), 200 );
+    }
+
+    public function reject_mentor_application( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'user_id' ) );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $status = get_user_meta( $user_id, 'bpu_mentor_application_status', true );
+        if ( $status !== 'pending' ) {
+            return new WP_Error( 'bpu_invalid_status', __( 'No pending application for this user.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        update_user_meta( $user_id, 'bpu_mentor_application_status', 'rejected' );
+
+        $reason = sanitize_textarea_field( $request->get_param( 'reason' ) ?? '' );
+
+        wp_mail(
+            $user->user_email,
+            '[BPU PAIRED] Mentor application update',
+            "Thank you for your interest in becoming a mentor.\n\n" .
+            "Unfortunately, your application was not approved at this time.\n" .
+            ( ! empty( $reason ) ? "Reason: $reason\n\n" : "\n" ) .
+            "You are welcome to apply again in the future."
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => 'rejected' ), 200 );
     }
 
     // ── Spam User Cleanup ─────────────────────────────────────────
