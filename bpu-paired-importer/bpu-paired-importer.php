@@ -647,10 +647,13 @@ function bpu_paired_merge_user_meta( $wp_user_id, $u ) {
 }
 
 /**
- * Run the full import. Returns ['stats'=>[...], 'log'=>[...], 'resets'=>[...]].
+ * Run the import. $import_type: 'all' | 'mentors' | 'mentees'.
+ * Returns ['stats'=>[...], 'log'=>[...], 'resets'=>[...]].
  */
-function bpu_paired_run_import() {
+function bpu_paired_run_import( $import_type = 'all' ) {
     global $PAIRED_USERS, $PAIRED_BOOKINGS, $PAIRED_EXPERIENCES, $PAIRED_EDUCATIONS;
+
+    $import_type = in_array( $import_type, [ 'all', 'mentors', 'mentees' ], true ) ? $import_type : 'all';
 
     $stats = [
         'users_created'    => 0,
@@ -671,7 +674,7 @@ function bpu_paired_run_import() {
     $password_resets    = [];
 
     // ── 1. Users ──────────────────────────────────────────────
-    $log[] = '=== Importing Users ===';
+    $log[] = '=== Importing Users (' . $import_type . ') ===';
 
     foreach ( $PAIRED_USERS as $u ) {
         $old_id = $u['id'];
@@ -690,7 +693,17 @@ function bpu_paired_run_import() {
         } elseif ( $role === 'mentee' ) {
             $wp_role = 'subscriber';
         } else {
-            $wp_role = ( $u['has_bookings'] === '1' ) ? 'bpu_mentor' : 'subscriber';
+            $wp_role = 'mentor';
+        }
+
+        // Filter by import type
+        if ( $import_type === 'mentors' && $wp_role !== 'mentor' ) {
+            $old_to_new_user_id[ $old_id ] = null; // track for booking resolution
+            continue;
+        }
+        if ( $import_type === 'mentees' && $wp_role !== 'subscriber' ) {
+            $old_to_new_user_id[ $old_id ] = null;
+            continue;
         }
 
         $display_name = ! empty( $name ) ? $name : $email;
@@ -706,7 +719,13 @@ function bpu_paired_run_import() {
             $old_to_new_user_id[ $old_id ] = $new_wp_id;
             update_user_meta( $new_wp_id, '_paired_old_id', $old_id );
             bpu_paired_merge_user_meta( $new_wp_id, $u );
-            $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (empty meta filled)";
+            // Promote existing user to mentor role if they were a mentor on the old platform
+            if ( $wp_role === 'mentor' && ! in_array( 'mentor', (array) $existing->roles, true ) ) {
+                $existing->set_role( 'mentor' );
+                $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (promoted to mentor)";
+            } else {
+                $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (empty meta filled)";
+            }
             $stats['users_merged']++;
             continue;
         }
@@ -734,7 +753,7 @@ function bpu_paired_run_import() {
         bpu_paired_set_user_meta( $new_wp_id, $u );
         $old_to_new_user_id[ $old_id ] = $new_wp_id;
 
-        $role_label        = $wp_role === 'bpu_mentor' ? 'Mentor' : ( $wp_role === 'administrator' ? 'Admin' : 'Mentee' );
+        $role_label        = $wp_role === 'mentor' ? 'Mentor' : ( $wp_role === 'administrator' ? 'Admin' : 'Mentee' );
         $password_resets[] = [ 'email' => $email, 'role' => $role_label, 'name' => $display_name ];
         $log[] = "  CREATE user: {$email} as {$role_label} (WP ID {$new_wp_id})";
         $stats['users_created']++;
@@ -907,13 +926,14 @@ function bpu_paired_admin_page() {
         check_admin_referer( 'bpu_paired_import_action', 'bpu_paired_nonce' )
     ) {
         set_time_limit( 300 );
-        $result = bpu_paired_run_import();
+        $import_type = sanitize_text_field( $_POST['import_type'] ?? 'all' );
+        $result = bpu_paired_run_import( $import_type );
     }
 
     ?>
     <div class="wrap">
         <h1>BPU PAIRED Importer</h1>
-        <p>Imports all users, bookings, experiences and educations from the old PAIRED platform into WordPress.</p>
+        <p>Imports users, bookings, experiences and educations from the old PAIRED platform into WordPress.</p>
         <ul style="list-style:disc;padding-left:20px;">
             <li><strong>Existing users</strong> (matched by email) — password, role and display name are untouched; only empty profile fields are filled.</li>
             <li><strong>New users</strong> — created with a random password. A password-reset table is shown at the end.</li>
@@ -923,7 +943,28 @@ function bpu_paired_admin_page() {
         <?php if ( ! $result ) : ?>
             <form method="post">
                 <?php wp_nonce_field( 'bpu_paired_import_action', 'bpu_paired_nonce' ); ?>
-                <p>
+
+                <table class="form-table" style="max-width:500px;">
+                    <tr>
+                        <th scope="row"><label>Import</label></th>
+                        <td>
+                            <label style="display:block;margin-bottom:8px;">
+                                <input type="radio" name="import_type" value="all" checked>
+                                &nbsp;<strong>Everyone</strong> — all mentors, mentees and admins
+                            </label>
+                            <label style="display:block;margin-bottom:8px;">
+                                <input type="radio" name="import_type" value="mentors">
+                                &nbsp;<strong>Mentors only</strong>
+                            </label>
+                            <label style="display:block;">
+                                <input type="radio" name="import_type" value="mentees">
+                                &nbsp;<strong>Mentees only</strong>
+                            </label>
+                        </td>
+                    </tr>
+                </table>
+
+                <p style="margin-top:16px;">
                     <input type="submit" name="bpu_run_import" class="button button-primary button-large"
                            value="Run Import Now"
                            onclick="return confirm('This will write data into your live WordPress database. Continue?');">

@@ -34,6 +34,9 @@ class BPU_Headless_Connector {
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
 
+        // Register mentor role
+        add_action( 'init', array( $this, 'register_mentor_role' ) );
+
         // SSO token relay handoff (runs on every page load, checks for handoff query param)
         add_action( 'init', array( $this, 'handle_sso_handoff' ) );
 
@@ -166,6 +169,15 @@ class BPU_Headless_Connector {
     public function register_pro_role() {
         if ( ! get_role( 'bpu_pro' ) ) {
             add_role( 'bpu_pro', __( 'BPU Pro Member', 'bpu' ), array( 'read' => true ) );
+        }
+    }
+
+    /**
+     * Register the mentor role (idempotent).
+     */
+    public function register_mentor_role() {
+        if ( ! get_role( 'mentor' ) ) {
+            add_role( 'mentor', __( 'Mentor', 'bpu' ), array( 'read' => true ) );
         }
     }
 
