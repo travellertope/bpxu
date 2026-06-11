@@ -613,8 +613,10 @@ class Common_model extends CI_Model {
         }
             
         if(!empty($_GET['search_name'])){
+            $this->db->group_start();
             $this->db->like('u.name', $_GET['search_name']);
             $this->db->or_like('u.language', $_GET['search_name']);
+            $this->db->group_end();
         }
 
 
@@ -627,7 +629,7 @@ class Common_model extends CI_Model {
         }
         $this->db->group_by('u.id');
         $this->db->order_by('u.name','ASC');
-        
+
         if ($total == 1) {
             $query = $this->db->get();
             $query = $query->num_rows();
@@ -672,8 +674,10 @@ class Common_model extends CI_Model {
         }
             
         if(!empty($_GET['search_name'])){
+            $this->db->group_start();
             $this->db->like('u.name', $_GET['search_name']);
             $this->db->or_like('u.language', $_GET['search_name']);
+            $this->db->group_end();
         }
 
 

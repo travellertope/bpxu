@@ -20,9 +20,11 @@
 
             <div class="d-flex justify-content-between pr-2 pl-2">
                 <div class="mentor_title mr-2"><b><?php echo html_escape($mentor->name); ?></b></div>
-                <?php $code = get_by_id($mentor->country, 'country')->code; ?>
+                <?php $country_data = !empty($mentor->country) ? get_by_id($mentor->country, 'country') : null; ?>
                 <div class="text-right">
-                    <img data-toggle="tooltip" data-placement="top" title="<?php echo get_by_id($mentor->country, 'country')->name; ?>" class="flag-cimg" src="<?php echo base_url('assets/images/flags/'.strtolower($code).'.png') ?>">
+                    <?php if (!empty($country_data)): ?>
+                    <img data-toggle="tooltip" data-placement="top" title="<?php echo html_escape($country_data->name); ?>" class="flag-cimg" src="<?php echo base_url('assets/images/flags/'.strtolower($country_data->code).'.png') ?>">
+                    <?php endif; ?>
                 </div>
             </div>
 

@@ -349,6 +349,24 @@ class BPU_Headless_Connector {
         ) );
 
         // ──────────────────────────────────────────────────────
+        // 6f. Forgot Password (public — sends reset email)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/forgot-password', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_forgot_password' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 6g. Reset Password (public — validates token, updates password)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/reset-password', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_reset_password' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
         // 6b. SSO Profile (JWT Bearer auth — for Next.js profile refresh)
         // ──────────────────────────────────────────────────────
         register_rest_route( $this->namespace, '/sso/profile', array(
@@ -604,6 +622,26 @@ class BPU_Headless_Connector {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'submit_mentor_application' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-approve/(?P<user_id>\d+)', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'approve_mentor_application' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-reject/(?P<user_id>\d+)', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'reject_mentor_application' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-applications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'list_mentor_applications' ),
+            'permission_callback' => function ( $request ) {
+                return $this->check_jwt_bearer_auth( $request ) && current_user_can( 'promote_users' );
+            },
         ) );
     }
 
@@ -2074,6 +2112,110 @@ Rules:
     }
 
     /**
+     * POST /bpu/v1/auth/forgot-password — send password reset email.
+     *
+     * Accepts email or username. Always returns 200 to prevent user enumeration.
+     * Rate-limited to 3 requests per IP per 15 minutes.
+     */
+    public function handle_forgot_password( WP_REST_Request $request ) {
+        $ip       = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+        $rate_key = 'bpu_forgot_rate_' . md5( $ip );
+        $attempts = (int) get_transient( $rate_key );
+        if ( $attempts >= 3 ) {
+            return new WP_REST_Response( array(
+                'success' => true,
+                'message' => 'If an account exists with that email, a reset link has been sent.',
+            ), 200 );
+        }
+        set_transient( $rate_key, $attempts + 1, 15 * MINUTE_IN_SECONDS );
+
+        $body  = $request->get_json_params();
+        $login = sanitize_text_field( $body['email'] ?? '' );
+
+        if ( empty( $login ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Email is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Always respond with success to prevent user enumeration
+        $user = is_email( $login )
+            ? get_user_by( 'email', $login )
+            : get_user_by( 'login', $login );
+
+        if ( $user ) {
+            $token   = bin2hex( random_bytes( 32 ) ); // 64 hex chars
+            $expires = time() + HOUR_IN_SECONDS;
+
+            update_user_meta( $user->ID, '_bpu_password_reset_token',   $token );
+            update_user_meta( $user->ID, '_bpu_password_reset_expires', $expires );
+
+            $app_url   = defined( 'BPU_APP_URL' ) ? BPU_APP_URL : 'https://app.blackprofessionals.uk';
+            $reset_url = $app_url . '/reset-password?token=' . $token;
+
+            wp_mail(
+                $user->user_email,
+                'Reset your BPU password',
+                "Hi {$user->display_name},\n\n" .
+                "We received a request to reset your password.\n\n" .
+                "Click the link below to set a new password. This link expires in 1 hour.\n\n" .
+                $reset_url . "\n\n" .
+                "If you did not request this, you can safely ignore this email — your password will not change.\n\n" .
+                "— Black Professionals United"
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => 'If an account exists with that email, a reset link has been sent.',
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/auth/reset-password — validate token and set new password.
+     */
+    public function handle_reset_password( WP_REST_Request $request ) {
+        $body     = $request->get_json_params();
+        $token    = sanitize_text_field( $body['token'] ?? '' );
+        $password = $body['password'] ?? '';
+
+        if ( empty( $token ) || empty( $password ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Token and password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( strlen( $password ) < 8 ) {
+            return new WP_Error( 'bpu_weak_password', __( 'Password must be at least 8 characters.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Find user with this token
+        $users = get_users( array(
+            'meta_key'   => '_bpu_password_reset_token',
+            'meta_value' => $token,
+            'number'     => 1,
+        ) );
+
+        if ( empty( $users ) ) {
+            return new WP_Error( 'bpu_invalid_token', __( 'Invalid or expired reset link.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $user    = $users[0];
+        $expires = (int) get_user_meta( $user->ID, '_bpu_password_reset_expires', true );
+
+        if ( time() > $expires ) {
+            delete_user_meta( $user->ID, '_bpu_password_reset_token' );
+            delete_user_meta( $user->ID, '_bpu_password_reset_expires' );
+            return new WP_Error( 'bpu_token_expired', __( 'This reset link has expired. Please request a new one.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        wp_set_password( $password, $user->ID );
+        delete_user_meta( $user->ID, '_bpu_password_reset_token' );
+        delete_user_meta( $user->ID, '_bpu_password_reset_expires' );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => 'Your password has been updated. You can now sign in.',
+        ), 200 );
+    }
+
+    /**
      * POST /bpu/v1/member/profile — update ACF profile fields for the JWT holder.
      */
     public function update_member_profile( WP_REST_Request $request ) {
@@ -2157,6 +2299,16 @@ Rules:
     /** Permission callback for JWT-authenticated routes. */
     public function check_jwt_bearer_auth( WP_REST_Request $request ) {
         return $this->verify_jwt_bearer( $request ) !== false;
+    }
+
+    /** Permission callback for admin-only JWT-authenticated routes. */
+    public function check_admin_jwt_auth( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return false;
+        }
+        $user = get_userdata( intval( $payload['user_id'] ) );
+        return $user && $user->has_cap( 'promote_users' );
     }
 
     /** GET /bpu/v1/sso/profile — returns fresh profile data for a JWT holder. */
@@ -4690,6 +4842,94 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => 'pending' ), 201 );
+    }
+
+    public function approve_mentor_application( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'user_id' ) );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $status = get_user_meta( $user_id, 'bpu_mentor_application_status', true );
+        if ( $status !== 'pending' ) {
+            return new WP_Error( 'bpu_invalid_status', __( 'No pending application for this user.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        update_user_meta( $user_id, 'bpu_mentor_application_status', 'approved' );
+        $user->set_role( 'mentor' );
+
+        wp_mail(
+            $user->user_email,
+            '[BPU PAIRED] Your mentor application has been approved!',
+            "Congratulations!\n\nYour mentor application has been approved. " .
+            "Your profile is now visible in the PAIRED mentor directory.\n\n" .
+            "Thank you for joining our mentorship community!"
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => 'approved' ), 200 );
+    }
+
+    public function reject_mentor_application( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'user_id' ) );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $status = get_user_meta( $user_id, 'bpu_mentor_application_status', true );
+        if ( $status !== 'pending' ) {
+            return new WP_Error( 'bpu_invalid_status', __( 'No pending application for this user.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        update_user_meta( $user_id, 'bpu_mentor_application_status', 'rejected' );
+
+        $reason = sanitize_textarea_field( $request->get_param( 'reason' ) ?? '' );
+
+        wp_mail(
+            $user->user_email,
+            '[BPU PAIRED] Mentor application update',
+            "Thank you for your interest in becoming a mentor.\n\n" .
+            "Unfortunately, your application was not approved at this time.\n" .
+            ( ! empty( $reason ) ? "Reason: $reason\n\n" : "\n" ) .
+            "You are welcome to apply again in the future."
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => 'rejected' ), 200 );
+    }
+
+    public function list_mentor_applications( WP_REST_Request $request ) {
+        $status_filter = sanitize_text_field( $request->get_param( 'status' ) ?: 'pending' );
+
+        $user_query = new WP_User_Query( array(
+            'meta_key'   => 'bpu_mentor_application_status',
+            'meta_value' => $status_filter,
+            'orderby'    => 'registered',
+            'order'      => 'DESC',
+            'number'     => 100,
+        ) );
+
+        $applications = array();
+        foreach ( $user_query->get_results() as $user ) {
+            $app = get_user_meta( $user->ID, 'bpu_mentor_application', true );
+            $applications[] = array(
+                'user_id'      => $user->ID,
+                'display_name' => $user->display_name,
+                'email'        => $user->user_email,
+                'avatar_url'   => get_avatar_url( $user->ID, array( 'size' => 96 ) ),
+                'registered'   => $user->user_registered,
+                'status'       => $status_filter,
+                'application'  => is_array( $app ) ? $app : array(),
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'applications' => $applications,
+            'total'        => $user_query->get_total(),
+        ), 200 );
     }
 
     // ── Spam User Cleanup ─────────────────────────────────────────

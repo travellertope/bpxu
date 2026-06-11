@@ -163,7 +163,15 @@ function LoginForm() {
             </div>
 
             <div>
-              <label htmlFor="password" className="field-label">Password</label>
+              <div className="flex items-center justify-between mb-1">
+                <label htmlFor="password" className="field-label !mb-0">Password</label>
+                <a
+                  href={`/forgot-password${returnTo !== '/' ? `?returnTo=${encodeURIComponent('/login' + (returnTo !== '/' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''))}` : ''}`}
+                  className="text-xs text-text-3 hover:text-brand hover:underline"
+                >
+                  Forgot password?
+                </a>
+              </div>
               <input
                 id="password" type="password" autoComplete="current-password"
                 className="field-input w-full"
