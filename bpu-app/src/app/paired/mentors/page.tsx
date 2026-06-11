@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { decodeHtml } from '@/lib/utils';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -103,13 +104,14 @@ async function MentorGrid({
                 {mentors.map(m => {
                     const skills = (m.skills_separate || '')
                         .split(',')
-                        .map(s => s.trim())
+                        .map(s => decodeHtml(s.trim()))
                         .filter(Boolean)
                         .slice(0, 3);
                     const color = mentorColor(m.id);
                     const hasPhoto = m.avatar_url && !isGravatar(m.avatar_url);
-                    const subtitle = m.current_role || m.industryfield_of_expertise || m.industry || 'Professional';
-                    const companyLine = m.company ? `at ${m.company}` : '';
+                    const subtitle = decodeHtml(m.current_role || m.industryfield_of_expertise || m.industry || 'Professional');
+                    const companyLine = m.company ? `at ${decodeHtml(m.company)}` : '';
+                    const industry = decodeHtml(m.industry);
 
                     return (
                         <a
@@ -146,10 +148,10 @@ async function MentorGrid({
                             <div style={{ padding: '16px 24px' }} className="flex-1 flex flex-col gap-3">
                                 {(m.industry || m.years_of_experience) && (
                                     <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-3">
-                                        {m.industry && (
+                                        {industry && (
                                             <span className="flex items-center gap-1">
                                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                                                {m.industry}
+                                                {industry}
                                             </span>
                                         )}
                                         {m.years_of_experience && (

@@ -1,5 +1,6 @@
 import { getBPUSession } from '@/lib/auth';
 import { BPUApi } from '@/lib/api';
+import { decodeHtml } from '@/lib/utils';
 import BookingForm from './BookingForm';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
@@ -60,23 +61,23 @@ export default async function MentorProfile({
     const color = mentorColor(mentorId);
     const hasPhoto = avatarUrl && !isGravatar(avatarUrl);
 
-    const currentRole = profile.current_role || '';
-    const company = profile.company || '';
-    const title = currentRole || profile.industryfield_of_expertise || profile.industry || 'Professional';
-    const industry = profile.industry || '';
+    const currentRole = decodeHtml(profile.current_role || '');
+    const company = decodeHtml(profile.company || '');
+    const title = currentRole || decodeHtml(profile.industryfield_of_expertise || profile.industry || 'Professional');
+    const industry = decodeHtml(profile.industry || '');
     const exp = profile.years_of_experience || '';
-    const bio = profile.user_bio || '';
-    const residence = profile.residence || '';
+    const bio = decodeHtml(profile.user_bio || '');
+    const residence = decodeHtml(profile.residence || '');
     const linkedin = profile.linkedin_profile || '';
-    const employmentStatus = profile.employment_status || profile.current_employment_status || '';
-    const education = profile.level_of_education || '';
-    const mentorshipAvailability = profile.mentorship_availability || '';
-    const mentorshipRequirements = profile.mentorship_requirements || '';
+    const employmentStatus = decodeHtml(profile.employment_status || profile.current_employment_status || '');
+    const education = decodeHtml(profile.level_of_education || '');
+    const mentorshipAvailability = decodeHtml(profile.mentorship_availability || '');
+    const mentorshipRequirements = decodeHtml(profile.mentorship_requirements || '');
     const menteesAtOnce = profile.mentees_at_once || '';
 
     const skills = (profile.skills_separate || '')
         .split(',')
-        .map(s => s.trim())
+        .map(s => decodeHtml(s.trim()))
         .filter(Boolean);
 
     const isPro = session.user?.is_pro ?? false;
