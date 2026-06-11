@@ -2682,6 +2682,8 @@ Rules:
             'skills_separate'           => isset( $acf['skills_separate'] ) ? $acf['skills_separate'] : '',
             'user_bio'                  => isset( $acf['user_bio'] ) ? $acf['user_bio'] : '',
             'industryfield_of_expertise' => isset( $acf['industryfield_of_expertise'] ) ? $acf['industryfield_of_expertise'] : '',
+            'company'                   => isset( $acf['company'] ) ? $acf['company'] : '',
+            'current_role'              => isset( $acf['current_role'] ) ? $acf['current_role'] : '',
         );
     }
 
@@ -2721,7 +2723,19 @@ Rules:
                 'last_name',
                 'phone_number',
                 'current_employment_status',
+                'current_role',
+                'company',
                 'level_of_education',
+                'linkedin_profile',
+                'facebook_profile',
+                'instagram_profile',
+                'x_profile',
+                'residence',
+                'mentorship_availability',
+                'mentorship_requirements',
+                'mentees_at_once',
+                'gender',
+                'employment_status',
             );
             $fields = array();
             foreach ( $keys as $key ) {
