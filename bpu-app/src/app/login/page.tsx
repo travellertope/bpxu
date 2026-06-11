@@ -166,7 +166,7 @@ function LoginForm() {
               <div className="flex items-center justify-between mb-1">
                 <label htmlFor="password" className="field-label !mb-0">Password</label>
                 <a
-                  href={`/forgot-password${returnTo !== '/' ? `?returnTo=${encodeURIComponent('/login' + (returnTo !== '/' ? `?returnTo=${encodeURIComponent(returnTo)}` : ''))}` : ''}`}
+                  href="/forgot-password"
                   className="text-xs text-text-3 hover:text-brand hover:underline"
                 >
                   Forgot password?

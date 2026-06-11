@@ -12,6 +12,8 @@ export function middleware(req: NextRequest) {
       !url.pathname.startsWith('/api') &&
       !url.pathname.startsWith('/login') &&
       !url.pathname.startsWith('/register') &&
+      !url.pathname.startsWith('/forgot-password') &&
+      !url.pathname.startsWith('/reset-password') &&
       !url.pathname.includes('.')
     ) {
       url.pathname = `/paired${url.pathname === '/' ? '' : url.pathname}`;
