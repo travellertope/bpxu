@@ -2163,15 +2163,23 @@ Rules:
             $app_url   = defined( 'BPU_APP_URL' ) ? BPU_APP_URL : 'https://app.blackprofessionals.uk';
             $reset_url = $app_url . '/reset-password?token=' . $token;
 
+            $reset_html = $this->build_email_html(
+                'Reset your password',
+                '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">Hi ' . esc_html( $user->display_name ) . ',</p>'
+                . '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">We received a request to reset your password. Click the button below to set a new one. This link expires in 1 hour.</p>'
+                . '<p style="margin:24px 0;text-align:center;">'
+                . '<a href="' . esc_url( $reset_url ) . '" style="display:inline-block;padding:12px 32px;background:#C8102E;color:#ffffff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600;">Set new password</a>'
+                . '</p>'
+                . '<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#999;">Or copy and paste this link into your browser:</p>'
+                . '<p style="margin:0 0 24px;font-size:13px;line-height:1.5;color:#C8102E;word-break:break-all;">' . esc_url( $reset_url ) . '</p>'
+                . '<p style="margin:0;font-size:13px;line-height:1.5;color:#999;">If you did not request this, you can safely ignore this email &mdash; your password will not change.</p>'
+            );
+
             wp_mail(
                 $user->user_email,
                 'Reset your BPU password',
-                "Hi {$user->display_name},\n\n" .
-                "We received a request to reset your password.\n\n" .
-                "Click the link below to set a new password. This link expires in 1 hour.\n\n" .
-                $reset_url . "\n\n" .
-                "If you did not request this, you can safely ignore this email — your password will not change.\n\n" .
-                "— Black Professionals United"
+                $reset_html,
+                array( 'Content-Type: text/html; charset=UTF-8' )
             );
         }
 
@@ -2579,6 +2587,30 @@ Rules:
         );
 
         return $header . '.' . $body . '.' . $signature;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  HTML EMAIL HELPER
+    // ══════════════════════════════════════════════════════════════
+
+    private function build_email_html( $heading, $body_html ) {
+        return '<!DOCTYPE html><html><head><meta charset="utf-8"></head>'
+            . '<body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,Helvetica Neue,Arial,sans-serif;">'
+            . '<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 20px;">'
+            . '<tr><td align="center">'
+            . '<table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">'
+            . '<tr><td style="background:#C8102E;padding:24px 32px;">'
+            . '<img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="BPU" height="28" style="display:block;filter:brightness(0) invert(1);">'
+            . '</td></tr>'
+            . '<tr><td style="padding:32px;">'
+            . '<h1 style="margin:0 0 16px;font-size:22px;color:#1a1a1a;">' . $heading . '</h1>'
+            . $body_html
+            . '</td></tr>'
+            . '<tr><td style="padding:20px 32px;background:#fafafa;border-top:1px solid #eee;">'
+            . '<p style="margin:0;font-size:12px;color:#999;text-align:center;">&copy; ' . date( 'Y' ) . ' Black Professionals United. All rights reserved.</p>'
+            . '</td></tr>'
+            . '</table>'
+            . '</td></tr></table></body></html>';
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -4886,12 +4918,20 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         update_user_meta( $user_id, 'bpu_mentor_application_status', 'approved' );
         $user->set_role( 'mentor' );
 
+        $approve_html = $this->build_email_html(
+            'You&rsquo;re in! Application approved',
+            '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">Hi ' . esc_html( $user->display_name ) . ',</p>'
+            . '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">Great news &mdash; your mentor application has been <strong style="color:#16a34a;">approved</strong>! Your profile is now live in the PAIRED mentor directory.</p>'
+            . '<p style="margin:24px 0;text-align:center;">'
+            . '<a href="https://pairedbybpu.uk/mentors" style="display:inline-block;padding:12px 32px;background:#7c3aed;color:#ffffff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600;">View the directory</a>'
+            . '</p>'
+            . '<p style="margin:0;font-size:15px;line-height:1.6;color:#555;">Thank you for joining our mentorship community!</p>'
+        );
         wp_mail(
             $user->user_email,
             '[BPU PAIRED] Your mentor application has been approved!',
-            "Congratulations!\n\nYour mentor application has been approved. " .
-            "Your profile is now visible in the PAIRED mentor directory.\n\n" .
-            "Thank you for joining our mentorship community!"
+            $approve_html,
+            array( 'Content-Type: text/html; charset=UTF-8' )
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => 'approved' ), 200 );
@@ -4914,13 +4954,21 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
 
         $reason = sanitize_textarea_field( $request->get_param( 'reason' ) ?? '' );
 
+        $reason_block = ! empty( $reason )
+            ? '<p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#555;padding:12px 16px;background:#fafafa;border-left:3px solid #C8102E;border-radius:4px;"><strong>Reason:</strong> ' . esc_html( $reason ) . '</p>'
+            : '';
+        $reject_html = $this->build_email_html(
+            'Mentor application update',
+            '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">Hi ' . esc_html( $user->display_name ) . ',</p>'
+            . '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">Thank you for your interest in becoming a PAIRED mentor. Unfortunately, your application was not approved at this time.</p>'
+            . $reason_block
+            . '<p style="margin:0;font-size:15px;line-height:1.6;color:#555;">You are welcome to apply again in the future. We appreciate your commitment to the community.</p>'
+        );
         wp_mail(
             $user->user_email,
             '[BPU PAIRED] Mentor application update',
-            "Thank you for your interest in becoming a mentor.\n\n" .
-            "Unfortunately, your application was not approved at this time.\n" .
-            ( ! empty( $reason ) ? "Reason: $reason\n\n" : "\n" ) .
-            "You are welcome to apply again in the future."
+            $reject_html,
+            array( 'Content-Type: text/html; charset=UTF-8' )
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => 'rejected' ), 200 );
