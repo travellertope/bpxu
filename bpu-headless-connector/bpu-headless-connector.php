@@ -655,6 +655,47 @@ class BPU_Headless_Connector {
                 return $this->check_jwt_bearer_auth( $request ) && current_user_can( 'promote_users' );
             },
         ) );
+
+        // ── Mentor self-service endpoints ─────────────────────────
+
+        // Mentor own profile (GET / PUT)
+        register_rest_route( $this->namespace, '/paired/mentor/profile', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_mentor_own_profile' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'update_mentor_profile' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        // Mentor's mentees list
+        register_rest_route( $this->namespace, '/paired/mentor/mentees', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_mentor_mentees' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Mentor stats
+        register_rest_route( $this->namespace, '/paired/mentor/stats', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_mentor_stats' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Update booking status (mentor only)
+        register_rest_route( $this->namespace, '/bookings/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'update_booking_status' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            'args'                => array(
+                'id'     => array( 'required' => true, 'sanitize_callback' => 'absint' ),
+                'status' => array( 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
+            ),
+        ) );
     }
 
     /**
@@ -3148,6 +3189,390 @@ Rules:
                 'avatar_url'   => get_avatar_url( $mentee->ID, array( 'size' => 128 ) ),
             ) : null,
         );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  MENTOR SELF-SERVICE ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/mentor/profile — Return the authenticated mentor's own full profile.
+     */
+    public function get_mentor_own_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_a_mentor', __( 'You do not have the mentor role.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        // All profile meta keys we expose
+        $keys = array(
+            'first_name',
+            'last_name',
+            'phone_number',
+            'residence',
+            'gender',
+            'bp_network',
+            'employment_status',
+            'industry',
+            'industryfield_of_expertise',
+            'current_role',
+            'company',
+            'years_of_experience',
+            'skills_separate',
+            'user_bio',
+            'mentorship_availability',
+            'mentorship_requirements',
+            'mentees_at_once',
+            'linkedin_profile',
+            'facebook_profile',
+            'instagram_profile',
+            'x_profile',
+            'paired_image_path',
+            // Legacy keys also returned for backwards compat
+            'current_employment_status',
+            'level_of_education',
+        );
+
+        $profile = array();
+
+        // Prefer ACF fields if available, fall back to raw usermeta
+        if ( function_exists( 'get_fields' ) ) {
+            $acf = get_fields( 'user_' . $user_id );
+            if ( is_array( $acf ) ) {
+                $profile = $acf;
+            }
+        }
+
+        // Always merge the explicit keys from raw usermeta so nothing is missed
+        foreach ( $keys as $key ) {
+            if ( ! isset( $profile[ $key ] ) ) {
+                $val = get_user_meta( $user_id, $key, true );
+                if ( '' !== $val ) {
+                    $profile[ $key ] = $val;
+                }
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'profile'      => $profile,
+            'display_name' => $user->display_name,
+            'email'        => $user->user_email,
+            'avatar_url'   => get_avatar_url( $user_id, array( 'size' => 256 ) ),
+        ), 200 );
+    }
+
+    /**
+     * PUT /paired/mentor/profile — Update the authenticated mentor's profile fields.
+     */
+    public function update_mentor_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_a_mentor', __( 'You do not have the mentor role.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) {
+            $body = array();
+        }
+
+        $allowed_keys = array(
+            'bio'                        => 'user_bio',
+            'industry'                   => 'industry',
+            'industryfield_of_expertise' => 'industryfield_of_expertise',
+            'current_role'               => 'current_role',
+            'company'                    => 'company',
+            'years_of_experience'        => 'years_of_experience',
+            'skills_separate'            => 'skills_separate',
+            'employment_status'          => 'employment_status',
+            'mentorship_availability'    => 'mentorship_availability',
+            'mentorship_requirements'    => 'mentorship_requirements',
+            'mentees_at_once'            => 'mentees_at_once',
+            'linkedin_profile'           => 'linkedin_profile',
+            'facebook_profile'           => 'facebook_profile',
+            'instagram_profile'          => 'instagram_profile',
+            'x_profile'                  => 'x_profile',
+            'residence'                  => 'residence',
+            'first_name'                 => 'first_name',
+            'last_name'                  => 'last_name',
+            'phone_number'               => 'phone_number',
+            'bp_network'                 => 'bp_network',
+        );
+
+        foreach ( $allowed_keys as $request_key => $meta_key ) {
+            if ( array_key_exists( $request_key, $body ) ) {
+                $val = sanitize_text_field( (string) $body[ $request_key ] );
+                update_user_meta( $user_id, $meta_key, $val );
+            }
+        }
+
+        // Handle bio separately to preserve line breaks (use sanitize_textarea_field)
+        if ( array_key_exists( 'bio', $body ) ) {
+            update_user_meta( $user_id, 'user_bio', sanitize_textarea_field( (string) $body['bio'] ) );
+        }
+        if ( array_key_exists( 'mentorship_requirements', $body ) ) {
+            update_user_meta( $user_id, 'mentorship_requirements', sanitize_textarea_field( (string) $body['mentorship_requirements'] ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * GET /paired/mentor/mentees — List mentees who have booked the authenticated mentor.
+     */
+    public function get_mentor_mentees( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user || ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_a_mentor', __( 'You do not have the mentor role.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                array(
+                    'key'     => '_bpu_booking_mentor_id',
+                    'value'   => $user_id,
+                    'compare' => '=',
+                ),
+            ),
+        ) );
+
+        // Collect booking counts and last booking dates per mentee
+        $mentee_data = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id   = get_the_ID();
+                $mentee_id = (int) get_post_meta( $post_id, '_bpu_booking_mentee_id', true );
+                if ( ! $mentee_id ) {
+                    continue;
+                }
+                if ( ! isset( $mentee_data[ $mentee_id ] ) ) {
+                    $mentee_data[ $mentee_id ] = array(
+                        'booking_count'     => 0,
+                        'last_booking_date' => '',
+                    );
+                }
+                $mentee_data[ $mentee_id ]['booking_count']++;
+                $booking_date = get_post_meta( $post_id, '_bpu_booking_date', true );
+                if ( $booking_date > $mentee_data[ $mentee_id ]['last_booking_date'] ) {
+                    $mentee_data[ $mentee_id ]['last_booking_date'] = $booking_date;
+                }
+            }
+            wp_reset_postdata();
+        }
+
+        $mentees = array();
+        foreach ( $mentee_data as $mentee_id => $data ) {
+            $mentee_user = get_userdata( $mentee_id );
+            if ( ! $mentee_user ) {
+                continue;
+            }
+            $mentees[] = array(
+                'id'                => $mentee_id,
+                'display_name'      => $mentee_user->display_name,
+                'email'             => $mentee_user->user_email,
+                'avatar_url'        => get_avatar_url( $mentee_id, array( 'size' => 128 ) ),
+                'booking_count'     => $data['booking_count'],
+                'last_booking_date' => $data['last_booking_date'],
+            );
+        }
+
+        // Sort by last booking date descending
+        usort( $mentees, function( $a, $b ) {
+            return strcmp( $b['last_booking_date'], $a['last_booking_date'] );
+        } );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'mentees' => $mentees,
+        ), 200 );
+    }
+
+    /**
+     * GET /paired/mentor/stats — Return aggregate stats for the authenticated mentor.
+     */
+    public function get_mentor_stats( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user || ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_a_mentor', __( 'You do not have the mentor role.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                array(
+                    'key'     => '_bpu_booking_mentor_id',
+                    'value'   => $user_id,
+                    'compare' => '=',
+                ),
+            ),
+        ) );
+
+        $stats = array(
+            'total_bookings' => 0,
+            'pending'        => 0,
+            'confirmed'      => 0,
+            'completed'      => 0,
+            'cancelled'      => 0,
+            'unique_mentees' => 0,
+            'total_minutes'  => 0,
+        );
+
+        $mentee_ids = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $post_id  = get_the_ID();
+                $status   = get_post_meta( $post_id, '_bpu_booking_status', true ) ?: 'pending';
+                $mentee_id = (int) get_post_meta( $post_id, '_bpu_booking_mentee_id', true );
+
+                $stats['total_bookings']++;
+                $stats['total_minutes'] += 60; // each session = 60 minutes
+
+                if ( isset( $stats[ $status ] ) ) {
+                    $stats[ $status ]++;
+                }
+
+                if ( $mentee_id ) {
+                    $mentee_ids[ $mentee_id ] = true;
+                }
+            }
+            wp_reset_postdata();
+        }
+
+        $stats['unique_mentees'] = count( $mentee_ids );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'stats'   => $stats,
+        ), 200 );
+    }
+
+    /**
+     * POST /bookings/{id}/status — Allow a mentor to confirm, cancel, or complete a booking.
+     */
+    public function update_booking_status( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = absint( $request->get_param( 'id' ) );
+        $status  = sanitize_text_field( $request->get_param( 'status' ) );
+
+        $valid_statuses = array( 'confirmed', 'cancelled', 'completed' );
+        if ( ! in_array( $status, $valid_statuses, true ) ) {
+            return new WP_Error(
+                'booking_invalid_status',
+                __( 'Invalid status. Use: confirmed, cancelled, or completed.', 'bpu' ),
+                array( 'status' => 400 )
+            );
+        }
+
+        $post = get_post( $post_id );
+        if ( ! $post || 'mentorship_booking' !== $post->post_type ) {
+            return new WP_Error( 'booking_not_found', __( 'Booking not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $mentor_id = (int) get_post_meta( $post_id, '_bpu_booking_mentor_id', true );
+        if ( $user_id !== $mentor_id ) {
+            return new WP_Error(
+                'booking_forbidden',
+                __( 'Only the mentor of this booking can update its status.', 'bpu' ),
+                array( 'status' => 403 )
+            );
+        }
+
+        update_post_meta( $post_id, '_bpu_booking_status', $status );
+
+        // Send email notification to mentee
+        $mentee_id   = (int) get_post_meta( $post_id, '_bpu_booking_mentee_id', true );
+        $mentee      = get_userdata( $mentee_id );
+        $mentor      = get_userdata( $mentor_id );
+        $booking_date = get_post_meta( $post_id, '_bpu_booking_date', true );
+        $time_slot    = get_post_meta( $post_id, '_bpu_booking_time_slot', true );
+        $mentor_name  = $mentor ? $mentor->display_name : 'your mentor';
+
+        if ( $mentee ) {
+            if ( 'confirmed' === $status ) {
+                $heading    = 'Your session has been confirmed!';
+                $body_html  = '<p style="color:#333;font-size:15px;line-height:1.6;">Great news! Your session with <strong>' . esc_html( $mentor_name ) . '</strong>';
+                if ( $booking_date ) {
+                    $body_html .= ' on <strong>' . esc_html( $booking_date ) . '</strong>';
+                }
+                if ( $time_slot ) {
+                    $body_html .= ' at <strong>' . esc_html( str_replace( '-', ' – ', $time_slot ) ) . ' GMT</strong>';
+                }
+                $body_html .= ' has been confirmed.</p>';
+                $body_html .= '<p style="color:#555;font-size:14px;">Your mentor will be in touch about the video call link. Good luck!</p>';
+                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/dashboard" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View my sessions</a></p>';
+            } elseif ( 'cancelled' === $status ) {
+                $heading    = 'Session request declined';
+                $body_html  = '<p style="color:#333;font-size:15px;line-height:1.6;">Unfortunately your session request with <strong>' . esc_html( $mentor_name ) . '</strong> has been declined.</p>';
+                $body_html .= '<p style="color:#555;font-size:14px;">Don\'t be discouraged — there are many great mentors on PAIRED. Browse the directory and book another session.</p>';
+                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors" style="display:inline-block;background:#C8102E;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Find another mentor</a></p>';
+            } else {
+                $heading   = 'Session marked as completed';
+                $body_html = '<p style="color:#333;font-size:15px;line-height:1.6;">Your session with <strong>' . esc_html( $mentor_name ) . '</strong> has been marked as completed. We hope it was valuable!</p>';
+                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Book another session</a></p>';
+            }
+
+            wp_mail(
+                $mentee->user_email,
+                $heading . ' — PAIRED by BPU',
+                $this->build_email_html( $heading, $body_html ),
+                array( 'Content-Type: text/html; charset=UTF-8' )
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'booking' => $this->format_booking( $post_id, $user_id ),
+        ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════
