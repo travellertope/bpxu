@@ -1,5 +1,6 @@
 import { getBPUSession } from '@/lib/auth';
 import { BPUApi } from '@/lib/api';
+import { decodeHtml } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
@@ -10,6 +11,7 @@ interface Booking {
     date: string;
     time_slot: string;
     status: string;
+    notes?: string;
     role: 'mentee' | 'mentor';
     mentor?: { id: number; display_name: string; avatar_url: string; };
     mentee?: { id: number; display_name: string; avatar_url: string; };
@@ -52,6 +54,7 @@ export default async function PairedDashboard() {
     }
     const user = session.user!;
     const isPro = user.is_pro;
+    const isMentor = user.roles.includes('mentor');
 
     const cookieStore = await cookies();
     const jwt = cookieStore.get('bpu_session')?.value || '';
@@ -67,7 +70,7 @@ export default async function PairedDashboard() {
             .then(d => { if (d?.bookings) bookings = d.bookings; })
             .catch(() => {}),
 
-        isPro
+        !isMentor && isPro
             ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=12`, {
                 headers: { 'Cache-Control': 'no-store' },
             })
@@ -92,6 +95,246 @@ export default async function PairedDashboard() {
     ]);
 
     const today = new Date().toISOString().split('T')[0];
+
+    if (isMentor) {
+        const mentorBookings = bookings.filter(b => b.role === 'mentor');
+        const menteeBookings = bookings.filter(b => b.role === 'mentee');
+        const pendingRequests = mentorBookings.filter(b => b.status === 'pending' && b.date >= today);
+        const upcomingAsMentor = mentorBookings.filter(b => b.date >= today && b.status === 'confirmed');
+        const upcomingAsMentee = menteeBookings.filter(b => b.date >= today && b.status !== 'cancelled');
+        const pastAsMentor = mentorBookings.filter(b => b.date < today);
+
+        return (
+            <div className="wrap py-10 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+
+                {/* ── Mentor header ────────────────────────────── */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <h1 className="text-2xl font-bold">Mentor Dashboard</h1>
+                            <span className="badge badge-purple">Mentor</span>
+                        </div>
+                        <p className="text-sm text-text-2">Welcome back, {decodeHtml(user.display_name)}</p>
+                    </div>
+                    <a href={`/paired/mentors/${user.id}`} className="btn btn-purple btn-sm shrink-0">
+                        View my profile →
+                    </a>
+                </div>
+
+                {/* ── Stats ────────────────────────────────────── */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    {[
+                        { val: pendingRequests.length, label: 'Pending requests' },
+                        { val: upcomingAsMentor.length, label: 'Upcoming sessions' },
+                        { val: pastAsMentor.length, label: 'Sessions given' },
+                        { val: pastAsMentor.length, label: 'Hours mentored' },
+                    ].map(s => (
+                        <div key={s.label} className="card card-p text-center">
+                            <div className="stat-val">{s.val}</div>
+                            <div className="stat-label">{s.label}</div>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+                    <div className="lg:col-span-2 space-y-6">
+
+                        {/* ── Pending requests ─────────────────────── */}
+                        {pendingRequests.length > 0 && (
+                            <div className="card card-p space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="section-title">Pending requests</p>
+                                    <span className="badge badge-amber text-xs">{pendingRequests.length} new</span>
+                                </div>
+                                {pendingRequests.map(b => {
+                                    const mentee = b.mentee;
+                                    const menteeName = mentee?.display_name || 'Mentee';
+                                    const color = mentorColor(mentee?.id || b.id);
+                                    return (
+                                        <div
+                                            key={b.id}
+                                            className="p-4 rounded-lg border border-border space-y-3"
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="avatar avatar-md text-white" style={{ background: color }}>
+                                                        {menteeName[0]}
+                                                    </div>
+                                                    <div>
+                                                        <p className="font-bold text-sm">{decodeHtml(menteeName)}</p>
+                                                        <p className="text-xs text-text-3">
+                                                            {formatDate(b.date)}, {formatTimeSlot(b.time_slot)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <span className="badge badge-amber text-xs">Pending</span>
+                                            </div>
+                                            {b.notes && (
+                                                <p className="text-sm text-text-2 bg-bg rounded-lg p-3">{decodeHtml(b.notes)}</p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* ── Upcoming as mentor ───────────────────── */}
+                        <div className="card card-p space-y-4">
+                            <p className="section-title">Upcoming mentoring sessions</p>
+                            {upcomingAsMentor.length === 0 ? (
+                                <div className="text-sm text-text-3 py-4 text-center">
+                                    No confirmed sessions yet.
+                                </div>
+                            ) : (
+                                upcomingAsMentor.map(b => {
+                                    const mentee = b.mentee;
+                                    const menteeName = mentee?.display_name || 'Mentee';
+                                    const color = mentorColor(mentee?.id || b.id);
+                                    return (
+                                        <div
+                                            key={b.id}
+                                            className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-lg"
+                                            style={{ background: 'var(--purple-bg)' }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="avatar avatar-md text-white" style={{ background: color }}>
+                                                    {menteeName[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-sm">{decodeHtml(menteeName)}</p>
+                                                    <p className="text-xs text-text-3 mt-0.5">
+                                                        {formatDate(b.date)}, {formatTimeSlot(b.time_slot)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className="badge badge-green text-xs">Confirmed</span>
+                                        </div>
+                                    );
+                                })
+                            )}
+                        </div>
+
+                        {/* ── Upcoming as mentee (if they also use the platform as a mentee) */}
+                        {upcomingAsMentee.length > 0 && (
+                            <div className="card card-p space-y-4">
+                                <p className="section-title">My sessions as mentee</p>
+                                {upcomingAsMentee.map(b => {
+                                    const mentor = b.mentor;
+                                    const mentorName = mentor?.display_name || 'Mentor';
+                                    const color = mentorColor(mentor?.id || b.id);
+                                    return (
+                                        <div
+                                            key={b.id}
+                                            className="flex items-center justify-between p-4 rounded-lg"
+                                            style={{ background: 'var(--surface)' }}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="avatar avatar-md text-white" style={{ background: color }}>
+                                                    {mentorName[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-sm">{decodeHtml(mentorName)}</p>
+                                                    <p className="text-xs text-text-2">Mentor</p>
+                                                    <p className="text-xs text-text-3 mt-0.5">
+                                                        {formatDate(b.date)}, {formatTimeSlot(b.time_slot)}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
+                                                {b.status || 'pending'}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* Past sessions given */}
+                        {pastAsMentor.length > 0 && (
+                            <div className="card card-p space-y-4">
+                                <p className="section-title">Past sessions given</p>
+                                <div className="space-y-2">
+                                    {pastAsMentor.map(b => {
+                                        const mentee = b.mentee;
+                                        const menteeName = mentee?.display_name || 'Mentee';
+                                        const color = mentorColor(mentee?.id || b.id);
+                                        return (
+                                            <div
+                                                key={b.id}
+                                                className="flex items-center justify-between p-3 rounded-lg hover:bg-bg transition-colors"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="avatar avatar-sm text-white" style={{ background: color }}>
+                                                        {menteeName[0]}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-semibold">{decodeHtml(menteeName)}</p>
+                                                        <p className="text-xs text-text-3">{formatDate(b.date)}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right sidebar */}
+                    <div className="space-y-6">
+                        {/* Profile card */}
+                        <div className="card card-p space-y-4" style={{ background: '#1e1b4b', borderColor: '#312e81', color: '#fff' }}>
+                            <div className="space-y-2">
+                                <p className="font-bold">Your mentor profile</p>
+                                <p className="text-xs" style={{ color: '#c4b5fd' }}>
+                                    Your profile is live in the PAIRED directory. Mentees can find and book sessions with you.
+                                </p>
+                            </div>
+                            <a
+                                href={`/paired/mentors/${user.id}`}
+                                className="btn btn-sm w-full"
+                                style={{ display: 'block', textAlign: 'center', background: 'rgba(255,255,255,0.12)', color: '#e9d5ff', border: '1px solid rgba(255,255,255,0.15)' }}
+                            >
+                                View my profile →
+                            </a>
+                            <a
+                                href="/paired/mentors"
+                                className="btn btn-sm w-full"
+                                style={{ display: 'block', textAlign: 'center', background: 'rgba(255,255,255,0.06)', color: '#a78bfa', border: '1px solid rgba(255,255,255,0.08)' }}
+                            >
+                                Browse other mentors
+                            </a>
+                        </div>
+
+                        {/* Quick tips */}
+                        <div className="card card-p space-y-3">
+                            <p className="section-title">Mentor tips</p>
+                            <ul className="space-y-2 text-sm text-text-2">
+                                <li className="flex items-start gap-2">
+                                    <span className="text-purple shrink-0 mt-0.5">1.</span>
+                                    <span>Respond to session requests within 24 hours</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-purple shrink-0 mt-0.5">2.</span>
+                                    <span>Keep your profile bio and skills up to date</span>
+                                </li>
+                                <li className="flex items-start gap-2">
+                                    <span className="text-purple shrink-0 mt-0.5">3.</span>
+                                    <span>Set clear expectations in your first session</span>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //  MENTEE DASHBOARD (existing)
+    // ═══════════════════════════════════════════════════════════
+
     const upcoming = bookings.filter(b => b.date >= today && b.status !== 'cancelled');
     const past = bookings.filter(b => b.date < today);
     const hoursTotal = past.length;
@@ -103,7 +346,7 @@ export default async function PairedDashboard() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <h1 className="text-2xl font-bold">My sessions</h1>
-                    <p className="text-sm text-text-2 mt-1">Welcome back, {user.display_name}</p>
+                    <p className="text-sm text-text-2 mt-1">Welcome back, {decodeHtml(user.display_name)}</p>
                 </div>
                 <a href="/paired/mentors" className="btn btn-purple btn-sm shrink-0">
                     Find a mentor
@@ -156,7 +399,7 @@ export default async function PairedDashboard() {
                                                 {otherName[0]}
                                             </div>
                                             <div>
-                                                <p className="font-bold text-sm">{otherName}</p>
+                                                <p className="font-bold text-sm">{decodeHtml(otherName)}</p>
                                                 <p className="text-xs text-text-2 capitalize">{b.role === 'mentee' ? 'Mentor' : 'Mentee'}</p>
                                                 <p className="text-xs text-text-3 mt-0.5">
                                                     {formatDate(b.date)}, {formatTimeSlot(b.time_slot)}
@@ -193,7 +436,7 @@ export default async function PairedDashboard() {
                                                     {otherName[0]}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-semibold">{otherName}</p>
+                                                    <p className="text-sm font-semibold">{decodeHtml(otherName)}</p>
                                                     <p className="text-xs text-text-3">{formatDate(b.date)}</p>
                                                 </div>
                                             </div>
@@ -245,9 +488,9 @@ export default async function PairedDashboard() {
                                                     {m.display_name[0]}
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm font-bold text-white">{m.display_name}</p>
+                                                    <p className="text-sm font-bold text-white">{decodeHtml(m.display_name)}</p>
                                                     <p className="text-xs" style={{ color: '#c4b5fd' }}>
-                                                        {m.industryfield_of_expertise || m.industry || 'Professional'}
+                                                        {decodeHtml(m.industryfield_of_expertise || m.industry || 'Professional')}
                                                     </p>
                                                 </div>
                                             </div>
