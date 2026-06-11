@@ -609,16 +609,20 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/paired/mentor-approve/(?P<user_id>\d+)', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'approve_mentor_application' ),
-            'permission_callback' => function () {
-                return current_user_can( 'promote_users' );
-            },
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
 
         register_rest_route( $this->namespace, '/paired/mentor-reject/(?P<user_id>\d+)', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'reject_mentor_application' ),
-            'permission_callback' => function () {
-                return current_user_can( 'promote_users' );
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor-applications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'list_mentor_applications' ),
+            'permission_callback' => function ( $request ) {
+                return $this->check_jwt_bearer_auth( $request ) && current_user_can( 'promote_users' );
             },
         ) );
     }
@@ -2173,6 +2177,16 @@ Rules:
     /** Permission callback for JWT-authenticated routes. */
     public function check_jwt_bearer_auth( WP_REST_Request $request ) {
         return $this->verify_jwt_bearer( $request ) !== false;
+    }
+
+    /** Permission callback for admin-only JWT-authenticated routes. */
+    public function check_admin_jwt_auth( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return false;
+        }
+        $user = get_userdata( intval( $payload['user_id'] ) );
+        return $user && $user->has_cap( 'promote_users' );
     }
 
     /** GET /bpu/v1/sso/profile — returns fresh profile data for a JWT holder. */
@@ -4762,6 +4776,38 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => 'rejected' ), 200 );
+    }
+
+    public function list_mentor_applications( WP_REST_Request $request ) {
+        $status_filter = sanitize_text_field( $request->get_param( 'status' ) ?: 'pending' );
+
+        $user_query = new WP_User_Query( array(
+            'meta_key'   => 'bpu_mentor_application_status',
+            'meta_value' => $status_filter,
+            'orderby'    => 'registered',
+            'order'      => 'DESC',
+            'number'     => 100,
+        ) );
+
+        $applications = array();
+        foreach ( $user_query->get_results() as $user ) {
+            $app = get_user_meta( $user->ID, 'bpu_mentor_application', true );
+            $applications[] = array(
+                'user_id'      => $user->ID,
+                'display_name' => $user->display_name,
+                'email'        => $user->user_email,
+                'avatar_url'   => get_avatar_url( $user->ID, array( 'size' => 96 ) ),
+                'registered'   => $user->user_registered,
+                'status'       => $status_filter,
+                'application'  => is_array( $app ) ? $app : array(),
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'applications' => $applications,
+            'total'        => $user_query->get_total(),
+        ), 200 );
     }
 
     // ── Spam User Cleanup ─────────────────────────────────────────

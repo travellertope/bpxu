@@ -24,6 +24,9 @@ export default async function PairedLayout({ children }: { children: React.React
             {session.authenticated && (
               <a href="/paired/dashboard" className="btn btn-ghost btn-sm">My sessions</a>
             )}
+            {session.authenticated && session.user?.roles.includes('administrator') && (
+              <a href="/paired/admin/applications" className="btn btn-ghost btn-sm">Applications</a>
+            )}
           </nav>
 
           {/* Auth controls */}
