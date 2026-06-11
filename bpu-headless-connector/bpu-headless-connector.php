@@ -349,6 +349,24 @@ class BPU_Headless_Connector {
         ) );
 
         // ──────────────────────────────────────────────────────
+        // 6f. Forgot Password (public — sends reset email)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/forgot-password', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_forgot_password' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 6g. Reset Password (public — validates token, updates password)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/reset-password', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_reset_password' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
         // 6b. SSO Profile (JWT Bearer auth — for Next.js profile refresh)
         // ──────────────────────────────────────────────────────
         register_rest_route( $this->namespace, '/sso/profile', array(
@@ -2091,6 +2109,110 @@ Rules:
             'email'        => $user->user_email,
             'roles'        => array_values( (array) $user->roles ),
         ), 201 );
+    }
+
+    /**
+     * POST /bpu/v1/auth/forgot-password — send password reset email.
+     *
+     * Accepts email or username. Always returns 200 to prevent user enumeration.
+     * Rate-limited to 3 requests per IP per 15 minutes.
+     */
+    public function handle_forgot_password( WP_REST_Request $request ) {
+        $ip       = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+        $rate_key = 'bpu_forgot_rate_' . md5( $ip );
+        $attempts = (int) get_transient( $rate_key );
+        if ( $attempts >= 3 ) {
+            return new WP_REST_Response( array(
+                'success' => true,
+                'message' => 'If an account exists with that email, a reset link has been sent.',
+            ), 200 );
+        }
+        set_transient( $rate_key, $attempts + 1, 15 * MINUTE_IN_SECONDS );
+
+        $body  = $request->get_json_params();
+        $login = sanitize_text_field( $body['email'] ?? '' );
+
+        if ( empty( $login ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Email is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Always respond with success to prevent user enumeration
+        $user = is_email( $login )
+            ? get_user_by( 'email', $login )
+            : get_user_by( 'login', $login );
+
+        if ( $user ) {
+            $token   = bin2hex( random_bytes( 32 ) ); // 64 hex chars
+            $expires = time() + HOUR_IN_SECONDS;
+
+            update_user_meta( $user->ID, '_bpu_password_reset_token',   $token );
+            update_user_meta( $user->ID, '_bpu_password_reset_expires', $expires );
+
+            $app_url   = defined( 'BPU_APP_URL' ) ? BPU_APP_URL : 'https://app.blackprofessionals.uk';
+            $reset_url = $app_url . '/reset-password?token=' . $token;
+
+            wp_mail(
+                $user->user_email,
+                'Reset your BPU password',
+                "Hi {$user->display_name},\n\n" .
+                "We received a request to reset your password.\n\n" .
+                "Click the link below to set a new password. This link expires in 1 hour.\n\n" .
+                $reset_url . "\n\n" .
+                "If you did not request this, you can safely ignore this email — your password will not change.\n\n" .
+                "— Black Professionals United"
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => 'If an account exists with that email, a reset link has been sent.',
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/auth/reset-password — validate token and set new password.
+     */
+    public function handle_reset_password( WP_REST_Request $request ) {
+        $body     = $request->get_json_params();
+        $token    = sanitize_text_field( $body['token'] ?? '' );
+        $password = $body['password'] ?? '';
+
+        if ( empty( $token ) || empty( $password ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Token and password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( strlen( $password ) < 8 ) {
+            return new WP_Error( 'bpu_weak_password', __( 'Password must be at least 8 characters.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Find user with this token
+        $users = get_users( array(
+            'meta_key'   => '_bpu_password_reset_token',
+            'meta_value' => $token,
+            'number'     => 1,
+        ) );
+
+        if ( empty( $users ) ) {
+            return new WP_Error( 'bpu_invalid_token', __( 'Invalid or expired reset link.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $user    = $users[0];
+        $expires = (int) get_user_meta( $user->ID, '_bpu_password_reset_expires', true );
+
+        if ( time() > $expires ) {
+            delete_user_meta( $user->ID, '_bpu_password_reset_token' );
+            delete_user_meta( $user->ID, '_bpu_password_reset_expires' );
+            return new WP_Error( 'bpu_token_expired', __( 'This reset link has expired. Please request a new one.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        wp_set_password( $password, $user->ID );
+        delete_user_meta( $user->ID, '_bpu_password_reset_token' );
+        delete_user_meta( $user->ID, '_bpu_password_reset_expires' );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => 'Your password has been updated. You can now sign in.',
+        ), 200 );
     }
 
     /**
