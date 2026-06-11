@@ -690,7 +690,7 @@ function bpu_paired_run_import() {
         } elseif ( $role === 'mentee' ) {
             $wp_role = 'subscriber';
         } else {
-            $wp_role = ( $u['has_bookings'] === '1' ) ? 'bpu_mentor' : 'subscriber';
+            $wp_role = 'mentor';
         }
 
         $display_name = ! empty( $name ) ? $name : $email;
@@ -706,7 +706,13 @@ function bpu_paired_run_import() {
             $old_to_new_user_id[ $old_id ] = $new_wp_id;
             update_user_meta( $new_wp_id, '_paired_old_id', $old_id );
             bpu_paired_merge_user_meta( $new_wp_id, $u );
-            $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (empty meta filled)";
+            // Promote existing user to mentor role if they were a mentor on the old platform
+            if ( $wp_role === 'mentor' && ! in_array( 'mentor', (array) $existing->roles, true ) ) {
+                $existing->set_role( 'mentor' );
+                $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (promoted to mentor)";
+            } else {
+                $log[] = "  MERGE user: {$email} → existing WP ID {$new_wp_id} (empty meta filled)";
+            }
             $stats['users_merged']++;
             continue;
         }
