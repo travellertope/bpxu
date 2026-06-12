@@ -30,6 +30,9 @@ class BPU_Headless_Connector {
         // Register custom post types (CV Reviews + Mentorship Bookings)
         add_action( 'init', array( $this, 'register_cv_review_post_type' ) );
         add_action( 'init', array( $this, 'register_mentorship_booking_post_type' ) );
+        add_action( 'init', array( $this, 'register_paired_session_post_type' ) );
+        add_action( 'init', array( $this, 'register_mentor_experience_post_type' ) );
+        add_action( 'init', array( $this, 'register_mentor_education_post_type' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -161,6 +164,60 @@ class BPU_Headless_Connector {
         );
 
         register_post_type( 'mentorship_booking', $args );
+    }
+
+    public function register_paired_session_post_type() {
+        register_post_type( 'paired_session', array(
+            'labels'              => array(
+                'name'          => _x( 'Mentor Sessions', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Mentor Session', 'post type singular name', 'bpu' ),
+                'menu_name'     => _x( 'Mentor Sessions', 'admin menu', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => true,
+            'show_in_menu'        => true,
+            'query_var'           => true,
+            'rewrite'             => array( 'slug' => 'paired-session' ),
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'menu_position'       => 30,
+            'menu_icon'           => 'dashicons-welcome-learn-more',
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_mentor_experience_post_type() {
+        register_post_type( 'mentor_experience', array(
+            'labels'              => array(
+                'name'          => _x( 'Mentor Experiences', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Mentor Experience', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => false,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_mentor_education_post_type() {
+        register_post_type( 'mentor_education', array(
+            'labels'              => array(
+                'name'          => _x( 'Mentor Education', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Mentor Education Entry', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => false,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
     }
 
     /**
@@ -695,6 +752,141 @@ class BPU_Headless_Connector {
                 'id'     => array( 'required' => true, 'sanitize_callback' => 'absint' ),
                 'status' => array( 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
             ),
+        ) );
+
+        // ── Mentor session types ─────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/sessions', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_mentor_sessions' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_mentor_session' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/sessions/(?P<id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'update_mentor_session' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => array( $this, 'delete_mentor_session' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+        ) );
+
+        // Public: list mentor's visible sessions
+        register_rest_route( $this->namespace, '/paired/mentors/(?P<id>\d+)/sessions', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_public_mentor_sessions' ),
+            'permission_callback' => '__return_true',
+            'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+        ) );
+
+        // ── Work experience CRUD ─────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/experiences', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_mentor_experiences' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_mentor_experience' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/experiences/(?P<id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'update_mentor_experience' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => array( $this, 'delete_mentor_experience' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+        ) );
+
+        // ── Education CRUD ───────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/education', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_mentor_education' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_mentor_education' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/education/(?P<id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'update_mentor_education' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => array( $this, 'delete_mentor_education' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+        ) );
+
+        // ── Availability schedule ────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/availability', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_mentor_availability' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'update_mentor_availability' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        // Public: available slots for a mentor
+        register_rest_route( $this->namespace, '/paired/mentors/(?P<id>\d+)/slots', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_mentor_available_slots' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'id'       => array( 'required' => true, 'sanitize_callback' => 'absint' ),
+                'date'     => array( 'sanitize_callback' => 'sanitize_text_field' ),
+                'duration' => array( 'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+
+        // ── Skills list (hardcoded) ──────────────────────────
+        register_rest_route( $this->namespace, '/paired/skills', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_paired_skills' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ── Profile photo upload ─────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/photo', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'upload_mentor_photo' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
 
@@ -3573,6 +3765,736 @@ Rules:
             'success' => true,
             'booking' => $this->format_booking( $post_id, $user_id ),
         ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PAIRED SESSION TYPE CRUD
+    // ══════════════════════════════════════════════════════════════
+
+    private function verify_mentor( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+        if ( ! $user || ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_a_mentor', __( 'You do not have the mentor role.', 'bpu' ), array( 'status' => 403 ) );
+        }
+        return $user_id;
+    }
+
+    public function get_mentor_sessions( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_session',
+            'post_status'    => 'any',
+            'posts_per_page' => 50,
+            'meta_query'     => array(
+                array( 'key' => '_session_mentor_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+        ) );
+
+        $sessions = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $sessions[] = $this->format_session( get_the_ID() );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'sessions' => $sessions ), 200 );
+    }
+
+    public function create_mentor_session( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $body = $request->get_json_params();
+        $name = sanitize_text_field( $body['name'] ?? '' );
+        if ( empty( $name ) ) {
+            return new WP_Error( 'missing_name', __( 'Session name is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'paired_session',
+            'post_title'  => $name,
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'create_failed', __( 'Failed to create session.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_session_mentor_id',     $user_id );
+        update_post_meta( $post_id, '_session_name',           $name );
+        update_post_meta( $post_id, '_session_duration',       absint( $body['duration'] ?? 60 ) );
+        update_post_meta( $post_id, '_session_description',    sanitize_textarea_field( $body['description'] ?? '' ) );
+        update_post_meta( $post_id, '_session_price',          floatval( $body['price'] ?? 0 ) );
+        update_post_meta( $post_id, '_session_type',           sanitize_text_field( $body['type'] ?? 'one_off' ) );
+        update_post_meta( $post_id, '_session_visibility',     sanitize_text_field( $body['visibility'] ?? 'visible' ) );
+        update_post_meta( $post_id, '_session_group_booking',  absint( $body['group_booking'] ?? 0 ) );
+        update_post_meta( $post_id, '_session_slot_capacity',  absint( $body['slot_capacity'] ?? 1 ) );
+        update_post_meta( $post_id, '_session_cover_image',    esc_url_raw( $body['cover_image'] ?? '' ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'session' => $this->format_session( $post_id ) ), 201 );
+    }
+
+    public function update_mentor_session( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $post_id = absint( $request->get_param( 'id' ) );
+        $post    = get_post( $post_id );
+        if ( ! $post || 'paired_session' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Session not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $post_id, '_session_mentor_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only edit your own sessions.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body = $request->get_json_params();
+        $allowed = array(
+            'name'          => '_session_name',
+            'duration'      => '_session_duration',
+            'description'   => '_session_description',
+            'price'         => '_session_price',
+            'type'          => '_session_type',
+            'visibility'    => '_session_visibility',
+            'group_booking' => '_session_group_booking',
+            'slot_capacity' => '_session_slot_capacity',
+            'cover_image'   => '_session_cover_image',
+        );
+
+        foreach ( $allowed as $key => $meta_key ) {
+            if ( array_key_exists( $key, $body ) ) {
+                $val = $body[ $key ];
+                if ( in_array( $key, array( 'description' ), true ) ) {
+                    $val = sanitize_textarea_field( $val );
+                } elseif ( $key === 'cover_image' ) {
+                    $val = esc_url_raw( $val );
+                } elseif ( in_array( $key, array( 'duration', 'group_booking', 'slot_capacity' ), true ) ) {
+                    $val = absint( $val );
+                } elseif ( $key === 'price' ) {
+                    $val = floatval( $val );
+                } else {
+                    $val = sanitize_text_field( $val );
+                }
+                update_post_meta( $post_id, $meta_key, $val );
+            }
+        }
+
+        if ( isset( $body['name'] ) ) {
+            wp_update_post( array( 'ID' => $post_id, 'post_title' => sanitize_text_field( $body['name'] ) ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'session' => $this->format_session( $post_id ) ), 200 );
+    }
+
+    public function delete_mentor_session( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $post_id = absint( $request->get_param( 'id' ) );
+        $post    = get_post( $post_id );
+        if ( ! $post || 'paired_session' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Session not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $post_id, '_session_mentor_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only delete your own sessions.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        wp_delete_post( $post_id, true );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function get_public_mentor_sessions( WP_REST_Request $request ) {
+        $mentor_id = absint( $request->get_param( 'id' ) );
+        $user      = get_userdata( $mentor_id );
+
+        if ( ! $user || ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_found', __( 'Mentor not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_session',
+            'post_status'    => 'publish',
+            'posts_per_page' => 50,
+            'meta_query'     => array(
+                array( 'key' => '_session_mentor_id', 'value' => $mentor_id, 'compare' => '=' ),
+                array( 'key' => '_session_visibility', 'value' => 'visible', 'compare' => '=' ),
+            ),
+        ) );
+
+        $sessions = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $sessions[] = $this->format_session( get_the_ID() );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'sessions' => $sessions ), 200 );
+    }
+
+    private function format_session( $post_id ) {
+        return array(
+            'id'            => $post_id,
+            'name'          => get_post_meta( $post_id, '_session_name', true ),
+            'duration'      => (int) get_post_meta( $post_id, '_session_duration', true ),
+            'description'   => get_post_meta( $post_id, '_session_description', true ),
+            'price'         => (float) get_post_meta( $post_id, '_session_price', true ),
+            'type'          => get_post_meta( $post_id, '_session_type', true ) ?: 'one_off',
+            'visibility'    => get_post_meta( $post_id, '_session_visibility', true ) ?: 'visible',
+            'group_booking' => (int) get_post_meta( $post_id, '_session_group_booking', true ),
+            'slot_capacity' => (int) get_post_meta( $post_id, '_session_slot_capacity', true ) ?: 1,
+            'cover_image'   => get_post_meta( $post_id, '_session_cover_image', true ),
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  WORK EXPERIENCE CRUD
+    // ══════════════════════════════════════════════════════════════
+
+    public function get_mentor_experiences( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentor_experience',
+            'post_status'    => 'any',
+            'posts_per_page' => 50,
+            'meta_query'     => array(
+                array( 'key' => '_mentor_exp_user_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_mentor_exp_start_date',
+            'order'          => 'DESC',
+        ) );
+
+        $experiences = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $experiences[] = $this->format_experience( get_the_ID() );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'experiences' => $experiences ), 200 );
+    }
+
+    public function create_mentor_experience( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $body  = $request->get_json_params();
+        $title = sanitize_text_field( $body['title'] ?? '' );
+        $company = sanitize_text_field( $body['company'] ?? '' );
+
+        if ( empty( $title ) || empty( $company ) ) {
+            return new WP_Error( 'missing_fields', __( 'Job title and company are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'mentor_experience',
+            'post_title'  => $title . ' at ' . $company,
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'create_failed', __( 'Failed to create experience.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_mentor_exp_user_id',     $user_id );
+        update_post_meta( $post_id, '_mentor_exp_title',        $title );
+        update_post_meta( $post_id, '_mentor_exp_company',      $company );
+        update_post_meta( $post_id, '_mentor_exp_start_date',   sanitize_text_field( $body['start_date'] ?? '' ) );
+        update_post_meta( $post_id, '_mentor_exp_end_date',     sanitize_text_field( $body['end_date'] ?? '' ) );
+        update_post_meta( $post_id, '_mentor_exp_is_current',   absint( $body['is_current'] ?? 0 ) );
+        update_post_meta( $post_id, '_mentor_exp_description',  sanitize_textarea_field( $body['description'] ?? '' ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'experience' => $this->format_experience( $post_id ) ), 201 );
+    }
+
+    public function update_mentor_experience( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $post_id = absint( $request->get_param( 'id' ) );
+        $post    = get_post( $post_id );
+        if ( ! $post || 'mentor_experience' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Experience not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $post_id, '_mentor_exp_user_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only edit your own experiences.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body    = $request->get_json_params();
+        $allowed = array(
+            'title'       => '_mentor_exp_title',
+            'company'     => '_mentor_exp_company',
+            'start_date'  => '_mentor_exp_start_date',
+            'end_date'    => '_mentor_exp_end_date',
+            'is_current'  => '_mentor_exp_is_current',
+            'description' => '_mentor_exp_description',
+        );
+
+        foreach ( $allowed as $key => $meta_key ) {
+            if ( array_key_exists( $key, $body ) ) {
+                $val = $body[ $key ];
+                if ( $key === 'description' ) {
+                    $val = sanitize_textarea_field( $val );
+                } elseif ( $key === 'is_current' ) {
+                    $val = absint( $val );
+                } else {
+                    $val = sanitize_text_field( $val );
+                }
+                update_post_meta( $post_id, $meta_key, $val );
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'experience' => $this->format_experience( $post_id ) ), 200 );
+    }
+
+    public function delete_mentor_experience( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $post_id = absint( $request->get_param( 'id' ) );
+        $post    = get_post( $post_id );
+        if ( ! $post || 'mentor_experience' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Experience not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $post_id, '_mentor_exp_user_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only delete your own experiences.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        wp_delete_post( $post_id, true );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    private function format_experience( $post_id ) {
+        return array(
+            'id'          => $post_id,
+            'title'       => get_post_meta( $post_id, '_mentor_exp_title', true ),
+            'company'     => get_post_meta( $post_id, '_mentor_exp_company', true ),
+            'start_date'  => get_post_meta( $post_id, '_mentor_exp_start_date', true ),
+            'end_date'    => get_post_meta( $post_id, '_mentor_exp_end_date', true ),
+            'is_current'  => (int) get_post_meta( $post_id, '_mentor_exp_is_current', true ),
+            'description' => get_post_meta( $post_id, '_mentor_exp_description', true ),
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  EDUCATION CRUD
+    // ══════════════════════════════════════════════════════════════
+
+    public function get_mentor_education( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentor_education',
+            'post_status'    => 'any',
+            'posts_per_page' => 50,
+            'meta_query'     => array(
+                array( 'key' => '_mentor_edu_user_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_mentor_edu_start_year',
+            'order'          => 'DESC',
+        ) );
+
+        $education = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $education[] = $this->format_education( get_the_ID() );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'education' => $education ), 200 );
+    }
+
+    public function create_mentor_education( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $body       = $request->get_json_params();
+        $institution = sanitize_text_field( $body['institution'] ?? '' );
+        $degree      = sanitize_text_field( $body['degree'] ?? '' );
+
+        if ( empty( $institution ) || empty( $degree ) ) {
+            return new WP_Error( 'missing_fields', __( 'Institution and degree are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'mentor_education',
+            'post_title'  => $degree . ' — ' . $institution,
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'create_failed', __( 'Failed to create education entry.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_mentor_edu_user_id',    $user_id );
+        update_post_meta( $post_id, '_mentor_edu_institution', $institution );
+        update_post_meta( $post_id, '_mentor_edu_degree',      $degree );
+        update_post_meta( $post_id, '_mentor_edu_start_year',  sanitize_text_field( $body['start_year'] ?? '' ) );
+        update_post_meta( $post_id, '_mentor_edu_end_year',    sanitize_text_field( $body['end_year'] ?? '' ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'education' => $this->format_education( $post_id ) ), 201 );
+    }
+
+    public function update_mentor_education( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $post_id = absint( $request->get_param( 'id' ) );
+        $post    = get_post( $post_id );
+        if ( ! $post || 'mentor_education' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Education entry not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $post_id, '_mentor_edu_user_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only edit your own education.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body    = $request->get_json_params();
+        $allowed = array(
+            'institution' => '_mentor_edu_institution',
+            'degree'      => '_mentor_edu_degree',
+            'start_year'  => '_mentor_edu_start_year',
+            'end_year'    => '_mentor_edu_end_year',
+        );
+
+        foreach ( $allowed as $key => $meta_key ) {
+            if ( array_key_exists( $key, $body ) ) {
+                update_post_meta( $post_id, $meta_key, sanitize_text_field( $body[ $key ] ) );
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'education' => $this->format_education( $post_id ) ), 200 );
+    }
+
+    public function delete_mentor_education( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $post_id = absint( $request->get_param( 'id' ) );
+        $post    = get_post( $post_id );
+        if ( ! $post || 'mentor_education' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Education entry not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $post_id, '_mentor_edu_user_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only delete your own education.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        wp_delete_post( $post_id, true );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    private function format_education( $post_id ) {
+        return array(
+            'id'          => $post_id,
+            'institution' => get_post_meta( $post_id, '_mentor_edu_institution', true ),
+            'degree'      => get_post_meta( $post_id, '_mentor_edu_degree', true ),
+            'start_year'  => get_post_meta( $post_id, '_mentor_edu_start_year', true ),
+            'end_year'    => get_post_meta( $post_id, '_mentor_edu_end_year', true ),
+        );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  AVAILABILITY & SCHEDULE
+    // ══════════════════════════════════════════════════════════════
+
+    public function get_mentor_availability( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $schedule = get_user_meta( $user_id, '_paired_weekly_schedule', true );
+        $holidays = get_user_meta( $user_id, '_paired_holidays', true );
+        $timezone = get_user_meta( $user_id, '_paired_timezone', true ) ?: 'Europe/London';
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'schedule' => $schedule ? json_decode( $schedule, true ) : array(),
+            'holidays' => $holidays ? json_decode( $holidays, true ) : array(),
+            'timezone' => $timezone,
+        ), 200 );
+    }
+
+    public function update_mentor_availability( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $body = $request->get_json_params();
+
+        if ( isset( $body['schedule'] ) && is_array( $body['schedule'] ) ) {
+            // Validate schedule structure: array of { day, start, end } objects
+            $clean_schedule = array();
+            foreach ( $body['schedule'] as $slot ) {
+                if ( ! isset( $slot['day'] ) ) continue;
+                $clean_schedule[] = array(
+                    'day'   => absint( $slot['day'] ),
+                    'start' => sanitize_text_field( $slot['start'] ?? '09:00' ),
+                    'end'   => sanitize_text_field( $slot['end'] ?? '17:00' ),
+                );
+            }
+            update_user_meta( $user_id, '_paired_weekly_schedule', wp_json_encode( $clean_schedule ) );
+        }
+
+        if ( isset( $body['holidays'] ) && is_array( $body['holidays'] ) ) {
+            $clean_holidays = array_map( 'sanitize_text_field', $body['holidays'] );
+            update_user_meta( $user_id, '_paired_holidays', wp_json_encode( array_values( $clean_holidays ) ) );
+        }
+
+        if ( isset( $body['timezone'] ) ) {
+            update_user_meta( $user_id, '_paired_timezone', sanitize_text_field( $body['timezone'] ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function get_mentor_available_slots( WP_REST_Request $request ) {
+        $mentor_id = absint( $request->get_param( 'id' ) );
+        $user      = get_userdata( $mentor_id );
+
+        if ( ! $user || ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_found', __( 'Mentor not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $date     = sanitize_text_field( $request->get_param( 'date' ) ?? '' );
+        $duration = absint( $request->get_param( 'duration' ) ?? 60 );
+
+        if ( empty( $date ) ) {
+            return new WP_Error( 'missing_date', __( 'Date parameter is required (YYYY-MM-DD).', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Validate date format
+        $d = DateTime::createFromFormat( 'Y-m-d', $date );
+        if ( ! $d || $d->format( 'Y-m-d' ) !== $date ) {
+            return new WP_Error( 'invalid_date', __( 'Invalid date format. Use YYYY-MM-DD.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Don't allow dates in the past
+        $today = new DateTime( 'now', new DateTimeZone( 'UTC' ) );
+        if ( $d < $today->setTime( 0, 0, 0 ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'slots' => array() ), 200 );
+        }
+
+        // Get mentor schedule
+        $schedule_json = get_user_meta( $mentor_id, '_paired_weekly_schedule', true );
+        $schedule      = $schedule_json ? json_decode( $schedule_json, true ) : array();
+        $holidays_json = get_user_meta( $mentor_id, '_paired_holidays', true );
+        $holidays      = $holidays_json ? json_decode( $holidays_json, true ) : array();
+
+        // Check if date is a holiday
+        if ( in_array( $date, $holidays, true ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'slots' => array() ), 200 );
+        }
+
+        // Get day of week (1=Mon ... 7=Sun, ISO-8601)
+        $day_of_week = (int) $d->format( 'N' );
+
+        // Find matching schedule entries for this day
+        $day_slots = array_filter( $schedule, function( $s ) use ( $day_of_week ) {
+            return (int) $s['day'] === $day_of_week;
+        } );
+
+        if ( empty( $day_slots ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'slots' => array() ), 200 );
+        }
+
+        // Generate time slots based on duration
+        $buffer    = 15; // minutes between slots
+        $available = array();
+
+        foreach ( $day_slots as $block ) {
+            $start = strtotime( $date . ' ' . $block['start'] );
+            $end   = strtotime( $date . ' ' . $block['end'] );
+
+            while ( $start + ( $duration * 60 ) <= $end ) {
+                $slot_start = date( 'H:i', $start );
+                $slot_end   = date( 'H:i', $start + ( $duration * 60 ) );
+                $available[] = array(
+                    'start' => $slot_start,
+                    'end'   => $slot_end,
+                );
+                $start += ( $duration + $buffer ) * 60;
+            }
+        }
+
+        // Remove slots that already have confirmed bookings
+        $existing = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                'relation' => 'AND',
+                array( 'key' => '_bpu_booking_mentor_id', 'value' => $mentor_id, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_date', 'value' => $date, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_status', 'value' => array( 'pending', 'confirmed' ), 'compare' => 'IN' ),
+            ),
+        ) );
+
+        $booked_slots = array();
+        if ( $existing->have_posts() ) {
+            while ( $existing->have_posts() ) {
+                $existing->the_post();
+                $booked_slots[] = get_post_meta( get_the_ID(), '_bpu_booking_time_slot', true );
+            }
+            wp_reset_postdata();
+        }
+
+        $available = array_filter( $available, function( $slot ) use ( $booked_slots ) {
+            $slot_str = $slot['start'] . ' - ' . $slot['end'];
+            return ! in_array( $slot_str, $booked_slots, true );
+        } );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'slots'   => array_values( $available ),
+        ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  SKILLS (HARDCODED)
+    // ══════════════════════════════════════════════════════════════
+
+    public function get_paired_skills( WP_REST_Request $request ) {
+        $skills = array(
+            'Engineering & Technology' => array(
+                'Front-end Development', 'Back-end Development', 'Full Stack Development',
+                'Mobile Development (iOS)', 'Mobile Development (Android)', 'DevOps',
+                'Cloud Engineering (AWS)', 'Cloud Engineering (Azure)', 'Cloud Engineering (GCP)',
+                'Site Reliability Engineering', 'QA & Testing', 'Data Engineering',
+                'AI & Machine Learning', 'Cybersecurity', 'Blockchain', 'Embedded Systems',
+                'Systems Architecture', 'Database Administration', 'API Development', 'Technical Leadership',
+            ),
+            'Product & Project Management' => array(
+                'Product Management', 'Product Strategy', 'Product Analytics',
+                'Program Management', 'Project Management', 'Agile & Scrum',
+                'Product Operations', 'Technical Product Management',
+            ),
+            'Design & Creative' => array(
+                'UX Design', 'UI Design', 'Graphic Design', 'Motion Design', 'Brand Design',
+                'Industrial Design', 'Design Systems', 'Design Ops', 'UX Research',
+                'Interaction Design', 'Service Design', '3D Design', 'Game Design', 'XR/VR Design',
+            ),
+            'Marketing & Communications' => array(
+                'Digital Marketing', 'Content Marketing', 'Social Media Marketing',
+                'Brand Strategy', 'Growth Marketing', 'SEO & SEM', 'Email Marketing',
+                'PR & Communications', 'Event Marketing', 'Influencer Marketing',
+                'Marketing Analytics', 'Community Management', 'Product Marketing', 'Performance Marketing',
+            ),
+            'Data & Analytics' => array(
+                'Data Analysis', 'Data Science', 'Machine Learning', 'Business Intelligence',
+                'Statistical Modelling', 'Data Visualisation', 'Natural Language Processing',
+                'Computer Vision', 'Big Data', 'A/B Testing & Experimentation',
+            ),
+            'Finance & Banking' => array(
+                'Investment Banking', 'Corporate Finance', 'Financial Planning & Analysis',
+                'Accounting', 'Risk Management', 'Compliance & Regulation', 'Wealth Management',
+                'Fintech', 'Audit', 'Tax', 'Treasury', 'Private Equity', 'Venture Capital',
+                'Insurance', 'Actuarial Science',
+            ),
+            'Legal' => array(
+                'Corporate Law', 'Employment Law', 'Intellectual Property', 'Contract Law',
+                'Regulatory Compliance', 'Commercial Law', 'Immigration Law', 'Family Law',
+                'Criminal Law', 'Legal Operations',
+            ),
+            'Healthcare & Life Sciences' => array(
+                'Clinical Medicine', 'Nursing', 'Public Health', 'Health Tech',
+                'Pharmaceutical', 'Biotech', 'Mental Health', 'Health Policy',
+                'Clinical Research', 'Health Informatics',
+            ),
+            'Education & Training' => array(
+                'Teaching', 'Curriculum Development', 'EdTech', 'Corporate Training',
+                'Academic Research', 'Higher Education', 'STEM Education',
+                'Coaching & Mentoring', 'Special Education', 'Learning Design',
+            ),
+            'Human Resources' => array(
+                'Talent Acquisition', 'HR Business Partnering', 'Learning & Development',
+                'Compensation & Benefits', 'Employee Relations', 'DEI Strategy',
+                'People Analytics', 'Organisational Development', 'HR Tech', 'Employer Branding',
+            ),
+            'Sales & Business Development' => array(
+                'Enterprise Sales', 'B2B Sales', 'Account Management', 'Business Development',
+                'Sales Operations', 'Customer Success', 'Partnership Management',
+                'Revenue Operations', 'Sales Engineering',
+            ),
+            'Operations & Strategy' => array(
+                'Management Consulting', 'Business Strategy', 'Operations Management',
+                'Supply Chain', 'Procurement', 'Change Management', 'Process Improvement',
+                'Lean & Six Sigma', 'Logistics',
+            ),
+            'Media & Entertainment' => array(
+                'Journalism', 'Broadcasting', 'Film Production', 'Music Industry',
+                'Publishing', 'Podcasting', 'Photography', 'Content Creation',
+                'Streaming & Digital Media',
+            ),
+            'Property & Construction' => array(
+                'Property Development', 'Architecture', 'Surveying', 'Construction Management',
+                'Urban Planning', 'Estate Management', 'Facilities Management',
+            ),
+            'Entrepreneurship' => array(
+                'Startup Founding', 'Fundraising', 'Business Planning', 'Bootstrapping',
+                'Social Enterprise', 'Franchise', 'E-commerce', 'Scaling & Growth',
+            ),
+            'Public Sector & Policy' => array(
+                'Civil Service', 'Policy Analysis', 'Local Government',
+                'International Development', 'Charity & Non-profit', 'Public Affairs',
+                'Community Development',
+            ),
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'skills' => $skills ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PROFILE PHOTO UPLOAD (CLOUDFLARE R2)
+    // ══════════════════════════════════════════════════════════════
+
+    public function upload_mentor_photo( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        // This endpoint will generate a pre-signed upload URL for Cloudflare R2
+        // or accept a direct upload and forward to R2.
+        // For now, accept a URL and store it.
+
+        $body = $request->get_json_params();
+        $url  = esc_url_raw( $body['photo_url'] ?? '' );
+
+        if ( empty( $url ) ) {
+            return new WP_Error( 'missing_url', __( 'Photo URL is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        update_user_meta( $user_id, '_paired_photo_url', $url );
+
+        return new WP_REST_Response( array( 'success' => true, 'photo_url' => $url ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════
