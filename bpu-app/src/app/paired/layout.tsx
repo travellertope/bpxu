@@ -1,4 +1,5 @@
 import { getBPUSession } from '@/lib/auth';
+import NotificationBell from './NotificationBell';
 
 export default async function PairedLayout({ children }: { children: React.ReactNode }) {
   const session = await getBPUSession();
@@ -22,7 +23,11 @@ export default async function PairedLayout({ children }: { children: React.React
             <a href="/paired" className="btn btn-ghost btn-sm">Home</a>
             <a href="/paired/mentors" className="btn btn-ghost btn-sm">Browse mentors</a>
             {session.authenticated && (
-              <a href="/paired/dashboard" className="btn btn-ghost btn-sm">My sessions</a>
+              <>
+                <a href="/paired/dashboard" className="btn btn-ghost btn-sm">My sessions</a>
+                <a href="/paired/messages" className="btn btn-ghost btn-sm">Messages</a>
+                <a href="/paired/favourites" className="btn btn-ghost btn-sm">Favourites</a>
+              </>
             )}
             {session.authenticated && session.user?.roles.includes('mentor') && (
               <>
@@ -33,7 +38,11 @@ export default async function PairedLayout({ children }: { children: React.React
               </>
             )}
             {session.authenticated && session.user?.roles.includes('administrator') && (
-              <a href="/paired/admin/applications" className="btn btn-ghost btn-sm">Applications</a>
+              <>
+                <a href="/paired/admin/applications" className="btn btn-ghost btn-sm">Applications</a>
+                <a href="/paired/admin/mentors" className="btn btn-ghost btn-sm">Mentors</a>
+                <a href="/paired/admin/stats" className="btn btn-ghost btn-sm">Analytics</a>
+              </>
             )}
           </nav>
 
@@ -41,6 +50,7 @@ export default async function PairedLayout({ children }: { children: React.React
           <div className="flex items-center gap-3">
             {session.authenticated && session.user ? (
               <>
+                <NotificationBell />
                 <span className="text-sm text-text-2 hidden md:inline">{session.user.display_name}</span>
                 <a href="/paired/dashboard" className="btn btn-purple btn-sm">Dashboard</a>
                 <a href="/api/auth/logout" className="btn btn-ghost btn-sm text-text-3">Sign out</a>
