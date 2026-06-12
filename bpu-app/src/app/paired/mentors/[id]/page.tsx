@@ -80,6 +80,23 @@ export default async function MentorProfile({
         .map(s => decodeHtml(s.trim()))
         .filter(Boolean);
 
+    const experiences = (mentor.experiences as Array<Record<string, unknown>>) || [];
+    const educationList = (mentor.education as Array<Record<string, unknown>>) || [];
+
+    // Fetch session types (public endpoint)
+    let sessionTypes: Array<Record<string, unknown>> = [];
+    try {
+        const sessRes = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/paired/mentors/${id}/sessions`, {
+            cache: 'no-store',
+        });
+        if (sessRes.ok) {
+            const sessData = await sessRes.json();
+            sessionTypes = sessData.sessions || [];
+        }
+    } catch {
+        // Sessions unavailable — section simply won't render
+    }
+
     const isPro = session.user?.is_pro ?? false;
     const compatScore = isPro && session.user?.profile
         ? BPUApi.scoreMentorMatch(
@@ -263,6 +280,104 @@ export default async function MentorProfile({
                                         <p className="text-sm text-text-2 leading-relaxed whitespace-pre-line">{mentorshipRequirements}</p>
                                     </div>
                                 )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Available Sessions */}
+                    {sessionTypes.length > 0 && (
+                        <div className="card card-p space-y-3">
+                            <p className="section-title">Available Sessions</p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {sessionTypes.map((s) => (
+                                    <div key={s.id as number} className="rounded-lg p-4 space-y-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                                        <div className="flex items-center gap-2">
+                                            <p className="text-sm font-semibold text-text flex-1">{decodeHtml(s.name as string)}</p>
+                                            {(s.duration as number) > 0 && (
+                                                <span className="badge badge-green text-xs shrink-0">{s.duration as number} min</span>
+                                            )}
+                                        </div>
+                                        {(s.description as string) && (
+                                            <p className="text-xs text-text-3 leading-relaxed">{decodeHtml(s.description as string)}</p>
+                                        )}
+                                        {(s.price as number) > 0 && (
+                                            <p className="text-xs font-medium" style={{ color: 'var(--brand)' }}>&pound;{(s.price as number).toFixed(2)}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Work Experience */}
+                    {experiences.length > 0 && (
+                        <div className="card card-p space-y-3">
+                            <p className="section-title">Work Experience</p>
+                            <div className="space-y-4">
+                                {experiences.map((exp) => {
+                                    const startDate = exp.start_date as string;
+                                    const endDate = exp.end_date as string;
+                                    const isCurrent = exp.is_current as number;
+                                    const formatDate = (d: string) => {
+                                        if (!d) return '';
+                                        const date = new Date(d);
+                                        return date.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
+                                    };
+                                    const dateRange = startDate
+                                        ? `${formatDate(startDate)} - ${isCurrent ? 'Present' : formatDate(endDate)}`
+                                        : '';
+                                    return (
+                                        <div key={exp.id as number} className="flex items-start gap-3">
+                                            <div className="text-text-3 mt-0.5 shrink-0">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-semibold text-text">{decodeHtml(exp.title as string)}</p>
+                                                {(exp.company as string) && (
+                                                    <p className="text-sm text-text-2">{decodeHtml(exp.company as string)}</p>
+                                                )}
+                                                {dateRange && (
+                                                    <p className="text-xs text-text-3 mt-0.5">{dateRange}</p>
+                                                )}
+                                                {(exp.description as string) && (
+                                                    <p className="text-xs text-text-3 mt-1 leading-relaxed">{decodeHtml(exp.description as string)}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Education */}
+                    {educationList.length > 0 && (
+                        <div className="card card-p space-y-3">
+                            <p className="section-title">Education</p>
+                            <div className="space-y-4">
+                                {educationList.map((edu) => {
+                                    const startYear = edu.start_year as string;
+                                    const endYear = edu.end_year as string;
+                                    const yearRange = startYear
+                                        ? `${startYear}${endYear ? ` - ${endYear}` : ''}`
+                                        : '';
+                                    return (
+                                        <div key={edu.id as number} className="flex items-start gap-3">
+                                            <div className="text-text-3 mt-0.5 shrink-0">
+                                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 4 3 6 3s6-1 6-3v-5"/></svg>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-sm font-semibold text-text">{decodeHtml(edu.degree as string)}</p>
+                                                {(edu.institution as string) && (
+                                                    <p className="text-sm text-text-2">{decodeHtml(edu.institution as string)}</p>
+                                                )}
+                                                {yearRange && (
+                                                    <p className="text-xs text-text-3 mt-0.5">{yearRange}</p>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         </div>
                     )}

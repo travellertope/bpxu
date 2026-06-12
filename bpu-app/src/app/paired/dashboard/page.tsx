@@ -3,6 +3,7 @@ import { BPUApi } from '@/lib/api';
 import { decodeHtml } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import BookingActions from './BookingActions';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -15,6 +16,16 @@ interface Booking {
     role: 'mentee' | 'mentor';
     mentor?: { id: number; display_name: string; avatar_url: string; };
     mentee?: { id: number; display_name: string; avatar_url: string; };
+}
+
+interface MentorStats {
+    total_bookings: number;
+    pending: number;
+    confirmed: number;
+    completed: number;
+    cancelled: number;
+    unique_mentees: number;
+    total_minutes: number;
 }
 
 interface MentorSummary {
@@ -61,6 +72,7 @@ export default async function PairedDashboard() {
 
     let bookings: Booking[] = [];
     let suggested: MentorSummary[] = [];
+    let mentorStats: MentorStats | null = null as MentorStats | null;
 
     await Promise.all([
         fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/bookings?per_page=50`, {
@@ -69,6 +81,15 @@ export default async function PairedDashboard() {
             .then(r => r.ok ? r.json() : null)
             .then(d => { if (d?.bookings) bookings = d.bookings; })
             .catch(() => {}),
+
+        isMentor
+            ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/paired/mentor/stats`, {
+                headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d?.stats) mentorStats = d.stats; })
+                .catch(() => {})
+            : Promise.resolve(),
 
         !isMentor && isPro
             ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=12`, {
@@ -124,12 +145,12 @@ export default async function PairedDashboard() {
                 {/* ── Stats ────────────────────────────────────── */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     {[
-                        { val: pendingRequests.length, label: 'Pending requests' },
-                        { val: upcomingAsMentor.length, label: 'Upcoming sessions' },
-                        { val: pastAsMentor.length, label: 'Sessions given' },
-                        { val: pastAsMentor.length, label: 'Hours mentored' },
+                        { val: mentorStats?.pending ?? pendingRequests.length, label: 'Pending requests', accent: 'var(--amber, #f59e0b)' },
+                        { val: mentorStats?.confirmed ?? upcomingAsMentor.length, label: 'Upcoming sessions', accent: 'var(--purple)' },
+                        { val: mentorStats?.completed ?? pastAsMentor.length, label: 'Completed', accent: 'var(--green, #22c55e)' },
+                        { val: mentorStats?.unique_mentees ?? new Set(mentorBookings.map(b => b.mentee?.id).filter(Boolean)).size, label: 'Total mentees', accent: undefined },
                     ].map(s => (
-                        <div key={s.label} className="card card-p text-center">
+                        <div key={s.label} className="card card-p text-center" style={s.accent ? { borderTop: `3px solid ${s.accent}` } : undefined}>
                             <div className="stat-val">{s.val}</div>
                             <div className="stat-label">{s.label}</div>
                         </div>
@@ -168,7 +189,7 @@ export default async function PairedDashboard() {
                                                         </p>
                                                     </div>
                                                 </div>
-                                                <span className="badge badge-amber text-xs">Pending</span>
+                                                <BookingActions bookingId={b.id} />
                                             </div>
                                             {b.notes && (
                                                 <p className="text-sm text-text-2 bg-bg rounded-lg p-3">{decodeHtml(b.notes)}</p>
@@ -305,6 +326,25 @@ export default async function PairedDashboard() {
                             >
                                 Browse other mentors
                             </a>
+                        </div>
+
+                        {/* Quick links */}
+                        <div className="card card-p space-y-3">
+                            <p className="section-title">Quick links</p>
+                            <div className="space-y-2">
+                                <a href="/paired/mentor/settings" className="btn btn-ghost btn-sm w-full text-left text-sm" style={{ display: 'block' }}>
+                                    Edit profile
+                                </a>
+                                <a href="/paired/mentor/sessions" className="btn btn-ghost btn-sm w-full text-left text-sm" style={{ display: 'block' }}>
+                                    My sessions
+                                </a>
+                                <a href={`/paired/mentors/${user.id}`} className="btn btn-ghost btn-sm w-full text-left text-sm" style={{ display: 'block' }}>
+                                    View public profile
+                                </a>
+                                <a href="/paired/mentor/mentees" className="btn btn-ghost btn-sm w-full text-left text-sm" style={{ display: 'block' }}>
+                                    My mentees
+                                </a>
+                            </div>
                         </div>
 
                         {/* Quick tips */}
