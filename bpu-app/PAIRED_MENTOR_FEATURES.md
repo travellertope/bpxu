@@ -42,7 +42,7 @@
 | Phone number | text | Optional |
 | Gender | select | Male / Female / Non-binary / Prefer not to say |
 | Location / Residence | text | City or region in the UK |
-| Profile photo | image upload | Replaces Gravatar; stored as WP user meta or media |
+| Profile photo | image upload | Replaces Gravatar; stored on Cloudflare R2 |
 | About me / Bio | textarea | Up to 2000 chars; displayed on public profile |
 
 ### 1.2 Professional Information
@@ -65,8 +65,8 @@
 | Mentorship availability | select | Once a month, Twice a month, Once every 2 months |
 | Mentees at once | number | 1–6; capacity cap |
 | Mentorship requirements | textarea | What mentor expects from mentees |
-| Meet type | select | Google Meet / Zoom / Microsoft Teams |
-| Meeting URL | url | Custom meeting link |
+| Meet type | select | Google Meet (auto-generated) / Custom link |
+| Meeting URL | url | Fallback custom link; ignored when Google Meet is auto-generated |
 
 ### 1.4 Social & Links
 
@@ -132,27 +132,37 @@
 
 ## 3. Session Management
 
-> **Note:** The old platform had a complex session-creation system where mentors defined named "sessions" (e.g. "Career Strategy Call", "CV Review") with durations, pricing, and separate schedules. For the new platform, we simplify this.
+> Mentors can create multiple session types from day one. Each session type represents a different offering (e.g. "Career Strategy Call", "CV Review", "Mock Interview").
 
-### 3.1 Phase 1 — Single session type (MVP)
+**Route:** `/paired/mentor/sessions` (manage) · Displayed on mentor's public profile
 
-Every mentor offers one type of session: a free 1-on-1 video call. Duration is 30 or 60 minutes (mentor chooses in settings). No pricing, no payment.
-
-### 3.2 Phase 2 — Multiple session types (future)
+### 3.1 Session Type Fields
 
 | Field | Type | Notes |
 |-------|------|-------|
-| Session name | text | e.g. "Career Strategy Call" |
+| Session name | text | Required. e.g. "Career Strategy Call" |
 | Duration | select | 30 / 45 / 60 minutes |
 | Description | textarea | What the session covers |
-| Price | number | 0 = free; future paid sessions |
+| Price | number | 0 = free (default for now); future paid sessions |
 | Type | select | One-off / Recurring |
 | Visibility | toggle | Show/hide from public profile |
 | Group booking | toggle | Allow multiple mentees per slot |
 | Slot capacity | number | If group booking enabled, max per slot |
-| Cover image | image | Optional |
+| Cover image | image | Optional; stored on Cloudflare R2 |
 
-### 3.3 Phase 3 — Paid sessions (future)
+### 3.2 Session CRUD
+
+- Mentors can create, edit, and delete session types
+- Each session type is a WordPress custom post type `paired_session`
+- Session meta: `_session_mentor_id`, `_session_name`, `_session_duration`, `_session_description`, `_session_price`, `_session_type`, `_session_visibility`, `_session_group_booking`, `_session_slot_capacity`, `_session_cover_image`
+- When a mentee books, they select which session type they want
+
+### 3.3 Default Session
+
+- On mentor approval, a default session is auto-created: "Mentorship Session" (60 min, free, visible)
+- Mentor can edit or create additional types
+
+### 3.4 Paid Sessions (Phase 3 — future)
 
 - Stripe integration for UK payments
 - Mentor payout settings (bank details / PayPal)
@@ -183,14 +193,47 @@ Every mentor offers one type of session: a free 1-on-1 video call. Duration is 3
 |-------|------|-------|
 | Mentor ID | int | WordPress user ID |
 | Mentee ID | int | WordPress user ID |
+| Session ID | int | Which session type was booked |
 | Date | date | Selected by mentee |
 | Time slot | string | e.g. "10:00 - 11:00" |
+| Duration | int | Minutes (from session type) |
 | Notes | text | Mentee's message to mentor |
 | Status | enum | `pending`, `confirmed`, `cancelled`, `completed` |
 | Created at | datetime | Auto |
-| Meeting link | url | Optional; set by mentor |
+| Google Meet link | url | Auto-generated via Google Calendar API on confirm |
+| Google Calendar event ID | string | For updating/cancelling the calendar event |
 
-### 4.3 Email Notifications per Status Change
+### 4.3 Google Meet Auto-Generation
+
+When a mentor **accepts** a booking request (status changes from `pending` → `confirmed`):
+
+1. **Backend creates a Google Calendar event** via Google Calendar API using a platform-owned **service account**
+2. The event includes `conferenceData.createRequest` which auto-generates a Google Meet link
+3. The Meet link is stored on the booking as `_bpu_booking_meet_link`
+4. The Calendar event ID is stored as `_bpu_booking_calendar_event_id`
+5. Both mentor and mentee receive the Meet link in the confirmation email
+
+**Setup requirements:**
+- Google Cloud project with Calendar API enabled
+- Service account with credentials JSON
+- Service account credentials stored as WordPress options (`_paired_google_service_account`)
+- Service account needs no domain-wide delegation — it creates events on its own calendar and shares with participants
+
+**Calendar event details:**
+- Title: `"PAIRED: {session_name} — {mentor_name} & {mentee_name}"`
+- Duration: from session type
+- Attendees: mentor email + mentee email (both receive calendar invite)
+- Description: session description + mentee's notes
+- Conference: Google Meet (auto-created)
+
+**On cancellation:**
+- Calendar event is deleted via API using stored event ID
+- Meet link is cleared from booking
+
+**On completion:**
+- Calendar event remains (for record-keeping)
+
+### 4.4 Email Notifications per Status Change
 
 | Event | Recipient | Email content |
 |-------|-----------|---------------|
@@ -205,23 +248,59 @@ Every mentor offers one type of session: a free 1-on-1 video call. Duration is 3
 
 ## 5. Availability & Schedule
 
-### 5.1 Phase 1 — Simple availability (MVP)
+**Route:** Part of `/paired/mentor/settings` (Availability tab)
 
-Mentors set their `mentorship_availability` (frequency) and `mentees_at_once` (capacity). Mentees pick a date and time slot when booking. No real-time calendar — just a date picker + time dropdown.
+### 5.1 Weekly Schedule (default hours)
 
-Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00–12:00), Afternoon (14:00–15:00), Late Afternoon (16:00–17:00), Evening (18:00–19:00).
+Mentors set their available hours per day of week. This is the primary availability mechanism.
 
-### 5.2 Phase 2 — Custom availability (future)
+| Field | Type | Notes |
+|-------|------|-------|
+| Day of week | Mon–Sun | Toggle each day on/off |
+| Start time | time | e.g. 09:00 |
+| End time | time | e.g. 17:00 |
+| Multiple slots per day | repeater | Allow e.g. 09:00–12:00 and 14:00–17:00 |
 
-| Feature | Description |
-|---------|-------------|
-| Default working hours | Set available hours per day of week (Mon–Sun) |
-| Custom hours per session | Override defaults for specific session types |
-| Holiday dates | Block out specific dates |
-| Time zone | Mentor sets their timezone; slots shown in mentee's local time |
-| Auto-slot generation | System generates available slots based on duration + working hours |
-| Google Calendar sync | Two-way sync to avoid double-booking |
-| Zoom auto-link | Generate Zoom meeting for each confirmed booking |
+### 5.2 Auto-Slot Generation
+
+- System generates bookable time slots based on:
+  - Mentor's weekly schedule (available hours)
+  - Session duration (from the session type being booked)
+  - Buffer time between slots (default 15 minutes)
+- Existing confirmed bookings are excluded from available slots
+- Slots are shown in the mentee's local timezone (detected or selected)
+- Availability window: next 40 days
+
+### 5.3 Holiday / Blocked Dates
+
+- Mentor can block specific dates (holidays, personal time)
+- Stored as JSON array in user meta `_paired_holidays`
+- Blocked dates excluded from slot generation
+
+### 5.4 Timezone
+
+| Field | Type | Notes |
+|-------|------|-------|
+| Timezone | select | Full IANA timezone list; default Europe/London |
+
+- All times stored in UTC internally
+- Displayed in mentor's timezone on their dashboard
+- Displayed in mentee's timezone on booking form
+
+### 5.5 Capacity
+
+| Field | Type | Notes |
+|-------|------|-------|
+| Mentees at once | number | 1–6; max active mentee relationships |
+| Mentorship availability | select | Once a month, Twice a month, Once every 2 months |
+
+- When capacity is reached, mentor's profile shows "Currently full" badge
+- Mentees can still view profile but booking button is disabled
+
+### 5.6 Custom Hours per Session Type (Phase 2)
+
+- Override default weekly hours for specific session types
+- e.g. "Mock Interview" only available on Saturdays
 
 ---
 
@@ -311,27 +390,65 @@ Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00
 
 ## 9. Skills & Expertise
 
+> Skills are **hardcoded** in the codebase (no admin UI needed). Comprehensive list to cover the breadth of Black professional expertise in the UK.
+
 ### 9.1 Predefined Skill Categories
 
-| Category | Example Skills |
-|----------|---------------|
-| Engineering | Front-end, Back-end, Full Stack, Mobile, DevOps, AI/ML, QA, Data Engineering |
-| Marketing | Digital Marketing, Branding, Content Marketing, Growth, Sales, Community |
-| Product | Product Management, Program Management, Product Strategy |
-| Design | UX, UI, Graphic Design, Motion Design, Design Ops |
-| Data Science | Data Analysis, Data Engineering, Machine Learning |
-| Content | Technical Writing, Copywriting, Content Strategy, UX Writing |
-| Finance | Accounting, Investment Banking, Financial Planning, Risk Management |
-| Legal | Corporate Law, Employment Law, IP Law |
-| Healthcare | Clinical, Public Health, Health Tech |
-| Education | Teaching, Curriculum Development, EdTech |
+**Engineering & Technology**
+- Front-end Development, Back-end Development, Full Stack Development, Mobile Development (iOS), Mobile Development (Android), DevOps, Cloud Engineering (AWS), Cloud Engineering (Azure), Cloud Engineering (GCP), Site Reliability Engineering, QA & Testing, Data Engineering, AI & Machine Learning, Cybersecurity, Blockchain, Embedded Systems, Systems Architecture, Database Administration, API Development, Technical Leadership
+
+**Product & Project Management**
+- Product Management, Product Strategy, Product Analytics, Program Management, Project Management, Agile & Scrum, Product Operations, Technical Product Management
+
+**Design & Creative**
+- UX Design, UI Design, Graphic Design, Motion Design, Brand Design, Industrial Design, Design Systems, Design Ops, UX Research, Interaction Design, Service Design, 3D Design, Game Design, XR/VR Design
+
+**Marketing & Communications**
+- Digital Marketing, Content Marketing, Social Media Marketing, Brand Strategy, Growth Marketing, SEO & SEM, Email Marketing, PR & Communications, Event Marketing, Influencer Marketing, Marketing Analytics, Community Management, Product Marketing, Performance Marketing
+
+**Data & Analytics**
+- Data Analysis, Data Science, Machine Learning, Business Intelligence, Statistical Modelling, Data Visualisation, Natural Language Processing, Computer Vision, Big Data, A/B Testing & Experimentation
+
+**Finance & Banking**
+- Investment Banking, Corporate Finance, Financial Planning & Analysis, Accounting, Risk Management, Compliance & Regulation, Wealth Management, Fintech, Audit, Tax, Treasury, Private Equity, Venture Capital, Insurance, Actuarial Science
+
+**Legal**
+- Corporate Law, Employment Law, Intellectual Property, Contract Law, Regulatory Compliance, Commercial Law, Immigration Law, Family Law, Criminal Law, Legal Operations
+
+**Healthcare & Life Sciences**
+- Clinical Medicine, Nursing, Public Health, Health Tech, Pharmaceutical, Biotech, Mental Health, Health Policy, Clinical Research, Health Informatics
+
+**Education & Training**
+- Teaching, Curriculum Development, EdTech, Corporate Training, Academic Research, Higher Education, STEM Education, Coaching & Mentoring, Special Education, Learning Design
+
+**Human Resources**
+- Talent Acquisition, HR Business Partnering, Learning & Development, Compensation & Benefits, Employee Relations, DEI Strategy, People Analytics, Organisational Development, HR Tech, Employer Branding
+
+**Sales & Business Development**
+- Enterprise Sales, B2B Sales, Account Management, Business Development, Sales Operations, Customer Success, Partnership Management, Revenue Operations, Sales Engineering
+
+**Operations & Strategy**
+- Management Consulting, Business Strategy, Operations Management, Supply Chain, Procurement, Change Management, Process Improvement, Lean & Six Sigma, Logistics
+
+**Media & Entertainment**
+- Journalism, Broadcasting, Film Production, Music Industry, Publishing, Podcasting, Photography, Content Creation, Streaming & Digital Media
+
+**Property & Construction**
+- Property Development, Architecture, Surveying, Construction Management, Urban Planning, Estate Management, Facilities Management
+
+**Entrepreneurship**
+- Startup Founding, Fundraising, Business Planning, Bootstrapping, Social Enterprise, Franchise, E-commerce, Scaling & Growth
+
+**Public Sector & Policy**
+- Civil Service, Policy Analysis, Local Government, International Development, Charity & Non-profit, Public Affairs, Community Development
 
 ### 9.2 UI
 
-- Tag-style input on profile settings
-- Autocomplete from predefined list
-- Allow free-text custom skills
+- Tag-style input on profile settings with autocomplete from the full list above
+- Skills grouped by category in the autocomplete dropdown
+- Allow free-text custom skills (appended to user's list)
 - Display as badges on public profile and directory cards
+- Searchable in mentor directory filter
 
 ---
 
@@ -488,26 +605,48 @@ Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00
 | Data | Storage Method | Notes |
 |------|---------------|-------|
 | User profile fields | `usermeta` table | All fields in sections 1.1–1.5 |
+| Profile photos | Cloudflare R2 | Uploaded via pre-signed URL; public URL stored in usermeta `_paired_photo_url` |
+| Session cover images | Cloudflare R2 | Same pattern as profile photos |
 | Bookings | Custom post type `mentorship_booking` | Already exists |
+| Session types | Custom post type `paired_session` | New — mentor's session offerings |
 | Work experience | Custom post type `mentor_experience` | New |
 | Education | Custom post type `mentor_education` | New |
-| Skills (predefined) | Custom taxonomy or options | New |
+| Skills (predefined) | Hardcoded in PHP + JS | Full list in section 9.1 |
 | User skills | `usermeta` serialised array | Already exists as `skills_separate` |
+| Availability schedule | `usermeta` JSON | `_paired_weekly_schedule` — array of day/start/end |
+| Holidays | `usermeta` JSON | `_paired_holidays` — array of blocked dates |
+| Google service account | WordPress option | `_paired_google_service_account` — credentials JSON |
 | Reviews | Custom post type `mentor_review` | Phase 2 |
 | Messages | Custom post type `paired_message` | Phase 2 |
 | Notifications | Custom post type `paired_notification` | Phase 2 |
 | Mentor applications | Custom post type `mentor_application` | Already exists |
 
-### Booking Meta Keys (existing)
+### Booking Meta Keys
 
 - `_bpu_booking_mentor_id`
 - `_bpu_booking_mentee_id`
+- `_bpu_booking_session_id` — Which session type was booked
 - `_bpu_booking_date`
 - `_bpu_booking_time_slot`
+- `_bpu_booking_duration` — Minutes (from session type)
 - `_bpu_booking_notes`
 - `_bpu_booking_status` — `pending` | `confirmed` | `cancelled` | `completed`
 - `_bpu_booking_created_at`
-- `_bpu_booking_meeting_link` — New
+- `_bpu_booking_meet_link` — Auto-generated Google Meet URL
+- `_bpu_booking_calendar_event_id` — Google Calendar event ID for updates/deletion
+
+### Session Type Meta Keys (new)
+
+- `_session_mentor_id`
+- `_session_name`
+- `_session_duration` — 30 / 45 / 60
+- `_session_description`
+- `_session_price` — 0 for free
+- `_session_type` — `one_off` | `recurring`
+- `_session_visibility` — `visible` | `hidden`
+- `_session_group_booking` — 0 | 1
+- `_session_slot_capacity` — Max per slot if group
+- `_session_cover_image` — R2 URL
 
 ### Experience Meta Keys (new)
 
@@ -553,6 +692,11 @@ Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00
 
 | Method | Endpoint | Description | Phase |
 |--------|----------|-------------|-------|
+| GET | `/bpu/v1/paired/mentor/sessions` | List mentor's session types | 1 |
+| POST | `/bpu/v1/paired/mentor/sessions` | Create session type | 1 |
+| PUT | `/bpu/v1/paired/mentor/sessions/{id}` | Update session type | 1 |
+| DELETE | `/bpu/v1/paired/mentor/sessions/{id}` | Delete session type | 1 |
+| GET | `/bpu/v1/paired/mentors/{id}/sessions` | Public: list mentor's visible sessions | 1 |
 | GET | `/bpu/v1/paired/mentor/experiences` | List mentor's work experiences | 1 |
 | POST | `/bpu/v1/paired/mentor/experiences` | Add work experience | 1 |
 | PUT | `/bpu/v1/paired/mentor/experiences/{id}` | Update work experience | 1 |
@@ -561,8 +705,11 @@ Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00
 | POST | `/bpu/v1/paired/mentor/education` | Add education entry | 1 |
 | PUT | `/bpu/v1/paired/mentor/education/{id}` | Update education entry | 1 |
 | DELETE | `/bpu/v1/paired/mentor/education/{id}` | Delete education entry | 1 |
-| GET | `/bpu/v1/paired/skills` | List all predefined skills | 1 |
-| POST | `/bpu/v1/paired/mentor/photo` | Upload profile photo | 1 |
+| GET | `/bpu/v1/paired/skills` | List all predefined skills (hardcoded) | 1 |
+| POST | `/bpu/v1/paired/mentor/photo` | Upload profile photo to R2 | 1 |
+| GET | `/bpu/v1/paired/mentor/availability` | Get mentor's weekly schedule | 1 |
+| PUT | `/bpu/v1/paired/mentor/availability` | Update weekly schedule + holidays | 1 |
+| GET | `/bpu/v1/paired/mentors/{id}/slots` | Public: available slots for a date range | 1 |
 | POST | `/bpu/v1/paired/reviews` | Submit a review (mentee) | 2 |
 | GET | `/bpu/v1/paired/mentors/{id}/reviews` | Get mentor's reviews | 2 |
 | GET | `/bpu/v1/paired/messages` | List conversations | 2 |
@@ -589,7 +736,8 @@ Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00
 
 | Route | Component | Auth | Phase |
 |-------|-----------|------|-------|
-| `/paired/mentor/settings` | Profile settings (all sections) | Mentor | 1 |
+| `/paired/mentor/settings` | Profile settings (personal, professional, mentorship, social, availability) | Mentor | 1 |
+| `/paired/mentor/sessions` | Manage session types (CRUD) | Mentor | 1 |
 | `/paired/mentor/mentees` | Mentee list + history | Mentor | 1 |
 | `/paired/mentor/bookings` | All bookings management | Mentor | 1 |
 | `/paired/admin/mentors` | Admin mentor management | Admin | 2 |
@@ -603,59 +751,75 @@ Available time slots are predefined: Morning (9:00–10:00), Late Morning (11:00
 | Route | Proxies to | Phase |
 |-------|-----------|-------|
 | `/api/paired/mentor/profile` | GET/PUT mentor profile | 1 |
+| `/api/paired/mentor/sessions` | CRUD session types | 1 |
 | `/api/paired/mentor/mentees` | GET mentor mentees | 1 |
 | `/api/paired/mentor/stats` | GET mentor stats | 1 |
 | `/api/paired/mentor/experiences` | CRUD experiences | 1 |
 | `/api/paired/mentor/education` | CRUD education | 1 |
-| `/api/paired/mentor/photo` | POST photo upload | 1 |
-| `/api/paired/bookings/[id]/status` | POST status update | 1 |
+| `/api/paired/mentor/photo` | POST photo upload to R2 | 1 |
+| `/api/paired/mentor/availability` | GET/PUT availability schedule | 1 |
+| `/api/paired/bookings/[id]/status` | POST status update (triggers Google Meet) | 1 |
 | `/api/paired/skills` | GET predefined skills | 1 |
+| `/api/paired/mentors/[id]/slots` | GET available booking slots | 1 |
 
 ---
 
 ## 19. Build Priority
 
-### Phase 1 — Core Mentor Platform (MVP)
+### Phase 1 — Core Mentor Platform
 
-1. **Mentor profile settings page** — Edit all profile fields (personal, professional, mentorship, social)
-2. **Booking management** — Accept/decline/complete bookings from dashboard
-3. **Mentee list page** — View all mentees and booking history
-4. **Work experience & education** — CRUD on profile settings page
-5. **Profile photo upload** — Replace Gravatar with real photo
-6. **Updated public profile** — Show experience, education, skills on mentor's public page
-7. **Email notifications** — Booking status change emails (accept/decline/complete)
-8. **Nav updates** — Add Settings, Mentees, Bookings links for mentors
+1. **Mentor profile settings page** — Edit all profile fields (personal, professional, mentorship, social, availability)
+2. **Session type management** — Create/edit/delete session types from day one
+3. **Full calendar-based availability** — Weekly schedule, holidays, timezone, auto-slot generation
+4. **Booking management** — Accept/decline/complete bookings; Google Meet auto-generation on accept
+5. **Mentee list page** — View all mentees and booking history
+6. **Work experience & education** — CRUD on profile settings page
+7. **Profile photo upload** — Cloudflare R2 storage with pre-signed URLs
+8. **Updated public profile** — Show experience, education, skills, session types, availability on mentor's public page
+9. **Email notifications** — Booking status change emails with Google Meet link
+10. **Nav updates** — Add Settings, Sessions, Mentees, Bookings links for mentors
+11. **Comprehensive hardcoded skills** — 150+ skills across 16 categories
 
 ### Phase 2 — Enhanced Platform
 
-9. Reviews & ratings system
-10. In-app messaging
-11. In-app notification centre
-12. Favourite mentors (mentee side)
-13. AI mentor matching improvements
-14. Mentee profile (career goals, skills to develop)
-15. Admin mentor management
-16. Admin platform analytics
+12. Reviews & ratings system
+13. In-app messaging
+14. In-app notification centre
+15. Favourite mentors (mentee side)
+16. AI mentor matching improvements
+17. Mentee profile (career goals, skills to develop)
+18. Admin mentor management
+19. Admin platform analytics
+20. Custom hours per session type
 
 ### Phase 3 — Premium Features (future)
 
-17. Paid sessions (Stripe UK)
-18. Multiple session types per mentor
-19. Custom availability calendar with timezone support
-20. Google Calendar sync
-21. Zoom/Teams auto-link generation
+21. Paid sessions (Stripe UK)
 22. Group sessions
-23. Mentor onboarding checklist
-24. Referral programme
-25. KYC verification
+23. Recurring session scheduling
+24. Mentor onboarding checklist
+25. Referral programme
+26. KYC verification
+27. Google Calendar two-way sync (currently one-way: platform → calendar)
 
 ---
 
-## Key Decisions to Confirm
+## Decisions Confirmed
 
-1. **Session types** — MVP with single free session type, or allow mentors to create multiple session types from day one?
-2. **Profile photo storage** — WordPress media library (via REST API upload) or external service (Cloudinary, S3)?
-3. **Skills management** — Hardcoded list in code, or admin-manageable via WordPress?
-4. **Meeting links** — Mentor provides their own link, or integrate with Zoom/Google Meet API?
-5. **Availability** — Simple frequency selector (MVP) or full calendar-based availability?
-6. **Messaging** — Include in Phase 1 or defer to Phase 2?
+| Decision | Answer |
+|----------|--------|
+| Session types | Multiple session types from day one |
+| Profile photo storage | Cloudflare R2 (pre-signed upload URLs) |
+| Skills management | Hardcoded — 150+ skills across 16 categories |
+| Meeting links | Google Meet auto-generated via Google Calendar API (service account) |
+| Availability | Full calendar-based: weekly schedule, holidays, timezone, auto-slot generation |
+| Messaging | Phase 2 |
+
+### Google Meet Integration — Service Account Approach
+
+- A single platform-owned Google Cloud service account creates all calendar events
+- No OAuth flow needed for mentors — they just receive calendar invites + Meet links
+- Credentials stored as WordPress option
+- Meet link generated on booking confirmation (mentor accepts)
+- Calendar event deleted on booking cancellation
+- Setup: Google Cloud Console → Calendar API → Service Account → download JSON key
