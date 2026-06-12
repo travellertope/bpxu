@@ -33,6 +33,9 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_paired_session_post_type' ) );
         add_action( 'init', array( $this, 'register_mentor_experience_post_type' ) );
         add_action( 'init', array( $this, 'register_mentor_education_post_type' ) );
+        add_action( 'init', array( $this, 'register_mentor_review_post_type' ) );
+        add_action( 'init', array( $this, 'register_paired_message_post_type' ) );
+        add_action( 'init', array( $this, 'register_paired_notification_post_type' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -209,6 +212,57 @@ class BPU_Headless_Connector {
             'labels'              => array(
                 'name'          => _x( 'Mentor Education', 'post type general name', 'bpu' ),
                 'singular_name' => _x( 'Mentor Education Entry', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => false,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_mentor_review_post_type() {
+        register_post_type( 'mentor_review', array(
+            'labels'              => array(
+                'name'          => _x( 'Mentor Reviews', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Mentor Review', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => true,
+            'show_in_menu'        => true,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'menu_position'       => 31,
+            'menu_icon'           => 'dashicons-star-filled',
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_paired_message_post_type() {
+        register_post_type( 'paired_message', array(
+            'labels'              => array(
+                'name'          => _x( 'Messages', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Message', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => false,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_paired_notification_post_type() {
+        register_post_type( 'paired_notification', array(
+            'labels'              => array(
+                'name'          => _x( 'Notifications', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Notification', 'post type singular name', 'bpu' ),
             ),
             'public'              => false,
             'publicly_queryable'  => false,
@@ -887,6 +941,124 @@ class BPU_Headless_Connector {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'upload_mentor_photo' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ── Phase 2: Reviews & Ratings ──────────────────────────
+        register_rest_route( $this->namespace, '/paired/reviews', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'submit_mentor_review' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentors/(?P<id>\d+)/reviews', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_mentor_reviews' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ── Phase 2: In-App Messaging ───────────────────────────
+        register_rest_route( $this->namespace, '/paired/messages', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_message_conversations' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'send_message' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/messages/(?P<user_id>\d+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_message_thread' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ── Phase 2: In-App Notifications ───────────────────────
+        register_rest_route( $this->namespace, '/paired/notifications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_notifications' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/notifications/(?P<id>\d+)/read', array(
+            'methods'             => 'PUT',
+            'callback'            => array( $this, 'mark_notification_read' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/notifications/read-all', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'mark_all_notifications_read' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ── Phase 2: Favourite Mentors ──────────────────────────
+        register_rest_route( $this->namespace, '/paired/favourites', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_favourites' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'add_favourite' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/favourites/(?P<mentor_id>\d+)', array(
+            'methods'             => WP_REST_Server::DELETABLE,
+            'callback'            => array( $this, 'remove_favourite' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ── Phase 2: Mentee Profile ─────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentee/profile', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_mentee_profile' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => 'PUT',
+                'callback'            => array( $this, 'update_mentee_profile' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        // ── Phase 2: Admin Mentor Management ────────────────────
+        register_rest_route( $this->namespace, '/paired/admin/mentors', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_mentors' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/mentors/(?P<id>\d+)', array(
+            'methods'             => 'PUT',
+            'callback'            => array( $this, 'admin_update_mentor' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/mentors/(?P<id>\d+)/deactivate', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_deactivate_mentor' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/mentors/(?P<id>\d+)/activate', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_activate_mentor' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // ── Phase 2: Admin Platform Analytics ───────────────────
+        register_rest_route( $this->namespace, '/paired/admin/stats', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_platform_stats' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
     }
 
@@ -6565,6 +6737,1139 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
 
         wp_send_json_success( array( 'deleted' => $deleted ) );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: HELPER — CREATE NOTIFICATION
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Create a paired_notification post for a user.
+     *
+     * @param int    $user_id  The user to notify.
+     * @param string $type     One of: new_booking, booking_status, new_message, new_review.
+     * @param string $title    Short notification title.
+     * @param string $message  Notification body.
+     * @param string $link     Optional frontend link.
+     * @return int|WP_Error    The notification post ID or WP_Error on failure.
+     */
+    private function create_notification( $user_id, $type, $title, $message, $link = '' ) {
+        $allowed_types = array( 'new_booking', 'booking_status', 'new_message', 'new_review' );
+        if ( ! in_array( $type, $allowed_types, true ) ) {
+            $type = 'new_booking';
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'paired_notification',
+            'post_title'  => sanitize_text_field( $title ),
+            'post_status' => 'publish',
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        update_post_meta( $post_id, '_notif_user_id', $user_id );
+        update_post_meta( $post_id, '_notif_type', $type );
+        update_post_meta( $post_id, '_notif_title', sanitize_text_field( $title ) );
+        update_post_meta( $post_id, '_notif_message', sanitize_textarea_field( $message ) );
+        update_post_meta( $post_id, '_notif_link', esc_url_raw( $link ) );
+        update_post_meta( $post_id, '_notif_created_at', current_time( 'mysql' ) );
+
+        return $post_id;
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: REVIEWS & RATINGS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * POST /paired/reviews — Mentee submits a review after a completed booking.
+     */
+    public function submit_mentor_review( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $body       = $request->get_json_params();
+        $booking_id = isset( $body['booking_id'] ) ? absint( $body['booking_id'] ) : 0;
+        $rating     = isset( $body['rating'] ) ? intval( $body['rating'] ) : 0;
+        $feedback   = isset( $body['feedback'] ) ? sanitize_textarea_field( $body['feedback'] ) : '';
+
+        // Validate rating range.
+        if ( $rating < 1 || $rating > 5 ) {
+            return new WP_Error( 'invalid_rating', __( 'Rating must be between 1 and 5.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Validate booking exists and is the right post type.
+        $booking = get_post( $booking_id );
+        if ( ! $booking || 'mentorship_booking' !== $booking->post_type ) {
+            return new WP_Error( 'booking_not_found', __( 'Booking not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Validate the booking is completed.
+        $status = get_post_meta( $booking_id, '_bpu_booking_status', true );
+        if ( 'completed' !== $status ) {
+            return new WP_Error( 'booking_not_completed', __( 'You can only review completed bookings.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Validate the current user is the mentee on this booking.
+        $mentee_id = (int) get_post_meta( $booking_id, '_bpu_booking_mentee_id', true );
+        if ( $user_id !== $mentee_id ) {
+            return new WP_Error( 'not_your_booking', __( 'You can only review your own bookings.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $mentor_id = (int) get_post_meta( $booking_id, '_bpu_booking_mentor_id', true );
+
+        // Check for duplicate review on the same booking.
+        $existing = new WP_Query( array(
+            'post_type'      => 'mentor_review',
+            'post_status'    => 'any',
+            'posts_per_page' => 1,
+            'meta_query'     => array(
+                array( 'key' => '_review_booking_id', 'value' => $booking_id, 'compare' => '=' ),
+            ),
+        ) );
+
+        if ( $existing->have_posts() ) {
+            return new WP_Error( 'duplicate_review', __( 'You have already reviewed this booking.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        // Create the review.
+        $mentee = get_userdata( $user_id );
+        $mentor = get_userdata( $mentor_id );
+        $title  = sprintf( 'Review by %s for %s', $mentee ? $mentee->display_name : $user_id, $mentor ? $mentor->display_name : $mentor_id );
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'mentor_review',
+            'post_title'  => sanitize_text_field( $title ),
+            'post_status' => 'publish',
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        update_post_meta( $post_id, '_review_mentor_id', $mentor_id );
+        update_post_meta( $post_id, '_review_mentee_id', $user_id );
+        update_post_meta( $post_id, '_review_booking_id', $booking_id );
+        update_post_meta( $post_id, '_review_rating', $rating );
+        update_post_meta( $post_id, '_review_feedback', $feedback );
+        update_post_meta( $post_id, '_review_created_at', current_time( 'mysql' ) );
+
+        // Create a notification for the mentor.
+        $this->create_notification(
+            $mentor_id,
+            'new_review',
+            __( 'New Review Received', 'bpu' ),
+            sprintf( '%s left you a %d-star review.', $mentee ? $mentee->display_name : 'A mentee', $rating ),
+            '/dashboard/reviews'
+        );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'review'  => array(
+                'id'         => $post_id,
+                'mentor_id'  => $mentor_id,
+                'mentee_id'  => $user_id,
+                'booking_id' => $booking_id,
+                'rating'     => $rating,
+                'feedback'   => $feedback,
+                'created_at' => current_time( 'mysql' ),
+            ),
+        ), 201 );
+    }
+
+    /**
+     * GET /paired/mentors/{id}/reviews — Public endpoint to list a mentor's reviews.
+     */
+    public function get_mentor_reviews( WP_REST_Request $request ) {
+        $mentor_id = absint( $request->get_param( 'id' ) );
+
+        $mentor = get_userdata( $mentor_id );
+        if ( ! $mentor || ! in_array( 'mentor', (array) $mentor->roles, true ) ) {
+            return new WP_Error( 'mentor_not_found', __( 'Mentor not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentor_review',
+            'post_status'    => 'publish',
+            'posts_per_page' => 100,
+            'meta_query'     => array(
+                array( 'key' => '_review_mentor_id', 'value' => $mentor_id, 'compare' => '=' ),
+            ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $reviews      = array();
+        $total_rating = 0;
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $pid       = get_the_ID();
+                $mentee_id = (int) get_post_meta( $pid, '_review_mentee_id', true );
+                $mentee    = get_userdata( $mentee_id );
+                $rating    = (int) get_post_meta( $pid, '_review_rating', true );
+                $total_rating += $rating;
+
+                $reviews[] = array(
+                    'id'           => $pid,
+                    'mentee_name'  => $mentee ? $mentee->display_name : __( 'Anonymous', 'bpu' ),
+                    'mentee_avatar'=> $mentee ? get_avatar_url( $mentee->ID, array( 'size' => 96 ) ) : '',
+                    'rating'       => $rating,
+                    'feedback'     => get_post_meta( $pid, '_review_feedback', true ),
+                    'created_at'   => get_post_meta( $pid, '_review_created_at', true ),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        $review_count   = count( $reviews );
+        $average_rating = $review_count > 0 ? round( $total_rating / $review_count, 2 ) : 0;
+
+        return new WP_REST_Response( array(
+            'success'        => true,
+            'reviews'        => $reviews,
+            'review_count'   => $review_count,
+            'average_rating' => $average_rating,
+        ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: IN-APP MESSAGING
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/messages — List conversations for the current user.
+     */
+    public function get_message_conversations( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        // Fetch all messages where user is sender or recipient.
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_message',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                'relation' => 'OR',
+                array( 'key' => '_msg_from_user_id', 'value' => $user_id, 'compare' => '=' ),
+                array( 'key' => '_msg_to_user_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        // Group by "other user" and collect last message + unread count.
+        $conversations = array();
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $pid     = get_the_ID();
+                $from_id = (int) get_post_meta( $pid, '_msg_from_user_id', true );
+                $to_id   = (int) get_post_meta( $pid, '_msg_to_user_id', true );
+
+                $other_id = ( $from_id === $user_id ) ? $to_id : $from_id;
+
+                if ( ! isset( $conversations[ $other_id ] ) ) {
+                    $other_user = get_userdata( $other_id );
+                    $conversations[ $other_id ] = array(
+                        'user_id'         => $other_id,
+                        'display_name'    => $other_user ? $other_user->display_name : __( 'Unknown User', 'bpu' ),
+                        'avatar_url'      => $other_user ? get_avatar_url( $other_id, array( 'size' => 96 ) ) : '',
+                        'last_message'    => get_post_meta( $pid, '_msg_message', true ),
+                        'last_message_at' => get_post_meta( $pid, '_msg_created_at', true ),
+                        'unread_count'    => 0,
+                    );
+                }
+
+                // Count unread messages FROM the other user (not yet read by current user).
+                if ( $from_id === $other_id ) {
+                    $read_at = get_post_meta( $pid, '_msg_read_at', true );
+                    if ( empty( $read_at ) ) {
+                        $conversations[ $other_id ]['unread_count']++;
+                    }
+                }
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array(
+            'success'       => true,
+            'conversations' => array_values( $conversations ),
+        ), 200 );
+    }
+
+    /**
+     * GET /paired/messages/{user_id} — Get message thread with a specific user.
+     */
+    public function get_message_thread( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $current_user_id = intval( $payload['user_id'] );
+        $other_user_id   = absint( $request->get_param( 'user_id' ) );
+
+        $other_user = get_userdata( $other_user_id );
+        if ( ! $other_user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Fetch messages between these two users.
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_message',
+            'post_status'    => 'publish',
+            'posts_per_page' => 200,
+            'meta_query'     => array(
+                'relation' => 'OR',
+                array(
+                    'relation' => 'AND',
+                    array( 'key' => '_msg_from_user_id', 'value' => $current_user_id, 'compare' => '=' ),
+                    array( 'key' => '_msg_to_user_id', 'value' => $other_user_id, 'compare' => '=' ),
+                ),
+                array(
+                    'relation' => 'AND',
+                    array( 'key' => '_msg_from_user_id', 'value' => $other_user_id, 'compare' => '=' ),
+                    array( 'key' => '_msg_to_user_id', 'value' => $current_user_id, 'compare' => '=' ),
+                ),
+            ),
+            'orderby'        => 'date',
+            'order'          => 'ASC',
+        ) );
+
+        $messages = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $pid     = get_the_ID();
+                $from_id = (int) get_post_meta( $pid, '_msg_from_user_id', true );
+
+                // Mark unread messages from the other user as read.
+                if ( $from_id === $other_user_id ) {
+                    $read_at = get_post_meta( $pid, '_msg_read_at', true );
+                    if ( empty( $read_at ) ) {
+                        update_post_meta( $pid, '_msg_read_at', current_time( 'mysql' ) );
+                    }
+                }
+
+                $messages[] = array(
+                    'id'         => $pid,
+                    'from_user_id' => $from_id,
+                    'to_user_id'   => (int) get_post_meta( $pid, '_msg_to_user_id', true ),
+                    'message'    => get_post_meta( $pid, '_msg_message', true ),
+                    'created_at' => get_post_meta( $pid, '_msg_created_at', true ),
+                    'read_at'    => get_post_meta( $pid, '_msg_read_at', true ),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'messages' => $messages,
+            'contact'  => array(
+                'user_id'      => $other_user_id,
+                'display_name' => $other_user->display_name,
+                'avatar_url'   => get_avatar_url( $other_user_id, array( 'size' => 96 ) ),
+            ),
+        ), 200 );
+    }
+
+    /**
+     * POST /paired/messages — Send a message to another user.
+     */
+    public function send_message( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $from_user_id = intval( $payload['user_id'] );
+
+        $body       = $request->get_json_params();
+        $to_user_id = isset( $body['to_user_id'] ) ? absint( $body['to_user_id'] ) : 0;
+        $message    = isset( $body['message'] ) ? sanitize_textarea_field( $body['message'] ) : '';
+
+        if ( empty( $to_user_id ) ) {
+            return new WP_Error( 'missing_recipient', __( 'Recipient user ID is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( empty( $message ) ) {
+            return new WP_Error( 'missing_message', __( 'Message text is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( $from_user_id === $to_user_id ) {
+            return new WP_Error( 'self_message', __( 'You cannot send a message to yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $to_user = get_userdata( $to_user_id );
+        if ( ! $to_user ) {
+            return new WP_Error( 'user_not_found', __( 'Recipient user not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Validate booking relationship: must have at least one booking where these two are mentor/mentee.
+        $relationship = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => 1,
+            'meta_query'     => array(
+                'relation' => 'OR',
+                array(
+                    'relation' => 'AND',
+                    array( 'key' => '_bpu_booking_mentee_id', 'value' => $from_user_id, 'compare' => '=' ),
+                    array( 'key' => '_bpu_booking_mentor_id', 'value' => $to_user_id, 'compare' => '=' ),
+                ),
+                array(
+                    'relation' => 'AND',
+                    array( 'key' => '_bpu_booking_mentee_id', 'value' => $to_user_id, 'compare' => '=' ),
+                    array( 'key' => '_bpu_booking_mentor_id', 'value' => $from_user_id, 'compare' => '=' ),
+                ),
+            ),
+        ) );
+
+        if ( ! $relationship->have_posts() ) {
+            return new WP_Error( 'no_booking_relationship', __( 'You can only message users with whom you have a booking relationship.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $from_user = get_userdata( $from_user_id );
+        $title     = sprintf( 'Message from %s to %s', $from_user ? $from_user->display_name : $from_user_id, $to_user->display_name );
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'paired_message',
+            'post_title'  => sanitize_text_field( $title ),
+            'post_status' => 'publish',
+            'post_author' => $from_user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return $post_id;
+        }
+
+        $now = current_time( 'mysql' );
+        update_post_meta( $post_id, '_msg_from_user_id', $from_user_id );
+        update_post_meta( $post_id, '_msg_to_user_id', $to_user_id );
+        update_post_meta( $post_id, '_msg_message', $message );
+        update_post_meta( $post_id, '_msg_created_at', $now );
+
+        // Create notification for the recipient.
+        $this->create_notification(
+            $to_user_id,
+            'new_message',
+            __( 'New Message', 'bpu' ),
+            sprintf( '%s sent you a message.', $from_user ? $from_user->display_name : 'Someone' ),
+            '/dashboard/messages/' . $from_user_id
+        );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => array(
+                'id'           => $post_id,
+                'from_user_id' => $from_user_id,
+                'to_user_id'   => $to_user_id,
+                'message'      => $message,
+                'created_at'   => $now,
+                'read_at'      => null,
+            ),
+        ), 201 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: IN-APP NOTIFICATIONS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/notifications — List notifications for the current user.
+     */
+    public function get_notifications( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id  = intval( $payload['user_id'] );
+        $per_page = min( 100, max( 1, absint( $request->get_param( 'per_page' ) ?: 20 ) ) );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_notification',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'meta_query'     => array(
+                array( 'key' => '_notif_user_id', 'value' => $user_id, 'compare' => '=' ),
+            ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $notifications = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $pid = get_the_ID();
+                $notifications[] = array(
+                    'id'         => $pid,
+                    'type'       => get_post_meta( $pid, '_notif_type', true ),
+                    'title'      => get_post_meta( $pid, '_notif_title', true ),
+                    'message'    => get_post_meta( $pid, '_notif_message', true ),
+                    'link'       => get_post_meta( $pid, '_notif_link', true ),
+                    'read_at'    => get_post_meta( $pid, '_notif_read_at', true ) ?: null,
+                    'created_at' => get_post_meta( $pid, '_notif_created_at', true ),
+                );
+            }
+            wp_reset_postdata();
+        }
+
+        // Count total unread notifications.
+        $unread_query = new WP_Query( array(
+            'post_type'      => 'paired_notification',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_query'     => array(
+                'relation' => 'AND',
+                array( 'key' => '_notif_user_id', 'value' => $user_id, 'compare' => '=' ),
+                array(
+                    'relation' => 'OR',
+                    array( 'key' => '_notif_read_at', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_notif_read_at', 'value' => '', 'compare' => '=' ),
+                ),
+            ),
+        ) );
+
+        return new WP_REST_Response( array(
+            'success'       => true,
+            'notifications' => $notifications,
+            'unread_count'  => $unread_query->found_posts,
+        ), 200 );
+    }
+
+    /**
+     * PUT /paired/notifications/{id}/read — Mark a single notification as read.
+     */
+    public function mark_notification_read( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id         = intval( $payload['user_id'] );
+        $notification_id = absint( $request->get_param( 'id' ) );
+
+        $post = get_post( $notification_id );
+        if ( ! $post || 'paired_notification' !== $post->post_type ) {
+            return new WP_Error( 'notification_not_found', __( 'Notification not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Ensure the notification belongs to the current user.
+        $notif_user_id = (int) get_post_meta( $notification_id, '_notif_user_id', true );
+        if ( $notif_user_id !== $user_id ) {
+            return new WP_Error( 'not_your_notification', __( 'You do not have permission to modify this notification.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        update_post_meta( $notification_id, '_notif_read_at', current_time( 'mysql' ) );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /paired/notifications/read-all — Mark all notifications as read for the current user.
+     */
+    public function mark_all_notifications_read( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_notification',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_query'     => array(
+                'relation' => 'AND',
+                array( 'key' => '_notif_user_id', 'value' => $user_id, 'compare' => '=' ),
+                array(
+                    'relation' => 'OR',
+                    array( 'key' => '_notif_read_at', 'compare' => 'NOT EXISTS' ),
+                    array( 'key' => '_notif_read_at', 'value' => '', 'compare' => '=' ),
+                ),
+            ),
+        ) );
+
+        $now   = current_time( 'mysql' );
+        $count = 0;
+        if ( $query->have_posts() ) {
+            foreach ( $query->posts as $pid ) {
+                update_post_meta( $pid, '_notif_read_at', $now );
+                $count++;
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'marked_read' => $count ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: FAVOURITE MENTORS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/favourites — List the current user's favourite mentor IDs.
+     */
+    public function get_favourites( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $favourites = get_user_meta( $user_id, '_paired_favourites', true );
+        if ( ! is_array( $favourites ) ) {
+            $favourites = array();
+        }
+
+        // Return enriched data: mentor IDs with basic info.
+        $mentors = array();
+        foreach ( $favourites as $mentor_id ) {
+            $mentor = get_userdata( $mentor_id );
+            if ( $mentor && in_array( 'mentor', (array) $mentor->roles, true ) ) {
+                $mentors[] = array(
+                    'mentor_id'    => $mentor->ID,
+                    'display_name' => $mentor->display_name,
+                    'avatar_url'   => get_avatar_url( $mentor->ID, array( 'size' => 96 ) ),
+                );
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'success'    => true,
+            'favourites' => $mentors,
+        ), 200 );
+    }
+
+    /**
+     * POST /paired/favourites — Add a mentor to favourites.
+     */
+    public function add_favourite( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $body      = $request->get_json_params();
+        $mentor_id = isset( $body['mentor_id'] ) ? absint( $body['mentor_id'] ) : 0;
+
+        if ( empty( $mentor_id ) ) {
+            return new WP_Error( 'missing_mentor_id', __( 'Mentor ID is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $mentor = get_userdata( $mentor_id );
+        if ( ! $mentor || ! in_array( 'mentor', (array) $mentor->roles, true ) ) {
+            return new WP_Error( 'mentor_not_found', __( 'Mentor not found or user is not a mentor.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $favourites = get_user_meta( $user_id, '_paired_favourites', true );
+        if ( ! is_array( $favourites ) ) {
+            $favourites = array();
+        }
+
+        if ( in_array( $mentor_id, $favourites, true ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'message' => __( 'Mentor is already in your favourites.', 'bpu' ) ), 200 );
+        }
+
+        $favourites[] = $mentor_id;
+        update_user_meta( $user_id, '_paired_favourites', $favourites );
+
+        return new WP_REST_Response( array( 'success' => true, 'favourites' => $favourites ), 201 );
+    }
+
+    /**
+     * DELETE /paired/favourites/{mentor_id} — Remove a mentor from favourites.
+     */
+    public function remove_favourite( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id   = intval( $payload['user_id'] );
+        $mentor_id = absint( $request->get_param( 'mentor_id' ) );
+
+        $favourites = get_user_meta( $user_id, '_paired_favourites', true );
+        if ( ! is_array( $favourites ) ) {
+            $favourites = array();
+        }
+
+        $key = array_search( $mentor_id, $favourites, true );
+        if ( false === $key ) {
+            return new WP_Error( 'not_in_favourites', __( 'Mentor is not in your favourites.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        array_splice( $favourites, $key, 1 );
+        update_user_meta( $user_id, '_paired_favourites', $favourites );
+
+        return new WP_REST_Response( array( 'success' => true, 'favourites' => $favourites ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: MENTEE PROFILE
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/mentee/profile — Get the current user's mentee profile.
+     */
+    public function get_mentee_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $skills = get_user_meta( $user_id, '_paired_skills_to_develop', true );
+        if ( ! is_array( $skills ) ) {
+            $skills = array();
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'profile' => array(
+                'user_id'           => $user_id,
+                'display_name'      => $user->display_name,
+                'email'             => $user->user_email,
+                'avatar_url'        => get_avatar_url( $user_id, array( 'size' => 128 ) ),
+                'career_goals'      => get_user_meta( $user_id, '_paired_career_goals', true ) ?: '',
+                'skills_to_develop' => $skills,
+                'industry'          => get_user_meta( $user_id, '_paired_industry', true ) ?: '',
+                'bio'               => get_user_meta( $user_id, '_paired_bio', true ) ?: '',
+            ),
+        ), 200 );
+    }
+
+    /**
+     * PUT /paired/mentee/profile — Update the current user's mentee profile.
+     */
+    public function update_mentee_profile( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $body = $request->get_json_params();
+
+        if ( isset( $body['career_goals'] ) ) {
+            update_user_meta( $user_id, '_paired_career_goals', sanitize_textarea_field( $body['career_goals'] ) );
+        }
+
+        if ( isset( $body['skills_to_develop'] ) ) {
+            $skills = array();
+            if ( is_array( $body['skills_to_develop'] ) ) {
+                foreach ( $body['skills_to_develop'] as $skill ) {
+                    $skills[] = sanitize_text_field( $skill );
+                }
+            }
+            update_user_meta( $user_id, '_paired_skills_to_develop', $skills );
+        }
+
+        if ( isset( $body['industry'] ) ) {
+            update_user_meta( $user_id, '_paired_industry', sanitize_text_field( $body['industry'] ) );
+        }
+
+        if ( isset( $body['bio'] ) ) {
+            update_user_meta( $user_id, '_paired_bio', sanitize_textarea_field( $body['bio'] ) );
+        }
+
+        // Return the updated profile.
+        $skills = get_user_meta( $user_id, '_paired_skills_to_develop', true );
+        if ( ! is_array( $skills ) ) {
+            $skills = array();
+        }
+
+        $user = get_userdata( $user_id );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'profile' => array(
+                'user_id'           => $user_id,
+                'display_name'      => $user ? $user->display_name : '',
+                'email'             => $user ? $user->user_email : '',
+                'avatar_url'        => get_avatar_url( $user_id, array( 'size' => 128 ) ),
+                'career_goals'      => get_user_meta( $user_id, '_paired_career_goals', true ) ?: '',
+                'skills_to_develop' => $skills,
+                'industry'          => get_user_meta( $user_id, '_paired_industry', true ) ?: '',
+                'bio'               => get_user_meta( $user_id, '_paired_bio', true ) ?: '',
+            ),
+        ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: ADMIN MENTOR MANAGEMENT
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/admin/mentors — List all mentors with stats. Admin only.
+     */
+    public function admin_list_mentors( WP_REST_Request $request ) {
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, absint( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = min( 100, max( 1, absint( $request->get_param( 'per_page' ) ?: 20 ) ) );
+
+        $user_args = array(
+            'role'   => 'mentor',
+            'number' => $per_page,
+            'paged'  => $page,
+            'orderby'=> 'registered',
+            'order'  => 'DESC',
+        );
+
+        if ( ! empty( $search ) ) {
+            $user_args['search']         = '*' . $search . '*';
+            $user_args['search_columns'] = array( 'user_login', 'user_email', 'display_name' );
+        }
+
+        $user_query = new WP_User_Query( $user_args );
+        $mentors    = array();
+
+        foreach ( $user_query->get_results() as $user ) {
+            // Booking count.
+            $bookings_query = new WP_Query( array(
+                'post_type'      => 'mentorship_booking',
+                'post_status'    => array( 'publish', 'pending', 'draft' ),
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => array(
+                    array( 'key' => '_bpu_booking_mentor_id', 'value' => $user->ID, 'compare' => '=' ),
+                ),
+            ) );
+            $booking_count = $bookings_query->found_posts;
+
+            // Unique mentee count.
+            $mentee_ids = array();
+            if ( $bookings_query->have_posts() ) {
+                foreach ( $bookings_query->posts as $bid ) {
+                    $mid = (int) get_post_meta( $bid, '_bpu_booking_mentee_id', true );
+                    if ( $mid ) {
+                        $mentee_ids[ $mid ] = true;
+                    }
+                }
+            }
+
+            // Average rating.
+            $reviews_query = new WP_Query( array(
+                'post_type'      => 'mentor_review',
+                'post_status'    => 'publish',
+                'posts_per_page' => -1,
+                'fields'         => 'ids',
+                'meta_query'     => array(
+                    array( 'key' => '_review_mentor_id', 'value' => $user->ID, 'compare' => '=' ),
+                ),
+            ) );
+            $total_rating  = 0;
+            $review_count  = 0;
+            if ( $reviews_query->have_posts() ) {
+                foreach ( $reviews_query->posts as $rid ) {
+                    $total_rating += (int) get_post_meta( $rid, '_review_rating', true );
+                    $review_count++;
+                }
+            }
+            $avg_rating = $review_count > 0 ? round( $total_rating / $review_count, 2 ) : 0;
+
+            $mentors[] = array(
+                'user_id'        => $user->ID,
+                'display_name'   => $user->display_name,
+                'email'          => $user->user_email,
+                'avatar_url'     => get_avatar_url( $user->ID, array( 'size' => 96 ) ),
+                'registered'     => $user->user_registered,
+                'booking_count'  => $booking_count,
+                'mentee_count'   => count( $mentee_ids ),
+                'average_rating' => $avg_rating,
+                'review_count'   => $review_count,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'mentors' => $mentors,
+            'total'   => $user_query->get_total(),
+            'page'    => $page,
+            'per_page'=> $per_page,
+        ), 200 );
+    }
+
+    /**
+     * PUT /paired/admin/mentors/{id} — Admin updates a mentor's profile.
+     */
+    public function admin_update_mentor( WP_REST_Request $request ) {
+        $mentor_id = absint( $request->get_param( 'id' ) );
+        $mentor    = get_userdata( $mentor_id );
+
+        if ( ! $mentor || ! in_array( 'mentor', (array) $mentor->roles, true ) ) {
+            return new WP_Error( 'mentor_not_found', __( 'Mentor not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params();
+
+        // Update display name.
+        if ( isset( $body['display_name'] ) ) {
+            wp_update_user( array(
+                'ID'           => $mentor_id,
+                'display_name' => sanitize_text_field( $body['display_name'] ),
+            ) );
+        }
+
+        // Update common mentor meta fields.
+        $meta_fields = array(
+            'first_name'       => 'first_name',
+            'last_name'        => 'last_name',
+            'user_bio'         => 'user_bio',
+            'industry'         => 'industry',
+            'linkedin_profile' => 'linkedin_profile',
+            'phone_number'     => 'phone_number',
+        );
+
+        foreach ( $meta_fields as $param_key => $meta_key ) {
+            if ( isset( $body[ $param_key ] ) ) {
+                update_user_meta( $mentor_id, $meta_key, sanitize_text_field( $body[ $param_key ] ) );
+            }
+        }
+
+        // Update paired-specific meta.
+        $paired_fields = array(
+            'headline'         => '_paired_headline',
+            'bio'              => '_paired_bio',
+            'years_experience' => '_paired_years_experience',
+            'photo_url'        => '_paired_photo_url',
+        );
+
+        foreach ( $paired_fields as $param_key => $meta_key ) {
+            if ( isset( $body[ $param_key ] ) ) {
+                if ( $param_key === 'photo_url' ) {
+                    update_user_meta( $mentor_id, $meta_key, esc_url_raw( $body[ $param_key ] ) );
+                } else {
+                    update_user_meta( $mentor_id, $meta_key, sanitize_text_field( $body[ $param_key ] ) );
+                }
+            }
+        }
+
+        if ( isset( $body['skills'] ) && is_array( $body['skills'] ) ) {
+            $skills = array_map( 'sanitize_text_field', $body['skills'] );
+            update_user_meta( $mentor_id, '_paired_skills', $skills );
+        }
+
+        $updated_mentor = get_userdata( $mentor_id );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'mentor'  => array(
+                'user_id'      => $mentor_id,
+                'display_name' => $updated_mentor->display_name,
+                'email'        => $updated_mentor->user_email,
+                'avatar_url'   => get_avatar_url( $mentor_id, array( 'size' => 96 ) ),
+            ),
+        ), 200 );
+    }
+
+    /**
+     * POST /paired/admin/mentors/{id}/deactivate — Remove mentor role. Admin only.
+     */
+    public function admin_deactivate_mentor( WP_REST_Request $request ) {
+        $mentor_id = absint( $request->get_param( 'id' ) );
+        $user      = get_userdata( $mentor_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( ! in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_Error( 'not_a_mentor', __( 'This user does not have the mentor role.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $user->remove_role( 'mentor' );
+
+        // Ensure the user still has at least the subscriber role.
+        if ( empty( $user->roles ) ) {
+            $user->add_role( 'subscriber' );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => sprintf( __( 'Mentor role removed from user %d.', 'bpu' ), $mentor_id ),
+            'roles'   => (array) $user->roles,
+        ), 200 );
+    }
+
+    /**
+     * POST /paired/admin/mentors/{id}/activate — Add mentor role back. Admin only.
+     */
+    public function admin_activate_mentor( WP_REST_Request $request ) {
+        $mentor_id = absint( $request->get_param( 'id' ) );
+        $user      = get_userdata( $mentor_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( in_array( 'mentor', (array) $user->roles, true ) ) {
+            return new WP_REST_Response( array(
+                'success' => true,
+                'message' => __( 'User already has the mentor role.', 'bpu' ),
+                'roles'   => (array) $user->roles,
+            ), 200 );
+        }
+
+        $user->add_role( 'mentor' );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => sprintf( __( 'Mentor role added to user %d.', 'bpu' ), $mentor_id ),
+            'roles'   => (array) $user->roles,
+        ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PHASE 2: ADMIN PLATFORM ANALYTICS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /paired/admin/stats — Return platform-wide analytics. Admin only.
+     */
+    public function admin_get_platform_stats( WP_REST_Request $request ) {
+        // Total mentors.
+        $mentor_query  = new WP_User_Query( array( 'role' => 'mentor', 'count_total' => true, 'number' => 0 ) );
+        $total_mentors = $mentor_query->get_total();
+
+        // Total mentees (users who have at least one booking as mentee).
+        global $wpdb;
+        $total_mentees = (int) $wpdb->get_var(
+            "SELECT COUNT(DISTINCT meta_value) FROM {$wpdb->postmeta}
+             WHERE meta_key = '_bpu_booking_mentee_id'"
+        );
+
+        // Total bookings.
+        $all_bookings = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ) );
+        $total_bookings = $all_bookings->found_posts;
+
+        // Bookings by status.
+        $status_counts = array(
+            'pending'   => 0,
+            'confirmed' => 0,
+            'completed' => 0,
+            'cancelled' => 0,
+        );
+
+        if ( $all_bookings->have_posts() ) {
+            foreach ( $all_bookings->posts as $bid ) {
+                $s = get_post_meta( $bid, '_bpu_booking_status', true ) ?: 'pending';
+                if ( isset( $status_counts[ $s ] ) ) {
+                    $status_counts[ $s ]++;
+                }
+            }
+        }
+
+        // Completion rate.
+        $completion_rate = $total_bookings > 0
+            ? round( ( $status_counts['completed'] / $total_bookings ) * 100, 1 )
+            : 0;
+
+        // Bookings this month.
+        $first_of_month = gmdate( 'Y-m-01' );
+        $bookings_month = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => array( 'publish', 'pending', 'draft' ),
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'date_query'     => array(
+                array( 'after' => $first_of_month, 'inclusive' => true ),
+            ),
+        ) );
+        $bookings_this_month = $bookings_month->found_posts;
+
+        // New mentors this month.
+        $new_mentors_query = new WP_User_Query( array(
+            'role'       => 'mentor',
+            'count_total'=> true,
+            'number'     => 0,
+            'date_query' => array(
+                array( 'after' => $first_of_month, 'inclusive' => true ),
+            ),
+        ) );
+        $new_mentors_this_month = $new_mentors_query->get_total();
+
+        // Top mentors by booking count (top 10).
+        $mentor_booking_counts = array();
+        if ( $all_bookings->have_posts() ) {
+            foreach ( $all_bookings->posts as $bid ) {
+                $mid = (int) get_post_meta( $bid, '_bpu_booking_mentor_id', true );
+                if ( $mid ) {
+                    if ( ! isset( $mentor_booking_counts[ $mid ] ) ) {
+                        $mentor_booking_counts[ $mid ] = 0;
+                    }
+                    $mentor_booking_counts[ $mid ]++;
+                }
+            }
+        }
+        arsort( $mentor_booking_counts );
+        $top_mentor_ids = array_slice( $mentor_booking_counts, 0, 10, true );
+
+        $top_mentors = array();
+        foreach ( $top_mentor_ids as $mid => $count ) {
+            $m = get_userdata( $mid );
+            $top_mentors[] = array(
+                'user_id'       => $mid,
+                'display_name'  => $m ? $m->display_name : 'Unknown',
+                'avatar_url'    => get_avatar_url( $mid, array( 'size' => 96 ) ),
+                'booking_count' => $count,
+            );
+        }
+
+        // Average platform rating.
+        $all_reviews = new WP_Query( array(
+            'post_type'      => 'mentor_review',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        ) );
+        $platform_total_rating = 0;
+        $platform_review_count = 0;
+        if ( $all_reviews->have_posts() ) {
+            foreach ( $all_reviews->posts as $rid ) {
+                $platform_total_rating += (int) get_post_meta( $rid, '_review_rating', true );
+                $platform_review_count++;
+            }
+        }
+        $average_rating_platform = $platform_review_count > 0
+            ? round( $platform_total_rating / $platform_review_count, 2 )
+            : 0;
+
+        return new WP_REST_Response( array(
+            'success'                 => true,
+            'total_mentors'           => $total_mentors,
+            'total_mentees'           => $total_mentees,
+            'total_bookings'          => $total_bookings,
+            'bookings_by_status'      => $status_counts,
+            'completion_rate'         => $completion_rate,
+            'bookings_this_month'     => $bookings_this_month,
+            'new_mentors_this_month'  => $new_mentors_this_month,
+            'top_mentors'             => $top_mentors,
+            'average_rating_platform' => $average_rating_platform,
+        ), 200 );
     }
 }
 
