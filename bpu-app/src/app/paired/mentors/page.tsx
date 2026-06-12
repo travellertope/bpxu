@@ -1,5 +1,8 @@
 import { Suspense } from 'react';
+import { cookies } from 'next/headers';
 import { decodeHtml } from '@/lib/utils';
+import { getBPUSession } from '@/lib/auth';
+import FavouriteButton from '../FavouriteButton';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -14,6 +17,8 @@ interface MentorSummary {
     industryfield_of_expertise: string;
     company: string;
     current_role: string;
+    average_rating: number;
+    review_count: number;
 }
 
 function mentorColor(id: number): string {
@@ -45,10 +50,14 @@ async function MentorGrid({
     search,
     industry,
     page,
+    favouritedIds,
+    isAuthenticated,
 }: {
     search: string;
     industry: string;
     page: number;
+    favouritedIds: Set<number>;
+    isAuthenticated: boolean;
 }) {
     const url = new URL(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors`);
     url.searchParams.set('per_page', '12');
@@ -143,6 +152,15 @@ async function MentorGrid({
                                         <p className="text-xs text-text-3 truncate mt-0.5">{companyLine}</p>
                                     )}
                                 </div>
+                                {isAuthenticated && (
+                                    <div className="shrink-0">
+                                        <FavouriteButton
+                                            mentorId={m.id}
+                                            initialFavourited={favouritedIds.has(m.id)}
+                                            size={18}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
                             <div style={{ padding: '16px 24px' }} className="flex-1 flex flex-col gap-3">
@@ -168,6 +186,16 @@ async function MentorGrid({
                                         {skills.map(s => (
                                             <span key={s} className="badge badge-purple text-xs">{s}</span>
                                         ))}
+                                    </div>
+                                )}
+
+                                {m.average_rating > 0 && (
+                                    <div className="flex items-center gap-1 text-xs">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" strokeWidth="2">
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                        </svg>
+                                        <span className="font-semibold" style={{ color: '#f59e0b' }}>{m.average_rating.toFixed(1)}</span>
+                                        <span className="text-text-3">({m.review_count})</span>
                                     </div>
                                 )}
                             </div>
@@ -204,6 +232,50 @@ async function MentorGrid({
                 </div>
             )}
         </div>
+    );
+}
+
+async function MentorGridWithFavourites({
+    search,
+    industry,
+    page,
+}: {
+    search: string;
+    industry: string;
+    page: number;
+}) {
+    const session = await getBPUSession();
+    const isAuthenticated = session.authenticated;
+
+    let favouritedIds = new Set<number>();
+    if (isAuthenticated) {
+        try {
+            const cookieStore = await cookies();
+            const jwt = cookieStore.get('bpu_session')?.value || '';
+            if (jwt) {
+                const WP = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+                const favRes = await fetch(`${WP}/wp-json/bpu/v1/paired/favourites`, {
+                    headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+                });
+                if (favRes.ok) {
+                    const favData = await favRes.json();
+                    const favourites: Array<{ mentor_id: number }> = favData.favourites || [];
+                    favouritedIds = new Set(favourites.map(f => f.mentor_id));
+                }
+            }
+        } catch {
+            // Favourites unavailable
+        }
+    }
+
+    return (
+        <MentorGrid
+            search={search}
+            industry={industry}
+            page={page}
+            favouritedIds={favouritedIds}
+            isAuthenticated={isAuthenticated}
+        />
     );
 }
 
@@ -284,7 +356,7 @@ export default async function MentorDirectory({
             <Suspense fallback={
                 <div className="text-center text-sm text-text-2 py-12">Loading mentors…</div>
             }>
-                <MentorGrid search={search} industry={industry} page={page} />
+                <MentorGridWithFavourites search={search} industry={industry} page={page} />
             </Suspense>
 
         </div>

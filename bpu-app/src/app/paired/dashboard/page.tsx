@@ -73,6 +73,7 @@ export default async function PairedDashboard() {
     let bookings: Booking[] = [];
     let suggested: MentorSummary[] = [];
     let mentorStats: MentorStats | null = null as MentorStats | null;
+    let menteeProfile: Record<string, string> = {};
 
     await Promise.all([
         fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/bookings?per_page=50`, {
@@ -91,6 +92,15 @@ export default async function PairedDashboard() {
                 .catch(() => {})
             : Promise.resolve(),
 
+        !isMentor
+            ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/paired/mentee/profile`, {
+                headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d?.profile) menteeProfile = d.profile; })
+                .catch(() => {})
+            : Promise.resolve(),
+
         !isMentor && isPro
             ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=12`, {
                 headers: { 'Cache-Control': 'no-store' },
@@ -98,7 +108,7 @@ export default async function PairedDashboard() {
                 .then(r => r.ok ? r.json() : null)
                 .then(d => {
                     if (d?.mentors && user.profile) {
-                        const memberProfile = user.profile as unknown as Record<string, string>;
+                        const memberProfile = { ...(user.profile as unknown as Record<string, string>), ...menteeProfile };
                         suggested = (d.mentors as MentorSummary[])
                             .map(m => ({
                                 ...m,

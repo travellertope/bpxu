@@ -2,6 +2,13 @@
 
 import { useState, useMemo } from 'react';
 
+interface MenteeProfile {
+    career_goals?: string;
+    skills_to_develop?: string;
+    industry?: string;
+    user_bio?: string;
+}
+
 interface Booking {
     id: number;
     mentor_id: number;
@@ -14,6 +21,7 @@ interface Booking {
     notes: string;
     status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
     created_at: string;
+    mentee_profile?: MenteeProfile;
 }
 
 type TabFilter = 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled';
@@ -79,6 +87,7 @@ export default function BookingManager({ initial }: { initial: Booking[] }) {
     const [success, setSuccess] = useState('');
     const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
     const [confirmDecline, setConfirmDecline] = useState<number | null>(null);
+    const [expandedProfiles, setExpandedProfiles] = useState<Set<number>>(new Set());
 
     function flash(msg: string, type: 'success' | 'error') {
         if (type === 'success') {
@@ -262,6 +271,63 @@ export default function BookingManager({ initial }: { initial: Booking[] }) {
                                                     >
                                                         {notesExpanded ? 'Show less' : 'Read more'}
                                                     </button>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Mentee profile info */}
+                                        {booking.mentee_profile && (
+                                            booking.mentee_profile.career_goals ||
+                                            booking.mentee_profile.skills_to_develop ||
+                                            booking.mentee_profile.industry ||
+                                            booking.mentee_profile.user_bio
+                                        ) && (
+                                            <div className="mt-2">
+                                                <button
+                                                    className="text-xs font-medium"
+                                                    style={{ color: 'var(--purple)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                                    onClick={() =>
+                                                        setExpandedProfiles(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(booking.id)) next.delete(booking.id);
+                                                            else next.add(booking.id);
+                                                            return next;
+                                                        })
+                                                    }
+                                                >
+                                                    {expandedProfiles.has(booking.id) ? 'Hide mentee profile' : 'View mentee profile'}
+                                                </button>
+                                                {expandedProfiles.has(booking.id) && (
+                                                    <div className="mt-2 p-3 rounded-lg text-sm space-y-2" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                                                        {booking.mentee_profile.industry && (
+                                                            <div>
+                                                                <span className="text-xs text-text-3 uppercase tracking-wide font-medium">Industry</span>
+                                                                <p className="text-text-2 mt-0.5">{booking.mentee_profile.industry}</p>
+                                                            </div>
+                                                        )}
+                                                        {booking.mentee_profile.career_goals && (
+                                                            <div>
+                                                                <span className="text-xs text-text-3 uppercase tracking-wide font-medium">Career Goals</span>
+                                                                <p className="text-text-2 mt-0.5">{booking.mentee_profile.career_goals}</p>
+                                                            </div>
+                                                        )}
+                                                        {booking.mentee_profile.skills_to_develop && (
+                                                            <div>
+                                                                <span className="text-xs text-text-3 uppercase tracking-wide font-medium">Skills to Develop</span>
+                                                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                                                    {booking.mentee_profile.skills_to_develop.split(',').map(s => s.trim()).filter(Boolean).map(skill => (
+                                                                        <span key={skill} className="badge badge-purple text-xs">{skill}</span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                        {booking.mentee_profile.user_bio && (
+                                                            <div>
+                                                                <span className="text-xs text-text-3 uppercase tracking-wide font-medium">About</span>
+                                                                <p className="text-text-2 mt-0.5">{booking.mentee_profile.user_bio}</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         )}

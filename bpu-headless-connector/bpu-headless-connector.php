@@ -845,6 +845,22 @@ class BPU_Headless_Connector {
             'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
         ) );
 
+        // ── Session-specific custom hours ───────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/sessions/(?P<id>\d+)/hours', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_session_custom_hours' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::EDITABLE,
+                'callback'            => array( $this, 'set_session_custom_hours' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array( 'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ) ),
+            ),
+        ) );
+
         // ── Work experience CRUD ─────────────────────────────
         register_rest_route( $this->namespace, '/paired/mentor/experiences', array(
             array(
@@ -3105,10 +3121,42 @@ Rules:
     }
 
     /**
+     * Compute average rating and review count for a mentor.
+     */
+    private function get_mentor_review_stats( $mentor_id ) {
+        $query = new WP_Query( array(
+            'post_type'      => 'mentor_review',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+            'meta_query'     => array(
+                array( 'key' => '_review_mentor_id', 'value' => $mentor_id, 'compare' => '=' ),
+            ),
+        ) );
+
+        $total_rating = 0;
+        $review_count = 0;
+
+        if ( $query->have_posts() ) {
+            foreach ( $query->posts as $pid ) {
+                $total_rating += (int) get_post_meta( $pid, '_review_rating', true );
+                $review_count++;
+            }
+            wp_reset_postdata();
+        }
+
+        return array(
+            'average_rating' => $review_count > 0 ? round( $total_rating / $review_count, 2 ) : 0,
+            'review_count'   => $review_count,
+        );
+    }
+
+    /**
      * Format a mentor user for list responses (summary).
      */
     private function format_mentor_summary( WP_User $user ) {
-        $acf = $this->get_mentor_acf_fields( $user->ID );
+        $acf          = $this->get_mentor_acf_fields( $user->ID );
+        $review_stats = $this->get_mentor_review_stats( $user->ID );
 
         return array(
             'id'                        => $user->ID,
@@ -3121,6 +3169,8 @@ Rules:
             'industryfield_of_expertise' => isset( $acf['industryfield_of_expertise'] ) ? $acf['industryfield_of_expertise'] : '',
             'company'                   => isset( $acf['company'] ) ? $acf['company'] : '',
             'current_role'              => isset( $acf['current_role'] ) ? $acf['current_role'] : '',
+            'average_rating'            => $review_stats['average_rating'],
+            'review_count'              => $review_stats['review_count'],
         );
     }
 
@@ -3175,6 +3225,8 @@ Rules:
             wp_reset_postdata();
         }
 
+        $review_stats = $this->get_mentor_review_stats( $user->ID );
+
         return array(
             'id'                        => $user->ID,
             'display_name'              => $user->display_name,
@@ -3185,6 +3237,8 @@ Rules:
             'experiences'               => $experiences,
             'education'                 => $education,
             'registered_date'           => $user->user_registered,
+            'average_rating'            => $review_stats['average_rating'],
+            'review_count'              => $review_stats['review_count'],
         );
     }
 
@@ -3323,6 +3377,16 @@ Rules:
         update_post_meta( $post_id, '_bpu_booking_created_at', current_time( 'mysql' ) );
 
         $this->send_booking_emails( $mentee, $mentor, $date, $time_slot, $notes );
+
+        // Create in-app notification for the mentor about the new booking
+        $mentee_name = $mentee ? $mentee->display_name : 'A mentee';
+        $this->create_notification(
+            $mentor_id,
+            'new_booking',
+            __( 'New Booking Request', 'bpu' ),
+            sprintf( '%s has requested a session on %s.', esc_html( $mentee_name ), esc_html( $date ) ),
+            '/paired/dashboard'
+        );
 
         return new WP_REST_Response( array(
             'success' => true,
@@ -3595,6 +3659,12 @@ Rules:
                 'id'           => $mentee->ID,
                 'display_name' => $mentee->display_name,
                 'avatar_url'   => get_avatar_url( $mentee->ID, array( 'size' => 128 ) ),
+            ) : null,
+            'mentee_profile' => $mentee ? array(
+                'career_goals'      => get_user_meta( $mentee->ID, '_paired_career_goals', true ) ?: '',
+                'skills_to_develop' => get_user_meta( $mentee->ID, '_paired_skills_to_develop', true ) ?: '',
+                'industry'          => get_user_meta( $mentee->ID, '_paired_mentee_industry', true ) ?: '',
+                'bio'               => get_user_meta( $mentee->ID, '_paired_mentee_bio', true ) ?: '',
             ) : null,
         );
     }
@@ -3966,7 +4036,8 @@ Rules:
             } else {
                 $heading   = 'Session marked as completed';
                 $body_html = '<p style="color:#333;font-size:15px;line-height:1.6;">Your session with <strong>' . esc_html( $mentor_name ) . '</strong> has been marked as completed. We hope it was valuable!</p>';
-                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Book another session</a></p>';
+                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors/' . intval( $mentor_id ) . '/review" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Leave a review</a></p>';
+                $body_html .= '<p style="margin-top:12px;"><a href="https://pairedbybpu.uk/paired/mentors" style="color:#7c3aed;font-size:14px;text-decoration:underline;">Or browse more mentors</a></p>';
             }
 
             wp_mail(
@@ -3975,6 +4046,34 @@ Rules:
                 $this->build_email_html( $heading, $body_html ),
                 array( 'Content-Type: text/html; charset=UTF-8' )
             );
+
+            // Create in-app notification for mentee
+            if ( 'confirmed' === $status ) {
+                $notif_date = $booking_date ? $booking_date : 'your scheduled date';
+                $this->create_notification(
+                    $mentee_id,
+                    'booking_status',
+                    __( 'Session Confirmed', 'bpu' ),
+                    sprintf( '%s confirmed your session on %s.', esc_html( $mentor_name ), esc_html( $notif_date ) ),
+                    '/paired/dashboard'
+                );
+            } elseif ( 'cancelled' === $status ) {
+                $this->create_notification(
+                    $mentee_id,
+                    'booking_status',
+                    __( 'Session Declined', 'bpu' ),
+                    sprintf( 'Your session request with %s has been declined.', esc_html( $mentor_name ) ),
+                    '/paired/mentors'
+                );
+            } elseif ( 'completed' === $status ) {
+                $this->create_notification(
+                    $mentee_id,
+                    'booking_status',
+                    __( 'Session Completed', 'bpu' ),
+                    sprintf( 'Your session with %s has been marked as completed. Leave a review!', esc_html( $mentor_name ) ),
+                    '/paired/mentors/' . $mentor_id . '/review'
+                );
+            }
         }
 
         return new WP_REST_Response( array(
@@ -4130,6 +4229,76 @@ Rules:
         wp_delete_post( $post_id, true );
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * GET /paired/mentor/sessions/{id}/hours — Get custom hours for a session type.
+     */
+    public function get_session_custom_hours( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $session_id = absint( $request->get_param( 'id' ) );
+        $post       = get_post( $session_id );
+        if ( ! $post || 'paired_session' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Session not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $session_id, '_session_mentor_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only view hours for your own sessions.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $hours_json = get_user_meta( $user_id, '_paired_session_hours_' . $session_id, true );
+        $hours      = $hours_json ? json_decode( $hours_json, true ) : array();
+
+        return new WP_REST_Response( array(
+            'success'    => true,
+            'session_id' => $session_id,
+            'hours'      => $hours,
+        ), 200 );
+    }
+
+    /**
+     * PUT /paired/mentor/sessions/{id}/hours — Set custom hours for a session type.
+     */
+    public function set_session_custom_hours( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $session_id = absint( $request->get_param( 'id' ) );
+        $post       = get_post( $session_id );
+        if ( ! $post || 'paired_session' !== $post->post_type ) {
+            return new WP_Error( 'not_found', __( 'Session not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $owner = (int) get_post_meta( $session_id, '_session_mentor_id', true );
+        if ( $owner !== $user_id ) {
+            return new WP_Error( 'forbidden', __( 'You can only set hours for your own sessions.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        $body  = $request->get_json_params();
+        $hours = isset( $body['hours'] ) && is_array( $body['hours'] ) ? $body['hours'] : array();
+
+        // Sanitize each schedule entry
+        $sanitized = array();
+        foreach ( $hours as $entry ) {
+            if ( isset( $entry['day'], $entry['start'], $entry['end'] ) ) {
+                $sanitized[] = array(
+                    'day'   => absint( $entry['day'] ),
+                    'start' => sanitize_text_field( $entry['start'] ),
+                    'end'   => sanitize_text_field( $entry['end'] ),
+                );
+            }
+        }
+
+        update_user_meta( $user_id, '_paired_session_hours_' . $session_id, wp_json_encode( $sanitized ) );
+
+        return new WP_REST_Response( array(
+            'success'    => true,
+            'session_id' => $session_id,
+            'hours'      => $sanitized,
+        ), 200 );
     }
 
     public function get_public_mentor_sessions( WP_REST_Request $request ) {
@@ -4520,9 +4689,22 @@ Rules:
             return new WP_REST_Response( array( 'success' => true, 'slots' => array() ), 200 );
         }
 
-        // Get mentor schedule
-        $schedule_json = get_user_meta( $mentor_id, '_paired_weekly_schedule', true );
-        $schedule      = $schedule_json ? json_decode( $schedule_json, true ) : array();
+        // Get mentor schedule — use session-specific hours if session_id is provided
+        $session_id = absint( $request->get_param( 'session_id' ) );
+        $schedule   = null;
+
+        if ( $session_id ) {
+            $session_hours_json = get_user_meta( $mentor_id, '_paired_session_hours_' . $session_id, true );
+            if ( $session_hours_json ) {
+                $schedule = json_decode( $session_hours_json, true );
+            }
+        }
+
+        if ( null === $schedule ) {
+            $schedule_json = get_user_meta( $mentor_id, '_paired_weekly_schedule', true );
+            $schedule      = $schedule_json ? json_decode( $schedule_json, true ) : array();
+        }
+
         $holidays_json = get_user_meta( $mentor_id, '_paired_holidays', true );
         $holidays      = $holidays_json ? json_decode( $holidays_json, true ) : array();
 
@@ -7170,6 +7352,19 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             '/dashboard/messages/' . $from_user_id
         );
 
+        // Send email notification to the recipient
+        $sender_name   = $from_user ? $from_user->display_name : 'Someone';
+        $email_heading = 'New message from ' . $sender_name;
+        $email_body    = '<p style="color:#333;font-size:15px;line-height:1.6;"><strong>' . esc_html( $sender_name ) . '</strong> sent you a message on PAIRED.</p>';
+        $email_body   .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/messages" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Read message</a></p>';
+
+        wp_mail(
+            $to_user->user_email,
+            sprintf( 'New message from %s — PAIRED by BPU', $sender_name ),
+            $this->build_email_html( $email_heading, $email_body ),
+            array( 'Content-Type: text/html; charset=UTF-8' )
+        );
+
         return new WP_REST_Response( array(
             'success' => true,
             'message' => array(
@@ -7340,10 +7535,15 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         foreach ( $favourites as $mentor_id ) {
             $mentor = get_userdata( $mentor_id );
             if ( $mentor && in_array( 'mentor', (array) $mentor->roles, true ) ) {
+                $photo_url = get_user_meta( $mentor->ID, '_paired_photo_url', true );
                 $mentors[] = array(
+                    'id'           => $mentor->ID,
                     'mentor_id'    => $mentor->ID,
                     'display_name' => $mentor->display_name,
-                    'avatar_url'   => get_avatar_url( $mentor->ID, array( 'size' => 96 ) ),
+                    'avatar_url'   => $photo_url ?: get_avatar_url( $mentor->ID, array( 'size' => 200 ) ),
+                    'job_title'    => get_user_meta( $mentor->ID, 'current_role', true ),
+                    'company'      => get_user_meta( $mentor->ID, 'company', true ),
+                    'industry'     => get_user_meta( $mentor->ID, 'industry', true ),
                 );
             }
         }

@@ -2,6 +2,12 @@
 
 import { useState } from 'react';
 
+interface TimeBlock {
+    day: string;
+    start: string;
+    end: string;
+}
+
 interface SessionType {
     id: number;
     name: string;
@@ -165,6 +171,9 @@ export default function SessionManager({ initial }: { initial: SessionType[] }) 
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [deletingId, setDeletingId] = useState<number | null>(null);
+    const [customHoursOpen, setCustomHoursOpen] = useState<number | null>(null);
+    const [customHours, setCustomHours] = useState<Record<number, TimeBlock[]>>({});
+    const [hoursLoading, setHoursLoading] = useState<number | null>(null);
 
     function flash(msg: string, type: 'success' | 'error') {
         if (type === 'success') {
@@ -247,6 +256,70 @@ export default function SessionManager({ initial }: { initial: SessionType[] }) 
         } finally {
             setLoading(false);
         }
+    }
+
+    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const HOURS_LIST = Array.from({ length: 25 }, (_, i) => `${String(i).padStart(2, '0')}:00`);
+
+    async function loadCustomHours(sessionId: number) {
+        setHoursLoading(sessionId);
+        try {
+            const res = await fetch(`/api/paired/mentor/sessions/${sessionId}/hours`);
+            if (res.ok) {
+                const data = await res.json();
+                setCustomHours(prev => ({ ...prev, [sessionId]: data.schedule || [] }));
+            } else {
+                setCustomHours(prev => ({ ...prev, [sessionId]: [] }));
+            }
+        } catch {
+            setCustomHours(prev => ({ ...prev, [sessionId]: [] }));
+        } finally {
+            setHoursLoading(null);
+        }
+    }
+
+    async function saveCustomHours(sessionId: number) {
+        setLoading(true);
+        try {
+            const res = await fetch(`/api/paired/mentor/sessions/${sessionId}/hours`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ schedule: customHours[sessionId] || [] }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                flash(data.error || 'Failed to save custom hours.', 'error');
+                return;
+            }
+            flash('Custom availability saved.', 'success');
+        } catch {
+            flash('Something went wrong. Please try again.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function toggleCustomDay(sessionId: number, day: string) {
+        setCustomHours(prev => {
+            const blocks = prev[sessionId] || [];
+            const hasDay = blocks.some(b => b.day === day);
+            return {
+                ...prev,
+                [sessionId]: hasDay
+                    ? blocks.filter(b => b.day !== day)
+                    : [...blocks, { day, start: '09:00', end: '17:00' }],
+            };
+        });
+    }
+
+    function updateCustomBlock(sessionId: number, day: string, index: number, field: 'start' | 'end', value: string) {
+        setCustomHours(prev => {
+            const blocks = [...(prev[sessionId] || [])];
+            const dayBlocks = blocks.filter(b => b.day === day);
+            const otherBlocks = blocks.filter(b => b.day !== day);
+            dayBlocks[index] = { ...dayBlocks[index], [field]: value };
+            return { ...prev, [sessionId]: [...otherBlocks, ...dayBlocks] };
+        });
     }
 
     return (
@@ -339,6 +412,7 @@ export default function SessionManager({ initial }: { initial: SessionType[] }) 
                                     </div>
                                 </div>
                             ) : (
+                                <>
                                 <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -383,6 +457,98 @@ export default function SessionManager({ initial }: { initial: SessionType[] }) 
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Custom availability toggle */}
+                                <div className="mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                                    <button
+                                        className="text-xs font-medium flex items-center gap-1"
+                                        style={{ color: 'var(--purple)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                                        onClick={async () => {
+                                            if (customHoursOpen === session.id) {
+                                                setCustomHoursOpen(null);
+                                            } else {
+                                                setCustomHoursOpen(session.id);
+                                                if (!(session.id in customHours)) {
+                                                    await loadCustomHours(session.id);
+                                                }
+                                            }
+                                        }}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                        {customHoursOpen === session.id ? 'Hide custom availability' : 'Set custom availability'}
+                                    </button>
+
+                                    {customHoursOpen === session.id && (
+                                        <div className="mt-3 space-y-2">
+                                            {hoursLoading === session.id ? (
+                                                <p className="text-xs text-text-3">Loading...</p>
+                                            ) : (
+                                                <>
+                                                    <p className="text-xs text-text-3 mb-2">
+                                                        Override your default weekly availability for this session type.
+                                                    </p>
+                                                    {DAYS.map(day => {
+                                                        const blocks = (customHours[session.id] || []).filter(b => b.day === day);
+                                                        const isActive = blocks.length > 0;
+                                                        return (
+                                                            <div key={day} className="rounded-lg p-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => toggleCustomDay(session.id, day)}
+                                                                        style={{
+                                                                            width: 34, height: 18, borderRadius: 9, border: 'none', cursor: 'pointer',
+                                                                            background: isActive ? 'var(--purple)' : 'var(--border)',
+                                                                            position: 'relative', transition: 'background .2s',
+                                                                        }}
+                                                                    >
+                                                                        <span style={{
+                                                                            position: 'absolute', top: 2, width: 14, height: 14, borderRadius: '50%',
+                                                                            background: '#fff', transition: 'left .2s',
+                                                                            left: isActive ? 18 : 2,
+                                                                        }} />
+                                                                    </button>
+                                                                    <span className="text-xs font-semibold" style={{ minWidth: 75 }}>{day}</span>
+                                                                    {isActive && blocks.map((block, idx) => (
+                                                                        <div key={idx} className="flex items-center gap-1">
+                                                                            <select
+                                                                                className="field-input"
+                                                                                style={{ width: 85, fontSize: 12, padding: '2px 4px' }}
+                                                                                value={block.start}
+                                                                                onChange={e => updateCustomBlock(session.id, day, idx, 'start', e.target.value)}
+                                                                            >
+                                                                                {HOURS_LIST.map(h => <option key={h} value={h}>{h}</option>)}
+                                                                            </select>
+                                                                            <span className="text-text-3 text-xs">-</span>
+                                                                            <select
+                                                                                className="field-input"
+                                                                                style={{ width: 85, fontSize: 12, padding: '2px 4px' }}
+                                                                                value={block.end}
+                                                                                onChange={e => updateCustomBlock(session.id, day, idx, 'end', e.target.value)}
+                                                                            >
+                                                                                {HOURS_LIST.map(h => <option key={h} value={h}>{h}</option>)}
+                                                                            </select>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    <div className="flex justify-end pt-2">
+                                                        <button
+                                                            className="btn btn-purple btn-sm"
+                                                            disabled={loading}
+                                                            onClick={() => saveCustomHours(session.id)}
+                                                        >
+                                                            {loading ? 'Saving...' : 'Save Custom Hours'}
+                                                        </button>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                </>
                             )}
                         </div>
                     ))}

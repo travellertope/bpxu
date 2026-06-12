@@ -1,9 +1,42 @@
 import { getBPUSession } from '@/lib/auth';
 import { BPUApi } from '@/lib/api';
 import { decodeHtml } from '@/lib/utils';
+import { cookies } from 'next/headers';
 import BookingForm from './BookingForm';
+import FavouriteButton from '../../FavouriteButton';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+
+interface Review {
+    id: number;
+    rating: number;
+    feedback: string;
+    mentee_name: string;
+    mentee_avatar: string;
+    created_at: string;
+}
+
+function StarRating({ rating, size = 14 }: { rating: number; size?: number }) {
+    return (
+        <span className="inline-flex gap-0.5">
+            {[1, 2, 3, 4, 5].map(i => (
+                <svg
+                    key={i}
+                    width={size}
+                    height={size}
+                    viewBox="0 0 24 24"
+                    fill={i <= rating ? '#f59e0b' : 'none'}
+                    stroke={i <= rating ? '#f59e0b' : 'var(--text-3)'}
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                >
+                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                </svg>
+            ))}
+        </span>
+    );
+}
 
 function mentorColor(id: number): string {
     const colors = ['#6366f1', '#8b5cf6', '#ec4899', '#3b82f6', '#14b8a6', '#f59e0b', '#ef4444'];
@@ -97,6 +130,45 @@ export default async function MentorProfile({
         // Sessions unavailable — section simply won't render
     }
 
+    // Fetch reviews
+    let reviews: Review[] = [];
+    let avgRating = 0;
+    let reviewCount = 0;
+    try {
+        const revRes = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/paired/mentors/${id}/reviews`, {
+            cache: 'no-store',
+        });
+        if (revRes.ok) {
+            const revData = await revRes.json();
+            reviews = revData.reviews || [];
+            avgRating = revData.average_rating || 0;
+            reviewCount = revData.total || reviews.length;
+        }
+    } catch {
+        // Reviews unavailable — section simply won't render
+    }
+
+    // Fetch user's favourites to check if this mentor is favourited
+    let isFavourited = false;
+    if (session.authenticated) {
+        try {
+            const cookieStore = await cookies();
+            const jwt = cookieStore.get('bpu_session')?.value || '';
+            if (jwt) {
+                const favRes = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/paired/favourites`, {
+                    headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+                });
+                if (favRes.ok) {
+                    const favData = await favRes.json();
+                    const favourites: Array<{ mentor_id: number }> = favData.favourites || [];
+                    isFavourited = favourites.some(f => f.mentor_id === mentorId);
+                }
+            }
+        } catch {
+            // Favourites unavailable — button will default to unfavourited
+        }
+    }
+
     const isPro = session.user?.is_pro ?? false;
     const compatScore = isPro && session.user?.profile
         ? BPUApi.scoreMentorMatch(
@@ -157,13 +229,29 @@ export default async function MentorProfile({
 
                         <div className="flex-1 text-center md:text-left space-y-3">
                             <div>
-                                <h1 className="text-3xl font-extrabold">{name}</h1>
+                                <div className="flex items-center gap-2 justify-center md:justify-start">
+                                    <h1 className="text-3xl font-extrabold">{name}</h1>
+                                    {session.authenticated && (
+                                        <FavouriteButton mentorId={mentorId} initialFavourited={isFavourited} size={26} />
+                                    )}
+                                </div>
                                 <p className="text-lg text-text-2 mt-1">{title}</p>
                                 {company && currentRole && (
                                     <p className="text-sm text-text-3 mt-0.5">at {company}</p>
                                 )}
                                 {!currentRole && company && (
                                     <p className="text-sm text-text-3 mt-0.5">{company}</p>
+                                )}
+                                {reviewCount > 0 && (
+                                    <div className="flex items-center gap-2 mt-1 justify-center md:justify-start">
+                                        <StarRating rating={Math.round(avgRating)} size={16} />
+                                        <span className="text-sm font-semibold" style={{ color: '#f59e0b' }}>
+                                            {avgRating.toFixed(1)}
+                                        </span>
+                                        <span className="text-sm text-text-3">
+                                            ({reviewCount} review{reviewCount !== 1 ? 's' : ''})
+                                        </span>
+                                    </div>
                                 )}
                             </div>
 
@@ -381,6 +469,76 @@ export default async function MentorProfile({
                             </div>
                         </div>
                     )}
+
+                    {/* Reviews */}
+                    <div className="card card-p space-y-4">
+                        <div className="flex items-center justify-between">
+                            <p className="section-title">Reviews</p>
+                            {session.authenticated && (
+                                <a
+                                    href={`/paired/mentors/${id}/review`}
+                                    className="btn btn-outline btn-sm"
+                                >
+                                    Leave a review
+                                </a>
+                            )}
+                        </div>
+                        {reviews.length === 0 ? (
+                            <p className="text-sm text-text-3 py-4 text-center">
+                                No reviews yet.{' '}
+                                {session.authenticated && (
+                                    <a href={`/paired/mentors/${id}/review`} className="text-purple font-semibold hover:underline">
+                                        Be the first to leave one.
+                                    </a>
+                                )}
+                            </p>
+                        ) : (
+                            <div className="space-y-4">
+                                {reviews.map(review => (
+                                    <div
+                                        key={review.id}
+                                        className="rounded-lg p-4 space-y-2"
+                                        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            {review.mentee_avatar ? (
+                                                <img
+                                                    src={review.mentee_avatar}
+                                                    alt=""
+                                                    style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                                                />
+                                            ) : (
+                                                <div
+                                                    style={{
+                                                        width: 32, height: 32, borderRadius: '50%',
+                                                        background: 'var(--purple-bg)', color: 'var(--purple)',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        flexShrink: 0, fontSize: 14, fontWeight: 600,
+                                                    }}
+                                                >
+                                                    {(review.mentee_name || '?')[0].toUpperCase()}
+                                                </div>
+                                            )}
+                                            <div className="flex-1">
+                                                <p className="text-sm font-semibold">{decodeHtml(review.mentee_name)}</p>
+                                                <div className="flex items-center gap-2">
+                                                    <StarRating rating={review.rating} size={12} />
+                                                    <span className="text-xs text-text-3">
+                                                        {new Date(review.created_at).toLocaleDateString('en-GB', {
+                                                            day: 'numeric', month: 'short', year: 'numeric',
+                                                        })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        {review.feedback && (
+                                            <p className="text-sm text-text-2 leading-relaxed">{decodeHtml(review.feedback)}</p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-6">
