@@ -206,6 +206,50 @@ export default function MentorSettingsForm({
     const emptyEdu: Omit<Education, 'id'> = { institution: '', degree: '', start_year: '', end_year: '' };
     const [eduForm, setEduForm] = useState<Omit<Education, 'id'>>(emptyEdu);
 
+    /* --- Photo state --- */
+    const [photoPreview, setPhotoPreview] = useState<string>(avatarUrl);
+    const [photoUploading, setPhotoUploading] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        if (!file.type.startsWith('image/')) {
+            setToast({ message: 'Please select an image file.', type: 'error' });
+            return;
+        }
+        if (file.size > 5 * 1024 * 1024) {
+            setToast({ message: 'Image must be under 5MB.', type: 'error' });
+            return;
+        }
+
+        setPhotoUploading(true);
+        try {
+            const reader = new FileReader();
+            reader.onload = () => setPhotoPreview(reader.result as string);
+            reader.readAsDataURL(file);
+
+            const formData = new FormData();
+            formData.append('photo', file);
+
+            const res = await fetch('/api/paired/mentor/photo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ photo_url: URL.createObjectURL(file) }),
+            });
+
+            if (!res.ok) throw new Error('Upload failed');
+            const data = await res.json();
+            if (data.photo_url) setPhotoPreview(data.photo_url);
+            setToast({ message: 'Photo updated successfully.', type: 'success' });
+        } catch {
+            setToast({ message: 'Failed to upload photo.', type: 'error' });
+        } finally {
+            setPhotoUploading(false);
+        }
+    }
+
     /* --- Skills state --- */
     const [skillsInput, setSkillsInput] = useState('');
     const [skillTags, setSkillTags] = useState<string[]>(
@@ -494,14 +538,51 @@ export default function MentorSettingsForm({
                 <h2 className="text-xl font-bold mb-1">Personal Information</h2>
                 <p className="text-text-2 text-sm mb-6">Basic details about you.</p>
 
-                {/* Display-only info */}
-                <div className="flex items-center gap-4 mb-6" style={{ padding: '12px 16px', background: 'var(--surface)', borderRadius: 8 }}>
-                    {avatarUrl && (
-                        <img src={avatarUrl} alt="" style={{ width: 48, height: 48, borderRadius: '50%', objectFit: 'cover' }} />
-                    )}
+                {/* Profile photo + identity */}
+                <div className="flex items-center gap-4 mb-6" style={{ padding: '16px', background: 'var(--surface)', borderRadius: 8 }}>
+                    <div className="relative shrink-0">
+                        {photoPreview ? (
+                            <img src={photoPreview} alt="" style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover' }} />
+                        ) : (
+                            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--purple-bg)', color: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 700 }}>
+                                {displayName?.[0] || '?'}
+                            </div>
+                        )}
+                        <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={photoUploading}
+                            style={{
+                                position: 'absolute', bottom: -2, right: -2,
+                                width: 24, height: 24, borderRadius: '50%',
+                                background: 'var(--purple)', color: '#fff',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                border: '2px solid var(--bg)', cursor: 'pointer', fontSize: 12,
+                            }}
+                            title="Change photo"
+                        >
+                            {photoUploading ? '...' : '✎'}
+                        </button>
+                        <input
+                            ref={fileInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handlePhotoUpload}
+                            style={{ display: 'none' }}
+                        />
+                    </div>
                     <div>
                         <p className="font-semibold">{displayName}</p>
                         <p className="text-sm text-text-2">{email}</p>
+                        <button
+                            type="button"
+                            className="text-xs mt-1"
+                            style={{ color: 'var(--purple)', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={photoUploading}
+                        >
+                            {photoUploading ? 'Uploading...' : 'Change profile photo'}
+                        </button>
                     </div>
                 </div>
 
