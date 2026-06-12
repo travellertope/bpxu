@@ -2961,6 +2961,48 @@ Rules:
         // Availability data (stored as user meta)
         $availability = get_user_meta( $user->ID, '_bpu_mentor_availability', true );
 
+        // Work experience
+        $exp_query = new WP_Query( array(
+            'post_type'      => 'mentor_experience',
+            'post_status'    => 'any',
+            'posts_per_page' => 50,
+            'meta_query'     => array(
+                array( 'key' => '_mentor_exp_user_id', 'value' => $user->ID, 'compare' => '=' ),
+            ),
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_mentor_exp_start_date',
+            'order'          => 'DESC',
+        ) );
+        $experiences = array();
+        if ( $exp_query->have_posts() ) {
+            while ( $exp_query->have_posts() ) {
+                $exp_query->the_post();
+                $experiences[] = $this->format_experience( get_the_ID() );
+            }
+            wp_reset_postdata();
+        }
+
+        // Education
+        $edu_query = new WP_Query( array(
+            'post_type'      => 'mentor_education',
+            'post_status'    => 'any',
+            'posts_per_page' => 50,
+            'meta_query'     => array(
+                array( 'key' => '_mentor_edu_user_id', 'value' => $user->ID, 'compare' => '=' ),
+            ),
+            'orderby'        => 'meta_value',
+            'meta_key'       => '_mentor_edu_start_year',
+            'order'          => 'DESC',
+        ) );
+        $education = array();
+        if ( $edu_query->have_posts() ) {
+            while ( $edu_query->have_posts() ) {
+                $edu_query->the_post();
+                $education[] = $this->format_education( get_the_ID() );
+            }
+            wp_reset_postdata();
+        }
+
         return array(
             'id'                        => $user->ID,
             'display_name'              => $user->display_name,
@@ -2968,6 +3010,8 @@ Rules:
             'avatar_url'                => get_avatar_url( $user->ID, array( 'size' => 512 ) ),
             'profile'                   => $acf,
             'availability'              => ! empty( $availability ) ? $availability : array(),
+            'experiences'               => $experiences,
+            'education'                 => $education,
             'registered_date'           => $user->user_registered,
         );
     }
