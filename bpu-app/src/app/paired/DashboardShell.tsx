@@ -110,7 +110,10 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                             <NavLink href="/paired/admin/coupons" icon="tag" label="Coupons" active={isActive('/paired/admin/coupons')} onClick={close} />
                             <NavLink href="/paired/admin/stats" icon="chart" label="Analytics" active={isActive('/paired/admin/stats')} onClick={close} />
                             <NavLink href="/paired/admin/kyc" icon="shield" label="KYC" active={isActive('/paired/admin/kyc')} onClick={close} />
+                            <NavLink href="/paired/admin/email-templates" icon="messages" label="Email Templates" active={isActive('/paired/admin/email-templates')} onClick={close} />
+                            <NavLink href="/paired/admin/skills" icon="chart" label="Skills" active={isActive('/paired/admin/skills')} onClick={close} />
                             <NavLink href="/paired/admin/referrals" icon="referral" label="Referrals" active={isActive('/paired/admin/referrals')} onClick={close} />
+                            <NavLink href="/paired/admin/referral-settings" icon="settings" label="Referral Settings" active={isActive('/paired/admin/referral-settings')} onClick={close} />
                             <NavLink href="/paired/admin/platform-settings" icon="settings" label="Settings" active={isActive('/paired/admin/platform-settings')} onClick={close} />
                         </div>
                     )}

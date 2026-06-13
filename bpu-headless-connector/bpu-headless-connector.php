@@ -1321,6 +1321,47 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_update_settings' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // Admin: Email Templates
+        register_rest_route( $this->namespace, '/paired/admin/email-templates', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_email_templates' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/email-templates', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_email_template' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Category/Skill Management
+        register_rest_route( $this->namespace, '/paired/admin/skills', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_skills' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/skills', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_skills' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/skills/reset', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_reset_skills' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Referral Settings
+        register_rest_route( $this->namespace, '/paired/admin/referral-settings', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_referral_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/referral-settings', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_referral_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
     }
 
     /**
@@ -5077,6 +5118,11 @@ Rules:
     // ══════════════════════════════════════════════════════════════
 
     public function get_paired_skills( WP_REST_Request $request ) {
+        $custom = get_option( '_paired_custom_skills' );
+        if ( ! empty( $custom ) && is_array( $custom ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'skills' => $custom ), 200 );
+        }
+
         $skills = array(
             'Engineering & Technology' => array(
                 'Front-end Development', 'Back-end Development', 'Full Stack Development',
@@ -9410,6 +9456,346 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
                 'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
                 'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
                 'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+            ),
+        ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TIER 3: EMAIL TEMPLATES
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Return the default email template definitions.
+     */
+    private function get_email_template_definitions() {
+        return array(
+            'welcome' => array(
+                'label'           => 'Welcome email',
+                'default_subject' => 'Welcome to Black Professionals United!',
+                'default_body'    => "Hi {{name}},\r\n\r\nWelcome to the Black Professionals United community — we are thrilled to have you.\r\n\r\nHere is what you can do next:\r\n• Complete your profile so we can match you with the right jobs and mentors\r\n• Upload your CV to our AI-powered CV Clinic for personalised feedback\r\n• Browse PAIRED — our free 1-on-1 mentorship platform\r\n\r\nYour member portal: https://app.blackprofessionals.uk\r\nFind a mentor: https://pairedbybpu.uk/mentors\r\n\r\nTo your career success,\r\nThe BPU Team",
+                'variables'       => array( '{{name}}' ),
+            ),
+            'booking_mentee' => array(
+                'label'           => 'Booking confirmation to mentee',
+                'default_subject' => 'Booking requested with {{mentor_name}} — PAIRED by BPU',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour session request with {{mentor_name}} has been sent. They will confirm shortly.\r\n\r\nDate: {{date}}\r\nTime: {{time}}\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{mentor_name}}', '{{date}}', '{{time}}', '{{notes}}' ),
+            ),
+            'booking_mentor' => array(
+                'label'           => 'New booking notification to mentor',
+                'default_subject' => 'New session request from {{mentee_name}} — PAIRED by BPU',
+                'default_body'    => "Hi {{name}},\r\n\r\n{{mentee_name}} has requested a 1-on-1 session with you.\r\n\r\nDate: {{date}}\r\nTime: {{time}}\r\n\r\nLog in to confirm or reschedule: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{mentee_name}}', '{{date}}', '{{time}}', '{{notes}}' ),
+            ),
+            'booking_confirmed' => array(
+                'label'           => 'Booking confirmed notification',
+                'default_subject' => 'Session confirmed — PAIRED by BPU',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} has been confirmed.\r\n\r\nDate: {{date}}\r\nTime: {{time}}\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{other_name}}', '{{date}}', '{{time}}' ),
+            ),
+            'booking_cancelled' => array(
+                'label'           => 'Booking cancelled notification',
+                'default_subject' => 'Session cancelled — PAIRED by BPU',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} on {{date}} at {{time}} has been cancelled.\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{other_name}}', '{{date}}', '{{time}}' ),
+            ),
+            'password_reset' => array(
+                'label'           => 'Password reset email',
+                'default_subject' => 'Reset your password — Black Professionals United',
+                'default_body'    => "Hi {{name}},\r\n\r\nWe received a request to reset your password. Click the link below to choose a new one:\r\n\r\n{{reset_link}}\r\n\r\nThis link will expire in 1 hour. If you did not request a password reset, please ignore this email.\r\n\r\nThe BPU Team",
+                'variables'       => array( '{{name}}', '{{reset_link}}' ),
+            ),
+        );
+    }
+
+    /**
+     * Admin: Get Email Templates.
+     */
+    public function admin_get_email_templates( WP_REST_Request $request ) {
+        $definitions = $this->get_email_template_definitions();
+        $templates   = array();
+
+        foreach ( $definitions as $key => $def ) {
+            $subject = get_option( '_paired_email_tpl_' . $key . '_subject', '' );
+            $body    = get_option( '_paired_email_tpl_' . $key, '' );
+
+            $templates[] = array(
+                'key'             => $key,
+                'label'           => $def['label'],
+                'subject'         => is_string( $subject ) ? $subject : '',
+                'body'            => is_string( $body ) ? $body : '',
+                'default_subject' => $def['default_subject'],
+                'default_body'    => $def['default_body'],
+                'variables'       => $def['variables'],
+            );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'templates' => $templates ), 200 );
+    }
+
+    /**
+     * Admin: Update an Email Template.
+     */
+    public function admin_update_email_template( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) {
+            return new WP_Error( 'invalid_body', 'Invalid request body.', array( 'status' => 400 ) );
+        }
+
+        $key     = isset( $body['key'] ) ? sanitize_text_field( $body['key'] ) : '';
+        $subject = isset( $body['subject'] ) ? $body['subject'] : null;
+        $tpl     = isset( $body['body'] ) ? $body['body'] : null;
+
+        $definitions = $this->get_email_template_definitions();
+        if ( ! isset( $definitions[ $key ] ) ) {
+            return new WP_Error( 'invalid_key', 'Unknown email template key.', array( 'status' => 400 ) );
+        }
+
+        // Subject: empty string deletes (reverts to default), non-empty saves.
+        if ( $subject !== null ) {
+            $subject = sanitize_text_field( $subject );
+            if ( $subject === '' ) {
+                delete_option( '_paired_email_tpl_' . $key . '_subject' );
+            } else {
+                update_option( '_paired_email_tpl_' . $key . '_subject', $subject );
+            }
+        }
+
+        // Body: empty string deletes (reverts to default), non-empty saves.
+        if ( $tpl !== null ) {
+            $tpl = wp_kses_post( $tpl );
+            if ( $tpl === '' ) {
+                delete_option( '_paired_email_tpl_' . $key );
+            } else {
+                update_option( '_paired_email_tpl_' . $key, $tpl );
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'key' => $key ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TIER 3: CATEGORY / SKILL MANAGEMENT
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Return the hardcoded default skills array.
+     */
+    private function get_default_skills() {
+        return array(
+            'Engineering & Technology' => array(
+                'Front-end Development', 'Back-end Development', 'Full Stack Development',
+                'Mobile Development (iOS)', 'Mobile Development (Android)', 'DevOps',
+                'Cloud Engineering (AWS)', 'Cloud Engineering (Azure)', 'Cloud Engineering (GCP)',
+                'Site Reliability Engineering', 'QA & Testing', 'Data Engineering',
+                'AI & Machine Learning', 'Cybersecurity', 'Blockchain', 'Embedded Systems',
+                'Systems Architecture', 'Database Administration', 'API Development', 'Technical Leadership',
+            ),
+            'Product & Project Management' => array(
+                'Product Management', 'Product Strategy', 'Product Analytics',
+                'Program Management', 'Project Management', 'Agile & Scrum',
+                'Product Operations', 'Technical Product Management',
+            ),
+            'Design & Creative' => array(
+                'UX Design', 'UI Design', 'Graphic Design', 'Motion Design', 'Brand Design',
+                'Industrial Design', 'Design Systems', 'Design Ops', 'UX Research',
+                'Interaction Design', 'Service Design', '3D Design', 'Game Design', 'XR/VR Design',
+            ),
+            'Marketing & Communications' => array(
+                'Digital Marketing', 'Content Marketing', 'Social Media Marketing',
+                'Brand Strategy', 'Growth Marketing', 'SEO & SEM', 'Email Marketing',
+                'PR & Communications', 'Event Marketing', 'Influencer Marketing',
+                'Marketing Analytics', 'Community Management', 'Product Marketing', 'Performance Marketing',
+            ),
+            'Data & Analytics' => array(
+                'Data Analysis', 'Data Science', 'Machine Learning', 'Business Intelligence',
+                'Statistical Modelling', 'Data Visualisation', 'Natural Language Processing',
+                'Computer Vision', 'Big Data', 'A/B Testing & Experimentation',
+            ),
+            'Finance & Banking' => array(
+                'Investment Banking', 'Corporate Finance', 'Financial Planning & Analysis',
+                'Accounting', 'Risk Management', 'Compliance & Regulation', 'Wealth Management',
+                'Fintech', 'Audit', 'Tax', 'Treasury', 'Private Equity', 'Venture Capital',
+                'Insurance', 'Actuarial Science',
+            ),
+            'Legal' => array(
+                'Corporate Law', 'Employment Law', 'Intellectual Property', 'Contract Law',
+                'Regulatory Compliance', 'Commercial Law', 'Immigration Law', 'Family Law',
+                'Criminal Law', 'Legal Operations',
+            ),
+            'Healthcare & Life Sciences' => array(
+                'Clinical Medicine', 'Nursing', 'Public Health', 'Health Tech',
+                'Pharmaceutical', 'Biotech', 'Mental Health', 'Health Policy',
+                'Clinical Research', 'Health Informatics',
+            ),
+            'Education & Training' => array(
+                'Teaching', 'Curriculum Development', 'EdTech', 'Corporate Training',
+                'Academic Research', 'Higher Education', 'STEM Education',
+                'Coaching & Mentoring', 'Special Education', 'Learning Design',
+            ),
+            'Human Resources' => array(
+                'Talent Acquisition', 'HR Business Partnering', 'Learning & Development',
+                'Compensation & Benefits', 'Employee Relations', 'DEI Strategy',
+                'People Analytics', 'Organisational Development', 'HR Tech', 'Employer Branding',
+            ),
+            'Sales & Business Development' => array(
+                'Enterprise Sales', 'B2B Sales', 'Account Management', 'Business Development',
+                'Sales Operations', 'Customer Success', 'Partnership Management',
+                'Revenue Operations', 'Sales Engineering',
+            ),
+            'Operations & Strategy' => array(
+                'Management Consulting', 'Business Strategy', 'Operations Management',
+                'Supply Chain', 'Procurement', 'Change Management', 'Process Improvement',
+                'Lean & Six Sigma', 'Logistics',
+            ),
+            'Media & Entertainment' => array(
+                'Journalism', 'Broadcasting', 'Film Production', 'Music Industry',
+                'Publishing', 'Podcasting', 'Photography', 'Content Creation',
+                'Streaming & Digital Media',
+            ),
+            'Property & Construction' => array(
+                'Property Development', 'Architecture', 'Surveying', 'Construction Management',
+                'Urban Planning', 'Estate Management', 'Facilities Management',
+            ),
+            'Entrepreneurship' => array(
+                'Startup Founding', 'Fundraising', 'Business Planning', 'Bootstrapping',
+                'Social Enterprise', 'Franchise', 'E-commerce', 'Scaling & Growth',
+            ),
+            'Public Sector & Policy' => array(
+                'Civil Service', 'Policy Analysis', 'Local Government',
+                'International Development', 'Charity & Non-profit', 'Public Affairs',
+                'Community Development',
+            ),
+        );
+    }
+
+    /**
+     * Admin: Get Skills (custom or default).
+     */
+    public function admin_get_skills( WP_REST_Request $request ) {
+        $custom = get_option( '_paired_custom_skills' );
+        $is_custom = ! empty( $custom ) && is_array( $custom );
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'is_custom' => $is_custom,
+            'skills'    => $is_custom ? $custom : $this->get_default_skills(),
+        ), 200 );
+    }
+
+    /**
+     * Admin: Update Skills (replace entire structure).
+     */
+    public function admin_update_skills( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) || ! isset( $body['skills'] ) || ! is_array( $body['skills'] ) ) {
+            return new WP_Error( 'invalid_body', 'Request must include a skills object.', array( 'status' => 400 ) );
+        }
+
+        // Sanitize: each category key is a string, each skill is a string.
+        $sanitized = array();
+        foreach ( $body['skills'] as $category => $skill_list ) {
+            $cat_name = sanitize_text_field( $category );
+            if ( empty( $cat_name ) || ! is_array( $skill_list ) ) continue;
+
+            $sanitized[ $cat_name ] = array();
+            foreach ( $skill_list as $skill ) {
+                $s = sanitize_text_field( $skill );
+                if ( $s !== '' ) {
+                    $sanitized[ $cat_name ][] = $s;
+                }
+            }
+        }
+
+        if ( empty( $sanitized ) ) {
+            return new WP_Error( 'empty_skills', 'Skills structure cannot be empty.', array( 'status' => 400 ) );
+        }
+
+        update_option( '_paired_custom_skills', $sanitized );
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'is_custom' => true,
+            'skills'    => $sanitized,
+        ), 200 );
+    }
+
+    /**
+     * Admin: Reset Skills to hardcoded defaults.
+     */
+    public function admin_reset_skills( WP_REST_Request $request ) {
+        delete_option( '_paired_custom_skills' );
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'is_custom' => false,
+            'skills'    => $this->get_default_skills(),
+        ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TIER 3: REFERRAL SETTINGS
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Admin: Get Referral Settings.
+     */
+    public function admin_get_referral_settings( WP_REST_Request $request ) {
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'settings' => array(
+                'points_per_referral'    => (int) get_option( '_paired_referral_points_per_referral', 10 ),
+                'referral_bonus_type'    => get_option( '_paired_referral_bonus_type', 'points' ),
+                'referral_bonus_value'   => (int) get_option( '_paired_referral_bonus_value', 10 ),
+                'referral_enabled'       => get_option( '_paired_referral_enabled', '1' ),
+                'max_referrals_per_user' => (int) get_option( '_paired_referral_max_per_user', 0 ),
+            ),
+        ), 200 );
+    }
+
+    /**
+     * Admin: Update Referral Settings.
+     */
+    public function admin_update_referral_settings( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $allowed = array(
+            'points_per_referral'    => '_paired_referral_points_per_referral',
+            'referral_bonus_type'    => '_paired_referral_bonus_type',
+            'referral_bonus_value'   => '_paired_referral_bonus_value',
+            'referral_enabled'       => '_paired_referral_enabled',
+            'max_referrals_per_user' => '_paired_referral_max_per_user',
+        );
+
+        foreach ( $allowed as $field => $option_key ) {
+            if ( ! isset( $body[ $field ] ) ) continue;
+
+            $value = $body[ $field ];
+
+            if ( $field === 'points_per_referral' ) {
+                $value = max( 0, (int) $value );
+            } elseif ( $field === 'referral_bonus_type' ) {
+                $value = in_array( $value, array( 'points', 'discount' ), true ) ? $value : 'points';
+            } elseif ( $field === 'referral_bonus_value' ) {
+                $value = max( 0, (int) $value );
+            } elseif ( $field === 'referral_enabled' ) {
+                $value = in_array( $value, array( '1', '0', 1, 0, true, false ), true ) ? ( $value ? '1' : '0' ) : '1';
+            } elseif ( $field === 'max_referrals_per_user' ) {
+                $value = max( 0, (int) $value );
+            }
+
+            update_option( $option_key, $value );
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'settings' => array(
+                'points_per_referral'    => (int) get_option( '_paired_referral_points_per_referral', 10 ),
+                'referral_bonus_type'    => get_option( '_paired_referral_bonus_type', 'points' ),
+                'referral_bonus_value'   => (int) get_option( '_paired_referral_bonus_value', 10 ),
+                'referral_enabled'       => get_option( '_paired_referral_enabled', '1' ),
+                'max_referrals_per_user' => (int) get_option( '_paired_referral_max_per_user', 0 ),
             ),
         ), 200 );
     }
