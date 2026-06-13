@@ -36,6 +36,7 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_mentor_review_post_type' ) );
         add_action( 'init', array( $this, 'register_paired_message_post_type' ) );
         add_action( 'init', array( $this, 'register_paired_notification_post_type' ) );
+        add_action( 'init', array( $this, 'register_paired_referral_post_type' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -263,6 +264,22 @@ class BPU_Headless_Connector {
             'labels'              => array(
                 'name'          => _x( 'Notifications', 'post type general name', 'bpu' ),
                 'singular_name' => _x( 'Notification', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => false,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_paired_referral_post_type() {
+        register_post_type( 'paired_referral', array(
+            'labels'              => array(
+                'name'          => _x( 'Referrals', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Referral', 'post type singular name', 'bpu' ),
             ),
             'public'              => false,
             'publicly_queryable'  => false,
@@ -1074,6 +1091,125 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/paired/admin/stats', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'admin_get_platform_stats' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // ═══════════════════════════════════════════════════════════
+        //  PHASE 3 ROUTES
+        // ═══════════════════════════════════════════════════════════
+
+        // ── Stripe: Checkout ────────────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/checkout/create-session', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'stripe_create_checkout' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/stripe/webhook', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'stripe_webhook' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/payout-settings', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_payout_settings' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => 'PUT',
+                'callback'            => array( $this, 'update_payout_settings' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/payouts', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_payouts' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // ── Meeting Settings ────────────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/meeting-settings', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_meeting_settings' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => 'PUT',
+                'callback'            => array( $this, 'update_meeting_settings' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/calendar-connect', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'toggle_calendar_sync' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ── Mentor Onboarding ───────────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/onboarding', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_onboarding_status' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/onboarding/(?P<step>[a-z_]+)/complete', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'complete_onboarding_step' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ── Referral Programme ──────────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/referral/code', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_referral_code' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/referral/stats', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_referral_stats' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/referral/apply', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'apply_referral_code' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/referrals', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_referrals' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // ── KYC Verification ────────────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/mentor/kyc/submit', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'kyc_submit' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/mentor/kyc/status', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'kyc_get_status' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/kyc', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_kyc' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/paired/admin/kyc/(?P<id>\d+)', array(
+            'methods'             => 'PUT',
+            'callback'            => array( $this, 'admin_review_kyc' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
     }
@@ -3298,11 +3434,12 @@ Rules:
         if ( ! $payload || empty( $payload['user_id'] ) ) {
             return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
         }
-        $user_id   = intval( $payload['user_id'] );
-        $mentor_id = $request->get_param( 'mentor_id' );
-        $date      = $request->get_param( 'date' );
-        $time_slot = $request->get_param( 'time_slot' );
-        $notes     = $request->get_param( 'notes' );
+        $user_id    = intval( $payload['user_id'] );
+        $mentor_id  = $request->get_param( 'mentor_id' );
+        $session_id = absint( $request->get_param( 'session_id' ) );
+        $date       = $request->get_param( 'date' );
+        $time_slot  = $request->get_param( 'time_slot' );
+        $notes      = $request->get_param( 'notes' );
 
         // Verify the mentor exists and has the mentor role
         $mentor = get_userdata( $mentor_id );
@@ -3323,28 +3460,53 @@ Rules:
             );
         }
 
+        // Check group booking capacity
+        $is_group  = false;
+        $slot_cap  = 1;
+        if ( $session_id ) {
+            $is_group = (bool) get_post_meta( $session_id, '_session_group_booking', true );
+            $slot_cap = (int) get_post_meta( $session_id, '_session_slot_capacity', true ) ?: 1;
+        }
+
         // Check for duplicate bookings (same mentee + mentor + date + time)
-        $duplicate_check = new WP_Query( array(
+        $slot_bookings = new WP_Query( array(
             'post_type'   => 'mentorship_booking',
             'post_status' => array( 'publish', 'pending' ),
+            'posts_per_page' => -1,
             'meta_query'  => array(
                 'relation' => 'AND',
-                array( 'key' => '_bpu_booking_mentee_id', 'value' => $user_id, 'compare' => '=' ),
                 array( 'key' => '_bpu_booking_mentor_id', 'value' => $mentor_id, 'compare' => '=' ),
                 array( 'key' => '_bpu_booking_date', 'value' => $date, 'compare' => '=' ),
                 array( 'key' => '_bpu_booking_time_slot', 'value' => $time_slot, 'compare' => '=' ),
+                array( 'key' => '_bpu_booking_status', 'value' => array( 'pending', 'confirmed' ), 'compare' => 'IN' ),
             ),
         ) );
 
-        if ( $duplicate_check->found_posts > 0 ) {
-            wp_reset_postdata();
-            return new WP_Error(
-                'booking_duplicate',
-                __( 'You already have a booking for this slot.', 'bpu' ),
-                array( 'status' => 409 )
-            );
+        $existing_count = $slot_bookings->found_posts;
+
+        // Check if this user already booked this exact slot
+        foreach ( $slot_bookings->posts as $existing_post ) {
+            $existing_mentee = (int) get_post_meta( $existing_post->ID, '_bpu_booking_mentee_id', true );
+            if ( $existing_mentee === $user_id ) {
+                wp_reset_postdata();
+                return new WP_Error(
+                    'booking_duplicate',
+                    __( 'You already have a booking for this slot.', 'bpu' ),
+                    array( 'status' => 409 )
+                );
+            }
         }
         wp_reset_postdata();
+
+        // For non-group sessions, only 1 booking per slot
+        if ( ! $is_group && $existing_count >= 1 ) {
+            return new WP_Error( 'slot_full', __( 'This time slot is no longer available.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        // For group sessions, check capacity
+        if ( $is_group && $existing_count >= $slot_cap ) {
+            return new WP_Error( 'slot_full', __( 'This group session is full.', 'bpu' ), array( 'status' => 409 ) );
+        }
 
         // Create the booking post
         $mentee = get_userdata( $user_id );
@@ -3370,11 +3532,15 @@ Rules:
         // Save booking metadata
         update_post_meta( $post_id, '_bpu_booking_mentee_id', $user_id );
         update_post_meta( $post_id, '_bpu_booking_mentor_id', $mentor_id );
+        update_post_meta( $post_id, '_bpu_booking_session_id', $session_id );
         update_post_meta( $post_id, '_bpu_booking_date', $date );
         update_post_meta( $post_id, '_bpu_booking_time_slot', $time_slot );
         update_post_meta( $post_id, '_bpu_booking_notes', $notes );
         update_post_meta( $post_id, '_bpu_booking_status', 'pending' );
         update_post_meta( $post_id, '_bpu_booking_created_at', current_time( 'mysql' ) );
+        if ( $is_group ) {
+            update_post_meta( $post_id, '_bpu_booking_is_group', 1 );
+        }
 
         $this->send_booking_emails( $mentee, $mentor, $date, $time_slot, $notes );
 
@@ -3666,6 +3832,11 @@ Rules:
                 'industry'          => get_user_meta( $mentee->ID, '_paired_mentee_industry', true ) ?: '',
                 'bio'               => get_user_meta( $mentee->ID, '_paired_mentee_bio', true ) ?: '',
             ) : null,
+            'payment_status'  => get_post_meta( $post_id, '_bpu_booking_payment_status', true ) ?: 'not_required',
+            'payment_amount'  => (float) get_post_meta( $post_id, '_bpu_booking_payment_amount', true ),
+            'meet_link'       => get_post_meta( $post_id, '_bpu_booking_meet_link', true ) ?: '',
+            'is_group_session' => (bool) get_post_meta( $post_id, '_bpu_booking_is_group', true ),
+            'session_id'      => (int) get_post_meta( $post_id, '_bpu_booking_session_id', true ),
         );
     }
 
@@ -4007,6 +4178,17 @@ Rules:
 
         update_post_meta( $post_id, '_bpu_booking_status', $status );
 
+        // Generate meeting link on confirmation
+        $meet_link = '';
+        if ( 'confirmed' === $status ) {
+            $meet_link = $this->generate_meeting_link( $post_id, $mentor_id );
+        }
+
+        // Delete calendar event on cancellation
+        if ( 'cancelled' === $status ) {
+            $this->delete_google_calendar_event( $post_id );
+        }
+
         // Send email notification to mentee
         $mentee_id   = (int) get_post_meta( $post_id, '_bpu_booking_mentee_id', true );
         $mentee      = get_userdata( $mentee_id );
@@ -4026,7 +4208,11 @@ Rules:
                     $body_html .= ' at <strong>' . esc_html( str_replace( '-', ' – ', $time_slot ) ) . ' GMT</strong>';
                 }
                 $body_html .= ' has been confirmed.</p>';
-                $body_html .= '<p style="color:#555;font-size:14px;">Your mentor will be in touch about the video call link. Good luck!</p>';
+                if ( $meet_link ) {
+                    $body_html .= '<p style="color:#333;font-size:15px;line-height:1.6;">Join the meeting: <a href="' . esc_url( $meet_link ) . '" style="color:#7c3aed;font-weight:600;">' . esc_html( $meet_link ) . '</a></p>';
+                } else {
+                    $body_html .= '<p style="color:#555;font-size:14px;">Your mentor will be in touch about the video call link.</p>';
+                }
                 $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/dashboard" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View my sessions</a></p>';
             } elseif ( 'cancelled' === $status ) {
                 $heading    = 'Session request declined';
@@ -6936,7 +7122,7 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
      * @return int|WP_Error    The notification post ID or WP_Error on failure.
      */
     private function create_notification( $user_id, $type, $title, $message, $link = '' ) {
-        $allowed_types = array( 'new_booking', 'booking_status', 'new_message', 'new_review' );
+        $allowed_types = array( 'new_booking', 'booking_status', 'new_message', 'new_review', 'payment', 'referral', 'kyc', 'onboarding' );
         if ( ! in_array( $type, $allowed_types, true ) ) {
             $type = 'new_booking';
         }
@@ -8070,6 +8256,1068 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'top_mentors'             => $top_mentors,
             'average_rating_platform' => $average_rating_platform,
         ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PHASE 3: STRIPE PAID SESSIONS
+    // ═══════════════════════════════════════════════════════════════
+
+    private function get_stripe_secret_key() {
+        if ( defined( 'PAIRED_STRIPE_SECRET_KEY' ) ) {
+            return PAIRED_STRIPE_SECRET_KEY;
+        }
+        return get_option( '_paired_stripe_secret_key', '' );
+    }
+
+    private function get_stripe_webhook_secret() {
+        if ( defined( 'PAIRED_STRIPE_WEBHOOK_SECRET' ) ) {
+            return PAIRED_STRIPE_WEBHOOK_SECRET;
+        }
+        return get_option( '_paired_stripe_webhook_secret', '' );
+    }
+
+    private function stripe_api( $endpoint, $body = array(), $method = 'POST' ) {
+        $secret_key = $this->get_stripe_secret_key();
+        if ( empty( $secret_key ) ) {
+            return new WP_Error( 'stripe_not_configured', 'Stripe is not configured.', array( 'status' => 503 ) );
+        }
+
+        $args = array(
+            'method'  => $method,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $secret_key,
+                'Content-Type'  => 'application/x-www-form-urlencoded',
+            ),
+            'timeout' => 30,
+        );
+
+        if ( ! empty( $body ) && in_array( $method, array( 'POST', 'PUT' ), true ) ) {
+            $args['body'] = $body;
+        }
+
+        $response = wp_remote_request( 'https://api.stripe.com/v1/' . $endpoint, $args );
+        if ( is_wp_error( $response ) ) {
+            return $response;
+        }
+
+        return json_decode( wp_remote_retrieve_body( $response ), true );
+    }
+
+    public function stripe_create_checkout( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $user_id    = intval( $payload['user_id'] );
+        $booking_id = absint( $request->get_param( 'booking_id' ) );
+
+        $post = get_post( $booking_id );
+        if ( ! $post || 'mentorship_booking' !== $post->post_type ) {
+            return new WP_Error( 'booking_not_found', 'Booking not found.', array( 'status' => 404 ) );
+        }
+
+        $mentee_id = (int) get_post_meta( $booking_id, '_bpu_booking_mentee_id', true );
+        if ( $user_id !== $mentee_id ) {
+            return new WP_Error( 'forbidden', 'Only the mentee can pay for this booking.', array( 'status' => 403 ) );
+        }
+
+        $session_id = (int) get_post_meta( $booking_id, '_bpu_booking_session_id', true );
+        $price = 0;
+        if ( $session_id ) {
+            $price = (float) get_post_meta( $session_id, '_session_price', true );
+        }
+
+        if ( $price <= 0 ) {
+            return new WP_Error( 'free_session', 'This session is free — no payment required.', array( 'status' => 400 ) );
+        }
+
+        $already_paid = get_post_meta( $booking_id, '_bpu_booking_payment_status', true );
+        if ( 'paid' === $already_paid ) {
+            return new WP_Error( 'already_paid', 'This booking has already been paid.', array( 'status' => 400 ) );
+        }
+
+        $mentor_id   = (int) get_post_meta( $booking_id, '_bpu_booking_mentor_id', true );
+        $mentor      = get_userdata( $mentor_id );
+        $session_name = $session_id ? get_post_meta( $session_id, '_session_name', true ) : 'Mentorship Session';
+        $mentor_name  = $mentor ? $mentor->display_name : 'Mentor';
+
+        $site_url     = 'https://pairedbybpu.uk';
+        $success_url  = $site_url . '/paired/dashboard?payment=success&booking=' . $booking_id;
+        $cancel_url   = $site_url . '/paired/dashboard?payment=cancelled&booking=' . $booking_id;
+
+        $checkout_params = array(
+            'mode'                       => 'payment',
+            'currency'                   => 'gbp',
+            'line_items[0][price_data][currency]'    => 'gbp',
+            'line_items[0][price_data][unit_amount]'  => intval( $price * 100 ),
+            'line_items[0][price_data][product_data][name]' => sanitize_text_field( $session_name . ' with ' . $mentor_name ),
+            'line_items[0][quantity]'     => 1,
+            'success_url'                => $success_url,
+            'cancel_url'                 => $cancel_url,
+            'metadata[booking_id]'       => $booking_id,
+            'metadata[mentee_id]'        => $user_id,
+            'metadata[mentor_id]'        => $mentor_id,
+        );
+
+        $mentor_stripe_id = get_user_meta( $mentor_id, '_paired_stripe_account_id', true );
+        if ( $mentor_stripe_id ) {
+            $platform_fee = intval( $price * 100 * 0.10 );
+            $checkout_params['payment_intent_data[transfer_data][destination]'] = $mentor_stripe_id;
+            $checkout_params['payment_intent_data[application_fee_amount]']     = $platform_fee;
+        }
+
+        $result = $this->stripe_api( 'checkout/sessions', $checkout_params );
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        if ( ! empty( $result['error'] ) ) {
+            return new WP_Error( 'stripe_error', $result['error']['message'] ?? 'Stripe error.', array( 'status' => 400 ) );
+        }
+
+        update_post_meta( $booking_id, '_bpu_booking_stripe_session_id', $result['id'] );
+        update_post_meta( $booking_id, '_bpu_booking_payment_status', 'pending' );
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'checkout_url'  => $result['url'],
+            'session_id'   => $result['id'],
+        ), 200 );
+    }
+
+    public function stripe_webhook( WP_REST_Request $request ) {
+        $payload   = $request->get_body();
+        $sig_header = isset( $_SERVER['HTTP_STRIPE_SIGNATURE'] ) ? $_SERVER['HTTP_STRIPE_SIGNATURE'] : '';
+        $secret    = $this->get_stripe_webhook_secret();
+
+        if ( $secret && $sig_header ) {
+            $elements = array();
+            foreach ( explode( ',', $sig_header ) as $part ) {
+                list( $key, $val ) = explode( '=', $part, 2 );
+                $elements[ trim( $key ) ] = trim( $val );
+            }
+            $timestamp     = isset( $elements['t'] ) ? $elements['t'] : '';
+            $signature     = isset( $elements['v1'] ) ? $elements['v1'] : '';
+            $signed_payload = $timestamp . '.' . $payload;
+            $expected       = hash_hmac( 'sha256', $signed_payload, $secret );
+
+            if ( ! hash_equals( $expected, $signature ) ) {
+                return new WP_REST_Response( array( 'error' => 'Invalid signature' ), 400 );
+            }
+        }
+
+        $event = json_decode( $payload, true );
+        if ( ! $event || empty( $event['type'] ) ) {
+            return new WP_REST_Response( array( 'error' => 'Invalid payload' ), 400 );
+        }
+
+        $type = $event['type'];
+        $data = $event['data']['object'] ?? array();
+
+        if ( 'checkout.session.completed' === $type ) {
+            $booking_id = isset( $data['metadata']['booking_id'] ) ? absint( $data['metadata']['booking_id'] ) : 0;
+            if ( $booking_id ) {
+                update_post_meta( $booking_id, '_bpu_booking_payment_status', 'paid' );
+                update_post_meta( $booking_id, '_bpu_booking_payment_amount', ( $data['amount_total'] ?? 0 ) / 100 );
+                update_post_meta( $booking_id, '_bpu_booking_stripe_payment_id', $data['payment_intent'] ?? '' );
+
+                $mentee_id = (int) get_post_meta( $booking_id, '_bpu_booking_mentee_id', true );
+                $mentor_id = (int) get_post_meta( $booking_id, '_bpu_booking_mentor_id', true );
+                $this->create_notification( $mentor_id, 'payment', 'Payment Received', 'Payment received for your upcoming session.', '/paired/mentor/bookings' );
+                $this->create_notification( $mentee_id, 'payment', 'Payment Confirmed', 'Your payment has been confirmed.', '/paired/dashboard' );
+            }
+        } elseif ( 'charge.refunded' === $type ) {
+            $payment_intent = $data['payment_intent'] ?? '';
+            if ( $payment_intent ) {
+                $query = new WP_Query( array(
+                    'post_type'      => 'mentorship_booking',
+                    'post_status'    => 'any',
+                    'posts_per_page' => 1,
+                    'meta_query'     => array(
+                        array( 'key' => '_bpu_booking_stripe_payment_id', 'value' => $payment_intent ),
+                    ),
+                ) );
+                if ( $query->have_posts() ) {
+                    $booking_id = $query->posts[0]->ID;
+                    update_post_meta( $booking_id, '_bpu_booking_payment_status', 'refunded' );
+                }
+                wp_reset_postdata();
+            }
+        }
+
+        return new WP_REST_Response( array( 'received' => true ), 200 );
+    }
+
+    public function get_payout_settings( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $stripe_account_id = get_user_meta( $user_id, '_paired_stripe_account_id', true );
+        $payout_enabled    = false;
+
+        if ( $stripe_account_id ) {
+            $account = $this->stripe_api( 'accounts/' . $stripe_account_id, array(), 'GET' );
+            if ( ! is_wp_error( $account ) && ! empty( $account['payouts_enabled'] ) ) {
+                $payout_enabled = true;
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'stripe_account_id' => $stripe_account_id ?: null,
+            'payout_enabled'    => $payout_enabled,
+            'onboarding_complete' => $payout_enabled,
+        ), 200 );
+    }
+
+    public function update_payout_settings( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $user = get_userdata( $user_id );
+        $stripe_account_id = get_user_meta( $user_id, '_paired_stripe_account_id', true );
+
+        if ( ! $stripe_account_id ) {
+            $result = $this->stripe_api( 'accounts', array(
+                'type'                   => 'express',
+                'country'                => 'GB',
+                'email'                  => $user->user_email,
+                'capabilities[card_payments][requested]'  => 'true',
+                'capabilities[transfers][requested]'      => 'true',
+                'metadata[user_id]'      => $user_id,
+            ) );
+            if ( is_wp_error( $result ) ) return $result;
+            if ( ! empty( $result['error'] ) ) {
+                return new WP_Error( 'stripe_error', $result['error']['message'] ?? 'Could not create Stripe account.', array( 'status' => 400 ) );
+            }
+            $stripe_account_id = $result['id'];
+            update_user_meta( $user_id, '_paired_stripe_account_id', $stripe_account_id );
+        }
+
+        $link_result = $this->stripe_api( 'account_links', array(
+            'account'     => $stripe_account_id,
+            'refresh_url' => 'https://pairedbybpu.uk/paired/mentor/payout-settings?refresh=1',
+            'return_url'  => 'https://pairedbybpu.uk/paired/mentor/payout-settings?onboarding=complete',
+            'type'        => 'account_onboarding',
+        ) );
+
+        if ( is_wp_error( $link_result ) ) return $link_result;
+        if ( ! empty( $link_result['error'] ) ) {
+            return new WP_Error( 'stripe_error', $link_result['error']['message'] ?? 'Could not create onboarding link.', array( 'status' => 400 ) );
+        }
+
+        return new WP_REST_Response( array(
+            'success'       => true,
+            'onboarding_url' => $link_result['url'],
+        ), 200 );
+    }
+
+    public function admin_get_payouts( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'mentorship_booking',
+            'post_status'    => 'any',
+            'posts_per_page' => 100,
+            'meta_query'     => array(
+                array( 'key' => '_bpu_booking_payment_status', 'value' => 'paid' ),
+            ),
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $payouts = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $pid       = get_the_ID();
+                $mentor_id = (int) get_post_meta( $pid, '_bpu_booking_mentor_id', true );
+                $mentor    = get_userdata( $mentor_id );
+                $payouts[] = array(
+                    'booking_id'     => $pid,
+                    'mentor_id'      => $mentor_id,
+                    'mentor_name'    => $mentor ? $mentor->display_name : 'Unknown',
+                    'amount'         => (float) get_post_meta( $pid, '_bpu_booking_payment_amount', true ),
+                    'payment_status' => get_post_meta( $pid, '_bpu_booking_payment_status', true ),
+                    'date'           => get_post_meta( $pid, '_bpu_booking_date', true ),
+                    'stripe_account' => $mentor ? get_user_meta( $mentor_id, '_paired_stripe_account_id', true ) : '',
+                );
+            }
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array( 'success' => true, 'payouts' => $payouts ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PHASE 3: MEETING SETTINGS & CALENDAR SYNC
+    // ═══════════════════════════════════════════════════════════════
+
+    public function get_meeting_settings( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'meeting_provider' => get_user_meta( $user_id, '_paired_meeting_provider', true ) ?: 'custom',
+            'custom_url'       => get_user_meta( $user_id, '_paired_meeting_custom_url', true ) ?: '',
+            'calendar_sync'    => (bool) get_user_meta( $user_id, '_paired_calendar_sync_enabled', true ),
+            'timezone'         => get_user_meta( $user_id, '_paired_timezone', true ) ?: 'Europe/London',
+        ), 200 );
+    }
+
+    public function update_meeting_settings( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $provider   = sanitize_text_field( $request->get_param( 'meeting_provider' ) );
+        $custom_url = esc_url_raw( $request->get_param( 'custom_url' ) );
+        $timezone   = sanitize_text_field( $request->get_param( 'timezone' ) );
+
+        $valid_providers = array( 'google_meet', 'zoom', 'teams', 'custom' );
+        if ( $provider && in_array( $provider, $valid_providers, true ) ) {
+            update_user_meta( $user_id, '_paired_meeting_provider', $provider );
+        }
+        if ( $custom_url !== null ) {
+            update_user_meta( $user_id, '_paired_meeting_custom_url', $custom_url );
+        }
+        if ( $timezone ) {
+            try {
+                new DateTimeZone( $timezone );
+                update_user_meta( $user_id, '_paired_timezone', $timezone );
+            } catch ( Exception $e ) {
+                // Invalid timezone, ignore
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function toggle_calendar_sync( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $enabled = (bool) $request->get_param( 'enabled' );
+        update_user_meta( $user_id, '_paired_calendar_sync_enabled', $enabled ? 1 : 0 );
+
+        return new WP_REST_Response( array(
+            'success'       => true,
+            'calendar_sync' => $enabled,
+        ), 200 );
+    }
+
+    private function get_google_access_token() {
+        $creds_json = get_option( '_paired_google_service_account', '' );
+        if ( empty( $creds_json ) ) return null;
+
+        $creds = json_decode( $creds_json, true );
+        if ( ! $creds || empty( $creds['client_email'] ) || empty( $creds['private_key'] ) ) return null;
+
+        $now   = time();
+        $header  = base64_encode( json_encode( array( 'alg' => 'RS256', 'typ' => 'JWT' ) ) );
+        $claims  = base64_encode( json_encode( array(
+            'iss'   => $creds['client_email'],
+            'scope' => 'https://www.googleapis.com/auth/calendar',
+            'aud'   => 'https://oauth2.googleapis.com/token',
+            'iat'   => $now,
+            'exp'   => $now + 3600,
+        ) ) );
+
+        $unsigned = $header . '.' . $claims;
+        $signature = '';
+        $key = openssl_pkey_get_private( $creds['private_key'] );
+        if ( ! $key ) return null;
+        openssl_sign( $unsigned, $signature, $key, 'sha256WithRSAEncryption' );
+
+        $jwt = $unsigned . '.' . base64_encode( $signature );
+
+        $token_response = wp_remote_post( 'https://oauth2.googleapis.com/token', array(
+            'body' => array(
+                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion'  => $jwt,
+            ),
+            'timeout' => 15,
+        ) );
+
+        if ( is_wp_error( $token_response ) ) return null;
+
+        $token_data = json_decode( wp_remote_retrieve_body( $token_response ), true );
+        return $token_data['access_token'] ?? null;
+    }
+
+    private function create_google_calendar_event( $booking_id ) {
+        $access_token = $this->get_google_access_token();
+        if ( ! $access_token ) return null;
+
+        $mentor_id  = (int) get_post_meta( $booking_id, '_bpu_booking_mentor_id', true );
+        $mentee_id  = (int) get_post_meta( $booking_id, '_bpu_booking_mentee_id', true );
+        $date       = get_post_meta( $booking_id, '_bpu_booking_date', true );
+        $time_slot  = get_post_meta( $booking_id, '_bpu_booking_time_slot', true );
+        $session_id = (int) get_post_meta( $booking_id, '_bpu_booking_session_id', true );
+        $notes      = get_post_meta( $booking_id, '_bpu_booking_notes', true );
+
+        $mentor = get_userdata( $mentor_id );
+        $mentee = get_userdata( $mentee_id );
+        $session_name = $session_id ? get_post_meta( $session_id, '_session_name', true ) : 'Mentorship Session';
+        $duration     = $session_id ? (int) get_post_meta( $session_id, '_session_duration', true ) : 60;
+        $timezone     = get_user_meta( $mentor_id, '_paired_timezone', true ) ?: 'Europe/London';
+
+        $times = explode( '-', $time_slot );
+        $start_time = trim( $times[0] ?? '09:00' );
+        $start_dt   = $date . 'T' . $start_time . ':00';
+        $end_dt_obj = new DateTime( $start_dt, new DateTimeZone( $timezone ) );
+        $end_dt_obj->modify( '+' . $duration . ' minutes' );
+        $end_dt = $end_dt_obj->format( 'Y-m-d\TH:i:s' );
+
+        $event = array(
+            'summary'     => 'PAIRED: ' . $session_name . ' — ' . ( $mentor ? $mentor->display_name : '' ) . ' & ' . ( $mentee ? $mentee->display_name : '' ),
+            'description' => ( $notes ? 'Mentee notes: ' . $notes : '' ),
+            'start'       => array( 'dateTime' => $start_dt, 'timeZone' => $timezone ),
+            'end'         => array( 'dateTime' => $end_dt, 'timeZone' => $timezone ),
+            'attendees'   => array_filter( array(
+                $mentor ? array( 'email' => $mentor->user_email ) : null,
+                $mentee ? array( 'email' => $mentee->user_email ) : null,
+            ) ),
+            'conferenceData' => array(
+                'createRequest' => array(
+                    'requestId'             => 'paired-' . $booking_id . '-' . time(),
+                    'conferenceSolutionKey' => array( 'type' => 'hangoutsMeet' ),
+                ),
+            ),
+        );
+
+        $response = wp_remote_post(
+            'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all',
+            array(
+                'headers' => array(
+                    'Authorization' => 'Bearer ' . $access_token,
+                    'Content-Type'  => 'application/json',
+                ),
+                'body'    => wp_json_encode( $event ),
+                'timeout' => 30,
+            )
+        );
+
+        if ( is_wp_error( $response ) ) return null;
+
+        $result = json_decode( wp_remote_retrieve_body( $response ), true );
+        if ( empty( $result['id'] ) ) return null;
+
+        $meet_link = $result['conferenceData']['entryPoints'][0]['uri'] ?? '';
+
+        update_post_meta( $booking_id, '_bpu_booking_calendar_event_id', $result['id'] );
+        if ( $meet_link ) {
+            update_post_meta( $booking_id, '_bpu_booking_meet_link', $meet_link );
+        }
+
+        return $meet_link;
+    }
+
+    private function delete_google_calendar_event( $booking_id ) {
+        $event_id = get_post_meta( $booking_id, '_bpu_booking_calendar_event_id', true );
+        if ( ! $event_id ) return;
+
+        $access_token = $this->get_google_access_token();
+        if ( ! $access_token ) return;
+
+        wp_remote_request(
+            'https://www.googleapis.com/calendar/v3/calendars/primary/events/' . urlencode( $event_id ) . '?sendUpdates=all',
+            array(
+                'method'  => 'DELETE',
+                'headers' => array( 'Authorization' => 'Bearer ' . $access_token ),
+                'timeout' => 15,
+            )
+        );
+
+        delete_post_meta( $booking_id, '_bpu_booking_calendar_event_id' );
+        delete_post_meta( $booking_id, '_bpu_booking_meet_link' );
+    }
+
+    private function create_zoom_meeting( $booking_id ) {
+        $account_id    = get_option( '_paired_zoom_account_id', '' );
+        $client_id     = get_option( '_paired_zoom_client_id', '' );
+        $client_secret = get_option( '_paired_zoom_client_secret', '' );
+
+        if ( ! $account_id || ! $client_id || ! $client_secret ) return null;
+
+        $token_response = wp_remote_post( 'https://zoom.us/oauth/token', array(
+            'headers' => array(
+                'Authorization' => 'Basic ' . base64_encode( $client_id . ':' . $client_secret ),
+                'Content-Type'  => 'application/x-www-form-urlencoded',
+            ),
+            'body' => array(
+                'grant_type' => 'account_credentials',
+                'account_id' => $account_id,
+            ),
+            'timeout' => 15,
+        ) );
+
+        if ( is_wp_error( $token_response ) ) return null;
+        $token_data = json_decode( wp_remote_retrieve_body( $token_response ), true );
+        $access_token = $token_data['access_token'] ?? '';
+        if ( ! $access_token ) return null;
+
+        $mentor_id  = (int) get_post_meta( $booking_id, '_bpu_booking_mentor_id', true );
+        $mentee_id  = (int) get_post_meta( $booking_id, '_bpu_booking_mentee_id', true );
+        $date       = get_post_meta( $booking_id, '_bpu_booking_date', true );
+        $time_slot  = get_post_meta( $booking_id, '_bpu_booking_time_slot', true );
+        $session_id = (int) get_post_meta( $booking_id, '_bpu_booking_session_id', true );
+        $mentor     = get_userdata( $mentor_id );
+        $mentee     = get_userdata( $mentee_id );
+        $session_name = $session_id ? get_post_meta( $session_id, '_session_name', true ) : 'Mentorship Session';
+        $duration     = $session_id ? (int) get_post_meta( $session_id, '_session_duration', true ) : 60;
+        $timezone     = get_user_meta( $mentor_id, '_paired_timezone', true ) ?: 'Europe/London';
+
+        $times = explode( '-', $time_slot );
+        $start_time = trim( $times[0] ?? '09:00' );
+        $start_dt   = $date . 'T' . $start_time . ':00';
+
+        $meeting_response = wp_remote_post( 'https://api.zoom.us/v2/users/me/meetings', array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $access_token,
+                'Content-Type'  => 'application/json',
+            ),
+            'body' => wp_json_encode( array(
+                'topic'      => 'PAIRED: ' . $session_name . ' — ' . ( $mentor ? $mentor->display_name : '' ) . ' & ' . ( $mentee ? $mentee->display_name : '' ),
+                'type'       => 2,
+                'start_time' => $start_dt,
+                'duration'   => $duration,
+                'timezone'   => $timezone,
+                'settings'   => array(
+                    'join_before_host' => true,
+                    'waiting_room'     => false,
+                ),
+            ) ),
+            'timeout' => 30,
+        ) );
+
+        if ( is_wp_error( $meeting_response ) ) return null;
+        $meeting_data = json_decode( wp_remote_retrieve_body( $meeting_response ), true );
+        $join_url = $meeting_data['join_url'] ?? '';
+
+        if ( $join_url ) {
+            update_post_meta( $booking_id, '_bpu_booking_meet_link', $join_url );
+            update_post_meta( $booking_id, '_bpu_booking_zoom_meeting_id', $meeting_data['id'] ?? '' );
+        }
+
+        return $join_url;
+    }
+
+    private function generate_meeting_link( $booking_id, $mentor_id ) {
+        $provider = get_user_meta( $mentor_id, '_paired_meeting_provider', true ) ?: 'custom';
+
+        switch ( $provider ) {
+            case 'google_meet':
+                $calendar_sync = get_user_meta( $mentor_id, '_paired_calendar_sync_enabled', true );
+                if ( $calendar_sync ) {
+                    return $this->create_google_calendar_event( $booking_id );
+                }
+                return null;
+
+            case 'zoom':
+                return $this->create_zoom_meeting( $booking_id );
+
+            case 'teams':
+            case 'custom':
+                $custom_url = get_user_meta( $mentor_id, '_paired_meeting_custom_url', true );
+                if ( $custom_url ) {
+                    update_post_meta( $booking_id, '_bpu_booking_meet_link', $custom_url );
+                    return $custom_url;
+                }
+                return null;
+
+            default:
+                return null;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PHASE 3: MENTOR ONBOARDING CHECKLIST
+    // ═══════════════════════════════════════════════════════════════
+
+    public function get_onboarding_status( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $bio       = get_user_meta( $user_id, 'user_bio', true );
+        $industry  = get_user_meta( $user_id, 'industry', true );
+        $role      = get_user_meta( $user_id, 'current_role', true );
+        $photo     = get_user_meta( $user_id, '_paired_photo_url', true ) ?: get_user_meta( $user_id, 'paired_image_path', true );
+        $skills    = get_user_meta( $user_id, 'skills_separate', true );
+        $schedule  = get_user_meta( $user_id, '_paired_weekly_schedule', true );
+        $stripe_id = get_user_meta( $user_id, '_paired_stripe_account_id', true );
+        $kyc       = get_user_meta( $user_id, '_paired_kyc_status', true );
+
+        $sessions_query = new WP_Query( array(
+            'post_type'      => 'paired_session',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'meta_query'     => array(
+                array( 'key' => '_session_mentor_id', 'value' => $user_id ),
+            ),
+        ) );
+        $has_session = $sessions_query->found_posts > 0;
+        wp_reset_postdata();
+
+        $skills_arr = is_string( $skills ) ? array_filter( explode( ',', $skills ) ) : ( is_array( $skills ) ? $skills : array() );
+
+        $steps = array(
+            array(
+                'key'       => 'profile_complete',
+                'label'     => 'Complete your profile',
+                'completed' => ! empty( $bio ) && ! empty( $industry ) && ! empty( $role ),
+                'link'      => '/paired/mentor/settings',
+            ),
+            array(
+                'key'       => 'photo_uploaded',
+                'label'     => 'Upload a profile photo',
+                'completed' => ! empty( $photo ),
+                'link'      => '/paired/mentor/settings',
+            ),
+            array(
+                'key'       => 'session_created',
+                'label'     => 'Create a session type',
+                'completed' => $has_session,
+                'link'      => '/paired/mentor/sessions',
+            ),
+            array(
+                'key'       => 'availability_set',
+                'label'     => 'Set your availability',
+                'completed' => ! empty( $schedule ),
+                'link'      => '/paired/mentor/settings',
+            ),
+            array(
+                'key'       => 'skills_added',
+                'label'     => 'Add at least 3 skills',
+                'completed' => count( $skills_arr ) >= 3,
+                'link'      => '/paired/mentor/settings',
+            ),
+            array(
+                'key'       => 'payout_configured',
+                'label'     => 'Connect Stripe for payouts',
+                'completed' => ! empty( $stripe_id ),
+                'link'      => '/paired/mentor/payout-settings',
+                'optional'  => true,
+            ),
+            array(
+                'key'       => 'kyc_verified',
+                'label'     => 'Verify your identity (KYC)',
+                'completed' => 'approved' === $kyc,
+                'link'      => '/paired/mentor/kyc',
+                'optional'  => true,
+            ),
+        );
+
+        $required   = array_filter( $steps, function( $s ) { return empty( $s['optional'] ); } );
+        $completed  = count( array_filter( $steps, function( $s ) { return $s['completed']; } ) );
+        $total      = count( $steps );
+        $req_done   = count( array_filter( $required, function( $s ) { return $s['completed']; } ) );
+        $req_total  = count( $required );
+
+        return new WP_REST_Response( array(
+            'success'            => true,
+            'steps'              => $steps,
+            'completed'          => $completed,
+            'total'              => $total,
+            'percentage'         => $total > 0 ? round( ( $completed / $total ) * 100 ) : 0,
+            'required_completed' => $req_done,
+            'required_total'     => $req_total,
+            'all_required_done'  => $req_done >= $req_total,
+        ), 200 );
+    }
+
+    public function complete_onboarding_step( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $step = sanitize_text_field( $request->get_param( 'step' ) );
+        update_user_meta( $user_id, '_paired_onboarding_' . $step, 1 );
+
+        return new WP_REST_Response( array( 'success' => true, 'step' => $step ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PHASE 3: REFERRAL PROGRAMME
+    // ═══════════════════════════════════════════════════════════════
+
+    public function get_referral_code( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $code = get_user_meta( $user_id, '_paired_referral_code', true );
+        if ( empty( $code ) ) {
+            $code = 'BPU-' . $user_id . '-' . strtoupper( substr( wp_generate_password( 4, false ), 0, 4 ) );
+            update_user_meta( $user_id, '_paired_referral_code', $code );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'code'    => $code,
+            'link'    => 'https://pairedbybpu.uk/register?ref=' . urlencode( $code ),
+        ), 200 );
+    }
+
+    public function get_referral_stats( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_referral',
+            'post_status'    => 'publish',
+            'posts_per_page' => 100,
+            'meta_query'     => array(
+                array( 'key' => '_referral_referrer_id', 'value' => $user_id ),
+            ),
+            'orderby' => 'date',
+            'order'   => 'DESC',
+        ) );
+
+        $referrals = array();
+        $mentor_count = 0;
+        $mentee_count = 0;
+
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $rid       = get_the_ID();
+                $referee_id = (int) get_post_meta( $rid, '_referral_referee_id', true );
+                $referee    = get_userdata( $referee_id );
+                $is_mentor  = $referee && in_array( 'mentor', (array) $referee->roles, true );
+                if ( $is_mentor ) $mentor_count++;
+                else $mentee_count++;
+
+                $referrals[] = array(
+                    'id'          => $rid,
+                    'referee_id'  => $referee_id,
+                    'referee_name' => $referee ? $referee->display_name : 'User',
+                    'is_mentor'   => $is_mentor,
+                    'created_at'  => get_the_date( 'c' ),
+                    'status'      => get_post_meta( $rid, '_referral_status', true ) ?: 'registered',
+                );
+            }
+        }
+        wp_reset_postdata();
+
+        $points = (int) get_user_meta( $user_id, '_paired_referral_points', true );
+
+        return new WP_REST_Response( array(
+            'success'            => true,
+            'total_referrals'    => count( $referrals ),
+            'successful_mentors' => $mentor_count,
+            'successful_mentees' => $mentee_count,
+            'points'             => $points,
+            'referrals'          => $referrals,
+        ), 200 );
+    }
+
+    public function apply_referral_code( WP_REST_Request $request ) {
+        $code    = sanitize_text_field( $request->get_param( 'code' ) );
+        $user_id = absint( $request->get_param( 'user_id' ) );
+
+        if ( empty( $code ) || empty( $user_id ) ) {
+            return new WP_Error( 'missing_params', 'Code and user_id are required.', array( 'status' => 400 ) );
+        }
+
+        $users = get_users( array(
+            'meta_key'   => '_paired_referral_code',
+            'meta_value' => $code,
+            'number'     => 1,
+        ) );
+
+        if ( empty( $users ) ) {
+            return new WP_Error( 'invalid_code', 'Referral code not found.', array( 'status' => 404 ) );
+        }
+
+        $referrer_id = $users[0]->ID;
+        if ( $referrer_id === $user_id ) {
+            return new WP_Error( 'self_referral', 'You cannot refer yourself.', array( 'status' => 400 ) );
+        }
+
+        $existing = new WP_Query( array(
+            'post_type'      => 'paired_referral',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'meta_query'     => array(
+                array( 'key' => '_referral_referee_id', 'value' => $user_id ),
+            ),
+        ) );
+        if ( $existing->found_posts > 0 ) {
+            wp_reset_postdata();
+            return new WP_Error( 'already_referred', 'This user was already referred.', array( 'status' => 409 ) );
+        }
+        wp_reset_postdata();
+
+        $referee = get_userdata( $user_id );
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'paired_referral',
+            'post_title'  => sprintf( 'Referral: %s → %s', $users[0]->display_name, $referee ? $referee->display_name : 'User #' . $user_id ),
+            'post_status' => 'publish',
+            'post_author' => $referrer_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) return $post_id;
+
+        update_post_meta( $post_id, '_referral_referrer_id', $referrer_id );
+        update_post_meta( $post_id, '_referral_referee_id', $user_id );
+        update_post_meta( $post_id, '_referral_code', $code );
+        update_post_meta( $post_id, '_referral_status', 'registered' );
+
+        $current_points = (int) get_user_meta( $referrer_id, '_paired_referral_points', true );
+        update_user_meta( $referrer_id, '_paired_referral_points', $current_points + 10 );
+
+        update_user_meta( $user_id, '_paired_referred_by', $referrer_id );
+
+        $this->create_notification(
+            $referrer_id,
+            'referral',
+            'New Referral',
+            ( $referee ? $referee->display_name : 'Someone' ) . ' signed up using your referral code!',
+            '/paired/referral'
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'referral_id' => $post_id ), 200 );
+    }
+
+    public function admin_get_referrals( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'paired_referral',
+            'post_status'    => 'publish',
+            'posts_per_page' => 200,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        ) );
+
+        $referrals = array();
+        if ( $query->have_posts() ) {
+            while ( $query->have_posts() ) {
+                $query->the_post();
+                $rid         = get_the_ID();
+                $referrer_id = (int) get_post_meta( $rid, '_referral_referrer_id', true );
+                $referee_id  = (int) get_post_meta( $rid, '_referral_referee_id', true );
+                $referrer    = get_userdata( $referrer_id );
+                $referee     = get_userdata( $referee_id );
+
+                $referrals[] = array(
+                    'id'            => $rid,
+                    'referrer_id'   => $referrer_id,
+                    'referrer_name' => $referrer ? $referrer->display_name : 'Unknown',
+                    'referee_id'    => $referee_id,
+                    'referee_name'  => $referee ? $referee->display_name : 'Unknown',
+                    'code'          => get_post_meta( $rid, '_referral_code', true ),
+                    'status'        => get_post_meta( $rid, '_referral_status', true ),
+                    'created_at'    => get_the_date( 'c' ),
+                );
+            }
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'total'     => count( $referrals ),
+            'referrals' => $referrals,
+        ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  PHASE 3: KYC VERIFICATION
+    // ═══════════════════════════════════════════════════════════════
+
+    public function kyc_submit( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $current_status = get_user_meta( $user_id, '_paired_kyc_status', true );
+        if ( 'approved' === $current_status ) {
+            return new WP_Error( 'already_approved', 'Your identity has already been verified.', array( 'status' => 400 ) );
+        }
+
+        if ( ! function_exists( 'wp_handle_upload' ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+        }
+
+        $uploaded_files = array();
+        $file_keys = array( 'id_front', 'id_back' );
+
+        foreach ( $file_keys as $key ) {
+            if ( ! empty( $_FILES[ $key ] ) && $_FILES[ $key ]['error'] === UPLOAD_ERR_OK ) {
+                $allowed_types = array( 'image/jpeg', 'image/png', 'image/webp', 'application/pdf' );
+                if ( ! in_array( $_FILES[ $key ]['type'], $allowed_types, true ) ) {
+                    return new WP_Error( 'invalid_file_type', 'Only JPEG, PNG, WebP, and PDF files are accepted.', array( 'status' => 400 ) );
+                }
+
+                if ( $_FILES[ $key ]['size'] > 10 * 1024 * 1024 ) {
+                    return new WP_Error( 'file_too_large', 'File must be under 10MB.', array( 'status' => 400 ) );
+                }
+
+                $upload = wp_handle_upload( $_FILES[ $key ], array(
+                    'test_form' => false,
+                    'unique_filename_callback' => function( $dir, $name, $ext ) use ( $user_id, $key ) {
+                        return 'kyc-' . $user_id . '-' . $key . '-' . time() . $ext;
+                    },
+                ) );
+
+                if ( ! empty( $upload['error'] ) ) {
+                    return new WP_Error( 'upload_failed', $upload['error'], array( 'status' => 500 ) );
+                }
+
+                $uploaded_files[ $key ] = $upload['url'];
+            }
+        }
+
+        if ( empty( $uploaded_files['id_front'] ) && empty( get_user_meta( $user_id, '_paired_kyc_doc_front', true ) ) ) {
+            return new WP_Error( 'missing_document', 'At least the front of your ID document is required.', array( 'status' => 400 ) );
+        }
+
+        if ( ! empty( $uploaded_files['id_front'] ) ) {
+            update_user_meta( $user_id, '_paired_kyc_doc_front', $uploaded_files['id_front'] );
+        }
+        if ( ! empty( $uploaded_files['id_back'] ) ) {
+            update_user_meta( $user_id, '_paired_kyc_doc_back', $uploaded_files['id_back'] );
+        }
+
+        update_user_meta( $user_id, '_paired_kyc_status', 'pending' );
+        update_user_meta( $user_id, '_paired_kyc_submitted_at', current_time( 'mysql' ) );
+
+        $admins = get_users( array( 'role' => 'administrator' ) );
+        $user   = get_userdata( $user_id );
+        foreach ( $admins as $admin ) {
+            $this->create_notification(
+                $admin->ID,
+                'kyc',
+                'KYC Review Required',
+                ( $user ? $user->display_name : 'A mentor' ) . ' has submitted identity documents for verification.',
+                '/paired/admin/kyc'
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'status'  => 'pending',
+            'message' => 'Documents submitted. We will review within 48 hours.',
+        ), 200 );
+    }
+
+    public function kyc_get_status( WP_REST_Request $request ) {
+        $user_id = $this->verify_mentor( $request );
+        if ( is_wp_error( $user_id ) ) return $user_id;
+
+        $status = get_user_meta( $user_id, '_paired_kyc_status', true ) ?: 'not_submitted';
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'status'           => $status,
+            'submitted_at'     => get_user_meta( $user_id, '_paired_kyc_submitted_at', true ) ?: null,
+            'reviewed_at'      => get_user_meta( $user_id, '_paired_kyc_reviewed_at', true ) ?: null,
+            'rejection_reason' => get_user_meta( $user_id, '_paired_kyc_rejection_reason', true ) ?: null,
+        ), 200 );
+    }
+
+    public function admin_list_kyc( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $status_filter = sanitize_text_field( $request->get_param( 'status' ) ) ?: 'pending';
+
+        $users = get_users( array(
+            'meta_key'   => '_paired_kyc_status',
+            'meta_value' => $status_filter,
+            'role'       => 'mentor',
+            'number'     => 100,
+            'orderby'    => 'registered',
+            'order'      => 'DESC',
+        ) );
+
+        $submissions = array();
+        foreach ( $users as $u ) {
+            $submissions[] = array(
+                'user_id'       => $u->ID,
+                'display_name'  => $u->display_name,
+                'email'         => $u->user_email,
+                'doc_front'     => get_user_meta( $u->ID, '_paired_kyc_doc_front', true ) ?: null,
+                'doc_back'      => get_user_meta( $u->ID, '_paired_kyc_doc_back', true ) ?: null,
+                'status'        => $status_filter,
+                'submitted_at'  => get_user_meta( $u->ID, '_paired_kyc_submitted_at', true ) ?: null,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success'     => true,
+            'total'       => count( $submissions ),
+            'submissions' => $submissions,
+        ), 200 );
+    }
+
+    public function admin_review_kyc( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $mentor_id = absint( $request->get_param( 'id' ) );
+        $status    = sanitize_text_field( $request->get_param( 'status' ) );
+        $reason    = sanitize_textarea_field( $request->get_param( 'rejection_reason' ) );
+
+        if ( ! in_array( $status, array( 'approved', 'rejected' ), true ) ) {
+            return new WP_Error( 'invalid_status', 'Status must be approved or rejected.', array( 'status' => 400 ) );
+        }
+
+        $mentor = get_userdata( $mentor_id );
+        if ( ! $mentor ) {
+            return new WP_Error( 'user_not_found', 'Mentor not found.', array( 'status' => 404 ) );
+        }
+
+        update_user_meta( $mentor_id, '_paired_kyc_status', $status );
+        update_user_meta( $mentor_id, '_paired_kyc_reviewed_at', current_time( 'mysql' ) );
+
+        if ( 'rejected' === $status && $reason ) {
+            update_user_meta( $mentor_id, '_paired_kyc_rejection_reason', $reason );
+        } else {
+            delete_user_meta( $mentor_id, '_paired_kyc_rejection_reason' );
+        }
+
+        if ( 'approved' === $status ) {
+            $heading   = 'Identity Verified!';
+            $body_html = '<p style="color:#333;font-size:15px;line-height:1.6;">Your identity has been verified. Your profile now displays a verification badge.</p>';
+            $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentor/settings" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View my profile</a></p>';
+
+            $this->create_notification( $mentor_id, 'kyc', 'Identity Verified', 'Your identity has been verified! A badge is now displayed on your profile.', '/paired/mentor/settings' );
+        } else {
+            $heading   = 'KYC Review Update';
+            $body_html = '<p style="color:#333;font-size:15px;line-height:1.6;">Unfortunately, we were unable to verify your identity at this time.</p>';
+            if ( $reason ) {
+                $body_html .= '<p style="color:#555;font-size:14px;">Reason: ' . esc_html( $reason ) . '</p>';
+            }
+            $body_html .= '<p style="color:#555;font-size:14px;">You can resubmit your documents for review.</p>';
+            $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentor/kyc" style="display:inline-block;background:#C8102E;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Resubmit documents</a></p>';
+
+            $this->create_notification( $mentor_id, 'kyc', 'KYC Review', 'Your identity verification was not approved. Please resubmit your documents.', '/paired/mentor/kyc' );
+        }
+
+        wp_mail(
+            $mentor->user_email,
+            $heading . ' — PAIRED by BPU',
+            $this->build_email_html( $heading, $body_html ),
+            array( 'Content-Type: text/html; charset=UTF-8' )
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => $status ), 200 );
     }
 }
 

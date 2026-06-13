@@ -4,6 +4,7 @@ import { decodeHtml } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import BookingActions from './BookingActions';
+import OnboardingChecklist from '../mentor/OnboardingChecklist';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -16,6 +17,10 @@ interface Booking {
     role: 'mentee' | 'mentor';
     mentor?: { id: number; display_name: string; avatar_url: string; };
     mentee?: { id: number; display_name: string; avatar_url: string; };
+    meet_link?: string;
+    payment_status?: string;
+    payment_amount?: number;
+    is_group_session?: boolean;
 }
 
 interface MentorStats {
@@ -167,6 +172,8 @@ export default async function PairedDashboard() {
                     ))}
                 </div>
 
+                <OnboardingChecklist />
+
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                     <div className="lg:col-span-2 space-y-6">
@@ -239,7 +246,20 @@ export default async function PairedDashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <span className="badge badge-green text-xs">Confirmed</span>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {b.meet_link && (
+                                                    <a
+                                                        href={b.meet_link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="btn btn-purple btn-sm text-xs"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        Join meeting
+                                                    </a>
+                                                )}
+                                                <span className="badge badge-green text-xs">Confirmed</span>
+                                            </div>
                                         </div>
                                     );
                                 })
@@ -456,7 +476,17 @@ export default async function PairedDashboard() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2 shrink-0">
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {b.meet_link && b.status === 'confirmed' && (
+                                                <a
+                                                    href={b.meet_link}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="btn btn-purple btn-sm text-xs"
+                                                >
+                                                    Join meeting
+                                                </a>
+                                            )}
                                             <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
                                                 {b.status || 'pending'}
                                             </span>

@@ -27,6 +27,7 @@ export default async function PairedLayout({ children }: { children: React.React
                 <a href="/paired/dashboard" className="btn btn-ghost btn-sm">My sessions</a>
                 <a href="/paired/messages" className="btn btn-ghost btn-sm">Messages</a>
                 <a href="/paired/favourites" className="btn btn-ghost btn-sm">Favourites</a>
+                <a href="/paired/referral" className="btn btn-ghost btn-sm">Referrals</a>
               </>
             )}
             {session.authenticated && session.user?.roles.includes('mentor') && (
@@ -42,6 +43,7 @@ export default async function PairedLayout({ children }: { children: React.React
                 <a href="/paired/admin/applications" className="btn btn-ghost btn-sm">Applications</a>
                 <a href="/paired/admin/mentors" className="btn btn-ghost btn-sm">Mentors</a>
                 <a href="/paired/admin/stats" className="btn btn-ghost btn-sm">Analytics</a>
+                <a href="/paired/admin/kyc" className="btn btn-ghost btn-sm">KYC</a>
               </>
             )}
           </nav>
