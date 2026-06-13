@@ -81,7 +81,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                         <NavLink href="/paired/favourites" icon="heart" label="Favourites" active={isActive('/paired/favourites')} onClick={close} />
                         <NavLink href="/paired/notifications" icon="bell" label="Notifications" active={isActive('/paired/notifications')} onClick={close} />
                         <NavLink href="/paired/referral" icon="referral" label="Referrals" active={isActive('/paired/referral')} onClick={close} />
-                        <NavLink href="/paired/mentee/profile" icon="profile" label="My Profile" active={isActive('/paired/mentee/profile')} onClick={close} />
+                        <NavLink href="/paired/mentee/profile" icon="profile" label="Personal Profile" active={isActive('/paired/mentee/profile')} onClick={close} />
                     </div>
 
                     {isMentor && (
@@ -90,7 +90,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                             <NavLink href="/paired/mentor/sessions" icon="sessions" label="Sessions" active={isActive('/paired/mentor/sessions')} onClick={close} />
                             <NavLink href="/paired/mentor/bookings" icon="bookings" label="Mentor Bookings" active={isActive('/paired/mentor/bookings')} onClick={close} />
                             <NavLink href="/paired/mentor/mentees" icon="mentees" label="Mentees" active={isActive('/paired/mentor/mentees')} onClick={close} />
-                            <NavLink href="/paired/mentor/settings" icon="settings" label="Mentor Settings" active={isActive('/paired/mentor/settings')} onClick={close} />
+                            <NavLink href="/paired/mentor/settings" icon="settings" label="Mentor Profile" active={isActive('/paired/mentor/settings')} onClick={close} />
                         </div>
                     )}
 
