@@ -4,6 +4,7 @@ import { decodeHtml } from '@/lib/utils';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import BookingActions from './BookingActions';
+import OnboardingChecklist from '../mentor/OnboardingChecklist';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -16,6 +17,10 @@ interface Booking {
     role: 'mentee' | 'mentor';
     mentor?: { id: number; display_name: string; avatar_url: string; };
     mentee?: { id: number; display_name: string; avatar_url: string; };
+    meet_link?: string;
+    payment_status?: string;
+    payment_amount?: number;
+    is_group_session?: boolean;
 }
 
 interface MentorStats {
@@ -73,6 +78,7 @@ export default async function PairedDashboard() {
     let bookings: Booking[] = [];
     let suggested: MentorSummary[] = [];
     let mentorStats: MentorStats | null = null as MentorStats | null;
+    let menteeProfile: Record<string, string> = {};
 
     await Promise.all([
         fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/bookings?per_page=50`, {
@@ -91,6 +97,15 @@ export default async function PairedDashboard() {
                 .catch(() => {})
             : Promise.resolve(),
 
+        !isMentor
+            ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/paired/mentee/profile`, {
+                headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+            })
+                .then(r => r.ok ? r.json() : null)
+                .then(d => { if (d?.profile) menteeProfile = d.profile; })
+                .catch(() => {})
+            : Promise.resolve(),
+
         !isMentor && isPro
             ? fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors?per_page=12`, {
                 headers: { 'Cache-Control': 'no-store' },
@@ -98,7 +113,7 @@ export default async function PairedDashboard() {
                 .then(r => r.ok ? r.json() : null)
                 .then(d => {
                     if (d?.mentors && user.profile) {
-                        const memberProfile = user.profile as unknown as Record<string, string>;
+                        const memberProfile = { ...(user.profile as unknown as Record<string, string>), ...menteeProfile };
                         suggested = (d.mentors as MentorSummary[])
                             .map(m => ({
                                 ...m,
@@ -115,7 +130,8 @@ export default async function PairedDashboard() {
             : Promise.resolve(),
     ]);
 
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
     if (isMentor) {
         const mentorBookings = bookings.filter(b => b.role === 'mentor');
@@ -126,7 +142,7 @@ export default async function PairedDashboard() {
         const pastAsMentor = mentorBookings.filter(b => b.date < today);
 
         return (
-            <div className="wrap py-10 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
                 {/* ── Mentor header ────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -156,6 +172,8 @@ export default async function PairedDashboard() {
                         </div>
                     ))}
                 </div>
+
+                <OnboardingChecklist />
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
@@ -229,7 +247,27 @@ export default async function PairedDashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <span className="badge badge-green text-xs">Confirmed</span>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                {b.meet_link && (
+                                                    <a
+                                                        href={b.meet_link}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="btn btn-purple btn-sm text-xs"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    >
+                                                        Join meeting
+                                                    </a>
+                                                )}
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    Details
+                                                </a>
+                                                <span className="badge badge-green text-xs">Confirmed</span>
+                                            </div>
                                         </div>
                                     );
                                 })
@@ -262,9 +300,17 @@ export default async function PairedDashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
-                                                {b.status || 'pending'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    Details
+                                                </a>
+                                                <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
+                                                    {b.status || 'pending'}
+                                                </span>
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -294,6 +340,12 @@ export default async function PairedDashboard() {
                                                         <p className="text-xs text-text-3">{formatDate(b.date)}</p>
                                                     </div>
                                                 </div>
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    Details
+                                                </a>
                                             </div>
                                         );
                                     })}
@@ -380,7 +432,7 @@ export default async function PairedDashboard() {
     const hoursTotal = past.length;
 
     return (
-        <div className="wrap py-10 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             {/* ── Page header ────────────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -446,7 +498,23 @@ export default async function PairedDashboard() {
                                                 </p>
                                             </div>
                                         </div>
-                                        <div className="flex gap-2 shrink-0">
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            {b.meet_link && b.status === 'confirmed' && (
+                                                <a
+                                                    href={b.meet_link}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="btn btn-purple btn-sm text-xs"
+                                                >
+                                                    Join meeting
+                                                </a>
+                                            )}
+                                            <a
+                                                href={`/paired/bookings/${b.id}`}
+                                                className="btn btn-ghost btn-sm text-xs"
+                                            >
+                                                Details
+                                            </a>
                                             <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
                                                 {b.status || 'pending'}
                                             </span>
@@ -480,12 +548,22 @@ export default async function PairedDashboard() {
                                                     <p className="text-xs text-text-3">{formatDate(b.date)}</p>
                                                 </div>
                                             </div>
-                                            <a
-                                                href={`/paired/mentors/${other?.id || ''}`}
-                                                className="btn btn-ghost btn-sm text-xs"
-                                            >
-                                                Book again
-                                            </a>
+                                            <div className="flex gap-2">
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    Details
+                                                </a>
+                                                {b.role === 'mentee' && (
+                                                    <a
+                                                        href={`/paired/mentors/${other?.id || ''}`}
+                                                        className="btn btn-ghost btn-sm text-xs"
+                                                    >
+                                                        Book again
+                                                    </a>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}

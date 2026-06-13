@@ -37,7 +37,7 @@ export default async function MentorSessionsPage() {
     }
 
     return (
-        <div className="wrap py-10 fade-up">
+        <div className="fade-up">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-3xl font-bold">My Session Types</h1>

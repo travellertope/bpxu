@@ -115,13 +115,17 @@ export class BPUApi {
         const uInd = (memberProfile.industry || '').toLowerCase();
         const uField = (memberProfile.industryfield_of_expertise || '').toLowerCase();
         const uSkills = (memberProfile.skills_separate || '').toLowerCase();
+        const uSkillsToDevelop = (memberProfile.skills_to_develop || '').toLowerCase();
+        const uCareerGoals = (memberProfile.career_goals || '').toLowerCase();
         const mInd = (mentorProfile.industry || '').toLowerCase();
         const mField = (mentorProfile.industryfield_of_expertise || '').toLowerCase();
         const mSkills = (mentorProfile.skills_separate || '').toLowerCase();
 
+        // Industry alignment
         if (uInd && mInd && uInd === mInd) score += 30;
         if (uField && mField && uField === mField) score += 20;
 
+        // Skills overlap (mentee's existing skills match mentor's)
         const userSkillWords = uSkills.split(/[,\s]+/).filter(w => w.length > 2);
         const mentorSkillWords = new Set(mSkills.split(/[,\s]+/).filter(w => w.length > 2));
         let skillScore = 0;
@@ -129,6 +133,27 @@ export class BPUApi {
             if (mentorSkillWords.has(w)) skillScore += 5;
         }
         score += Math.min(20, skillScore);
+
+        // Skills-to-develop alignment: mentor has skills the mentee wants to learn
+        if (uSkillsToDevelop && mSkills) {
+            const wantedSkills = uSkillsToDevelop.split(/[,\s]+/).filter(w => w.length > 2);
+            let developScore = 0;
+            for (const w of wantedSkills) {
+                if (mentorSkillWords.has(w)) developScore += 6;
+            }
+            score += Math.min(15, developScore);
+        }
+
+        // Career goals alignment: check if mentor's field/industry/skills relate to mentee goals
+        if (uCareerGoals) {
+            const goalWords = uCareerGoals.split(/[\s,;.]+/).filter(w => w.length > 3);
+            const mentorText = `${mInd} ${mField} ${mSkills}`;
+            let goalScore = 0;
+            for (const w of goalWords) {
+                if (mentorText.includes(w)) goalScore += 4;
+            }
+            score += Math.min(14, goalScore);
+        }
 
         return Math.min(99, Math.max(0, score));
     }

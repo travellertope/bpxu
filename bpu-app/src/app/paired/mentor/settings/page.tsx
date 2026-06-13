@@ -42,7 +42,7 @@ export default async function MentorSettingsPage() {
         ]);
 
     return (
-        <div className="wrap py-10 fade-up">
+        <div className="fade-up">
             <h1 className="text-3xl font-bold mb-2">Profile Settings</h1>
             <p className="text-text-2 mb-8">Manage your mentor profile, availability, and preferences.</p>
 

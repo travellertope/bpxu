@@ -36,7 +36,7 @@ export default async function AdminStatsPage() {
     }
 
     return (
-        <div className="wrap py-10 fade-up">
+        <div className="fade-up">
             <h1 className="text-3xl font-bold mb-2">Platform Analytics</h1>
             <p className="text-text-2 mb-8">Overview of the PAIRED mentorship platform.</p>
 
