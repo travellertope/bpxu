@@ -142,7 +142,7 @@ export default async function PairedDashboard() {
         const pastAsMentor = mentorBookings.filter(b => b.date < today);
 
         return (
-            <div className="wrap py-10 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+            <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
                 {/* ── Mentor header ────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -432,7 +432,7 @@ export default async function PairedDashboard() {
     const hoursTotal = past.length;
 
     return (
-        <div className="wrap py-10 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             {/* ── Page header ────────────────────────────────── */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">

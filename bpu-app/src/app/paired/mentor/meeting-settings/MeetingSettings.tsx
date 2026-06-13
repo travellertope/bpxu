@@ -97,14 +97,14 @@ export default function MeetingSettings() {
 
     if (loading) {
         return (
-            <div className="wrap py-12 fade-up">
+            <div className="fade-up">
                 <div className="text-center text-sm text-text-2 py-12">Loading meeting settings...</div>
             </div>
         );
     }
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '640px' }}>
+        <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '640px' }}>
             <div>
                 <h1 className="text-3xl font-extrabold tracking-tight">Meeting Settings</h1>
                 <p className="mt-2" style={{ color: 'var(--text-2)' }}>

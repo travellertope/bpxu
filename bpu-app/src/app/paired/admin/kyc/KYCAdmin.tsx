@@ -52,7 +52,7 @@ export default function KYCAdmin() {
     }
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
                 <h1 className="text-2xl font-bold">KYC Reviews</h1>
                 <p className="text-sm text-text-2 mt-1">Review mentor identity verification submissions.</p>

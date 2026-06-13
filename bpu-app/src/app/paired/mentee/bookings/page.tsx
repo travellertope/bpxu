@@ -34,7 +34,7 @@ export default async function MenteeBookingsPage() {
     }
 
     return (
-        <div className="wrap py-10 fade-up">
+        <div className="fade-up">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                 <div>
                     <h1 className="text-3xl font-bold">My Bookings</h1>

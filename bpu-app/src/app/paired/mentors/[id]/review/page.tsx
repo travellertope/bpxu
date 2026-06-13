@@ -53,7 +53,7 @@ export default async function SubmitReviewPage({
     }
 
     return (
-        <div className="wrap py-10 fade-up" style={{ maxWidth: 640 }}>
+        <div className="fade-up" style={{ maxWidth: 640 }}>
             <a href={`/paired/mentors/${id}`} className="text-sm text-text-3 hover:text-brand flex items-center gap-1 mb-6" style={{ width: 'fit-content' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
                 Back to profile

@@ -118,7 +118,7 @@ export default function KYCForm() {
 
     if (loading) {
         return (
-            <div className="wrap py-12 fade-up">
+            <div className="fade-up">
                 <div className="text-center text-sm py-12" style={{ color: 'var(--text-2)' }}>
                     Loading KYC status...
                 </div>
@@ -129,7 +129,7 @@ export default function KYCForm() {
     const status = data?.status || 'not_submitted';
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '640px' }}>
+        <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px', maxWidth: '640px' }}>
             <div>
                 <h1 className="text-3xl font-extrabold tracking-tight">Identity Verification</h1>
                 <p className="mt-2" style={{ color: 'var(--text-2)' }}>

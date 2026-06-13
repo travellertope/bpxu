@@ -83,7 +83,7 @@ export default function ApplicationsAdmin() {
     ];
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
             <div>
                 <h1 className="text-3xl font-extrabold tracking-tight">Mentor Applications</h1>
                 <p className="text-text-2 mt-2">Review and manage mentor applications for the PAIRED directory.</p>

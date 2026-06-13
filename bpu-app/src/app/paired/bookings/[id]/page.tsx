@@ -99,7 +99,7 @@ export default async function BookingDetailPage({
     const backHref = booking.role === 'mentee' ? '/paired/mentee/bookings' : '/paired/mentor/bookings';
 
     return (
-        <div className="wrap py-10 fade-up" style={{ maxWidth: '640px' }}>
+        <div className="fade-up" style={{ maxWidth: '640px' }}>
             {/* Back */}
             <a
                 href={backHref}

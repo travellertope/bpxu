@@ -9,7 +9,7 @@ export default async function NotificationsPage() {
     }
 
     return (
-        <div className="wrap py-10 fade-up" style={{ maxWidth: '720px' }}>
+        <div className="fade-up" style={{ maxWidth: '720px' }}>
             <h1 className="text-3xl font-bold mb-2">Notifications</h1>
             <p className="text-text-2 mb-8">Stay up to date with your mentorship activity.</p>
             <NotificationsList />

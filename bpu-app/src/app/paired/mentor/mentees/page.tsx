@@ -62,7 +62,7 @@ export default async function MentorMenteesPage() {
     }
 
     return (
-        <div className="wrap py-10 fade-up">
+        <div className="fade-up">
 
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">

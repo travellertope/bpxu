@@ -34,7 +34,7 @@ export default async function FavouritesPage() {
     }
 
     return (
-        <div className="wrap py-10 fade-up">
+        <div className="fade-up">
             <h1 className="text-3xl font-bold mb-2">Favourite Mentors</h1>
             <p className="text-text-2 mb-8">Your saved mentors for quick access.</p>
 
