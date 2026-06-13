@@ -290,7 +290,7 @@ export default async function MentorDirectory({
     const page = Math.max(1, parseInt(params.page || '1', 10));
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="wrap py-8 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <h1 className="text-4xl font-extrabold tracking-tight">Browse mentors</h1>

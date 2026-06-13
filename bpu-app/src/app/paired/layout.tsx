@@ -12,7 +12,6 @@ export default async function PairedLayout({ children }: { children: React.React
 
   const isPublicPage = !session.authenticated ||
     pathname === '/paired' ||
-    pathname.startsWith('/paired/mentors') ||
     pathname === '/paired/apply';
 
   if (isPublicPage) {
