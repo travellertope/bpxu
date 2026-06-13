@@ -132,9 +132,9 @@ export default async function BookingDetailPage({
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <InfoRow label="Date" value={<strong>{formatDate(booking.date)}</strong>} />
                         <InfoRow label="Time" value={booking.time_slot?.replace('-', ' – ') || '—'} />
-                        {booking.role === 'mentee' ? (
+                        {booking.role === 'mentee' && other?.id ? (
                             <InfoRow label={otherLabel} value={
-                                <a href={`/paired/mentors/${other?.id || ''}`} className="font-medium hover:underline" style={{ color: 'var(--purple)' }}>
+                                <a href={`/paired/mentors/${other.id}`} className="font-medium hover:underline" style={{ color: 'var(--purple)' }}>
                                     {decodeHtml(otherName)}
                                 </a>
                             } />
@@ -184,9 +184,9 @@ export default async function BookingDetailPage({
                         </a>
                     )}
 
-                    {booking.status === 'completed' && booking.role === 'mentee' && (
+                    {booking.status === 'completed' && booking.role === 'mentee' && booking.mentor?.id && (
                         <a
-                            href={`/paired/mentors/${booking.mentor?.id || ''}/review`}
+                            href={`/paired/mentors/${booking.mentor.id}/review`}
                             className="btn btn-outline"
                         >
                             Leave a review

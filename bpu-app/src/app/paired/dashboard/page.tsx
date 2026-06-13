@@ -339,6 +339,12 @@ export default async function PairedDashboard() {
                                                         <p className="text-xs text-text-3">{formatDate(b.date)}</p>
                                                     </div>
                                                 </div>
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    Details
+                                                </a>
                                             </div>
                                         );
                                     })}

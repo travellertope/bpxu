@@ -178,12 +178,18 @@ export default function MenteeBookings({ initial }: { initial: Booking[] }) {
 
                                     <div className="flex-1 min-w-0">
                                         <div className="flex items-center gap-2 flex-wrap mb-1">
-                                            <a
-                                                href={`/paired/mentors/${mentor?.id || ''}`}
-                                                className="font-semibold text-sm hover:underline"
-                                            >
-                                                {decodeHtml(mentorName)}
-                                            </a>
+                                            {mentor?.id ? (
+                                                <a
+                                                    href={`/paired/mentors/${mentor.id}`}
+                                                    className="font-semibold text-sm hover:underline"
+                                                >
+                                                    {decodeHtml(mentorName)}
+                                                </a>
+                                            ) : (
+                                                <span className="font-semibold text-sm">
+                                                    {decodeHtml(mentorName)}
+                                                </span>
+                                            )}
                                             <span className={STATUS_BADGE[booking.status] || 'badge'}>
                                                 {booking.status.charAt(0).toUpperCase() + booking.status.slice(1)}
                                             </span>
@@ -225,9 +231,9 @@ export default function MenteeBookings({ initial }: { initial: Booking[] }) {
                                                 </a>
                                             )}
 
-                                            {booking.status === 'completed' && (
+                                            {booking.status === 'completed' && mentor?.id && (
                                                 <a
-                                                    href={`/paired/mentors/${mentor?.id || ''}/review`}
+                                                    href={`/paired/mentors/${mentor.id}/review`}
                                                     className="btn btn-outline btn-sm text-xs"
                                                 >
                                                     Leave a review
@@ -263,12 +269,14 @@ export default function MenteeBookings({ initial }: { initial: Booking[] }) {
                                                 )
                                             )}
 
-                                            <a
-                                                href={`/paired/mentors/${mentor?.id || ''}`}
-                                                className="btn btn-ghost btn-sm text-xs"
-                                            >
-                                                View mentor
-                                            </a>
+                                            {mentor?.id && (
+                                                <a
+                                                    href={`/paired/mentors/${mentor.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    View mentor
+                                                </a>
+                                            )}
                                             <a
                                                 href={`/paired/bookings/${booking.id}`}
                                                 className="btn btn-ghost btn-sm text-xs"

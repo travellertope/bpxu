@@ -3841,8 +3841,8 @@ Rules:
             'mentee_profile' => $mentee ? array(
                 'career_goals'      => get_user_meta( $mentee->ID, '_paired_career_goals', true ) ?: '',
                 'skills_to_develop' => get_user_meta( $mentee->ID, '_paired_skills_to_develop', true ) ?: '',
-                'industry'          => get_user_meta( $mentee->ID, '_paired_mentee_industry', true ) ?: '',
-                'bio'               => get_user_meta( $mentee->ID, '_paired_mentee_bio', true ) ?: '',
+                'industry'          => get_user_meta( $mentee->ID, '_paired_industry', true ) ?: '',
+                'bio'               => get_user_meta( $mentee->ID, '_paired_bio', true ) ?: '',
             ) : null,
             'payment_status'  => get_post_meta( $post_id, '_bpu_booking_payment_status', true ) ?: 'not_required',
             'payment_amount'  => (float) get_post_meta( $post_id, '_bpu_booking_payment_amount', true ),
@@ -7930,10 +7930,6 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             update_user_meta( $user_id, '_paired_skills_to_develop', $skills );
         }
 
-        if ( isset( $body['industry'] ) ) {
-            update_user_meta( $user_id, '_paired_industry', sanitize_text_field( $body['industry'] ) );
-        }
-
         // Return the updated profile (re-read from DB).
         $updated_skills = get_user_meta( $user_id, '_paired_skills_to_develop', true );
         if ( ! is_array( $updated_skills ) ) {
@@ -7982,7 +7978,10 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
-        $body            = $request->get_json_params();
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) {
+            $body = array();
+        }
         $current_password = $body['current_password'] ?? '';
         $new_password     = $body['new_password'] ?? '';
 
