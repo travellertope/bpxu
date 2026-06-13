@@ -334,6 +334,10 @@ export default function BookingManager({ initial }: { initial: Booking[] }) {
 
                                         <p className="text-xs text-text-3 mt-2">
                                             Booked {formatTimestamp(booking.created_at)}
+                                            {' · '}
+                                            <a href={`/paired/bookings/${booking.id}`} className="hover:underline" style={{ color: 'var(--purple)' }}>
+                                                View details
+                                            </a>
                                         </p>
 
                                         {/* Actions */}

@@ -269,6 +269,12 @@ export default function MenteeBookings({ initial }: { initial: Booking[] }) {
                                             >
                                                 View mentor
                                             </a>
+                                            <a
+                                                href={`/paired/bookings/${booking.id}`}
+                                                className="btn btn-ghost btn-sm text-xs"
+                                            >
+                                                Details
+                                            </a>
                                         </div>
                                     </div>
                                 </div>

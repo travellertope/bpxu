@@ -258,6 +258,13 @@ export default async function PairedDashboard() {
                                                         Join meeting
                                                     </a>
                                                 )}
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    Details
+                                                </a>
                                                 <span className="badge badge-green text-xs">Confirmed</span>
                                             </div>
                                         </div>
@@ -292,9 +299,17 @@ export default async function PairedDashboard() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
-                                                {b.status || 'pending'}
-                                            </span>
+                                            <div className="flex items-center gap-2">
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    Details
+                                                </a>
+                                                <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
+                                                    {b.status || 'pending'}
+                                                </span>
+                                            </div>
                                         </div>
                                     );
                                 })}
@@ -487,6 +502,12 @@ export default async function PairedDashboard() {
                                                     Join meeting
                                                 </a>
                                             )}
+                                            <a
+                                                href={`/paired/bookings/${b.id}`}
+                                                className="btn btn-ghost btn-sm text-xs"
+                                            >
+                                                Details
+                                            </a>
                                             <span className={`badge ${b.status === 'pending' ? 'badge-amber' : 'badge-green'} text-xs capitalize`}>
                                                 {b.status || 'pending'}
                                             </span>
@@ -520,12 +541,22 @@ export default async function PairedDashboard() {
                                                     <p className="text-xs text-text-3">{formatDate(b.date)}</p>
                                                 </div>
                                             </div>
-                                            <a
-                                                href={`/paired/mentors/${other?.id || ''}`}
-                                                className="btn btn-ghost btn-sm text-xs"
-                                            >
-                                                Book again
-                                            </a>
+                                            <div className="flex gap-2">
+                                                <a
+                                                    href={`/paired/bookings/${b.id}`}
+                                                    className="btn btn-ghost btn-sm text-xs"
+                                                >
+                                                    Details
+                                                </a>
+                                                {b.role === 'mentee' && (
+                                                    <a
+                                                        href={`/paired/mentors/${other?.id || ''}`}
+                                                        className="btn btn-ghost btn-sm text-xs"
+                                                    >
+                                                        Book again
+                                                    </a>
+                                                )}
+                                            </div>
                                         </div>
                                     );
                                 })}
