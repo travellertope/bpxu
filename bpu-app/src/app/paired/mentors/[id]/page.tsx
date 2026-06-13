@@ -78,7 +78,7 @@ export default async function MentorProfile({
 
     if (fetchError || !mentor) {
         return (
-            <div className="wrap py-12">
+            <div className="wrap py-8">
                 <div className="card card-p text-center space-y-4">
                     <p className="text-text-2">{fetchError || 'Mentor not found.'}</p>
                     <a href="/paired/mentors" className="btn btn-outline btn-sm">← Browse mentors</a>
@@ -198,7 +198,7 @@ export default async function MentorProfile({
     };
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="wrap py-8 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             {/* ── Back link ─────────────────────────────────── */}
             <a href="/paired/mentors" className="text-sm text-text-3 hover:text-brand flex items-center gap-1" style={{ width: 'fit-content' }}>

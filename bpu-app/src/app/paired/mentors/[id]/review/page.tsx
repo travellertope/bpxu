@@ -43,7 +43,7 @@ export default async function SubmitReviewPage({
 
     if (fetchError) {
         return (
-            <div className="wrap py-12">
+            <div className="wrap py-8">
                 <div className="card card-p text-center space-y-4">
                     <p className="text-text-2">{fetchError}</p>
                     <a href="/paired/mentors" className="btn btn-outline btn-sm">Back to mentors</a>
