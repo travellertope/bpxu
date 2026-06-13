@@ -37,6 +37,7 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_paired_message_post_type' ) );
         add_action( 'init', array( $this, 'register_paired_notification_post_type' ) );
         add_action( 'init', array( $this, 'register_paired_referral_post_type' ) );
+        add_action( 'init', array( $this, 'register_bpu_coupon_post_type' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -287,6 +288,25 @@ class BPU_Headless_Connector {
             'capability_type'     => 'post',
             'has_archive'         => false,
             'hierarchical'        => false,
+            'supports'            => array( 'title', 'custom-fields' ),
+        ) );
+    }
+
+    public function register_bpu_coupon_post_type() {
+        register_post_type( 'bpu_coupon', array(
+            'labels'              => array(
+                'name'          => _x( 'Coupons', 'post type general name', 'bpu' ),
+                'singular_name' => _x( 'Coupon', 'post type singular name', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => true,
+            'show_in_menu'        => true,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'menu_position'       => 30,
+            'menu_icon'           => 'dashicons-tag',
             'supports'            => array( 'title', 'custom-fields' ),
         ) );
     }
@@ -1251,6 +1271,54 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/paired/admin/mentees/(?P<id>\d+)/activate', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'admin_activate_mentee' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Transaction History
+        register_rest_route( $this->namespace, '/paired/admin/transactions', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_transactions' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Financial Reports
+        register_rest_route( $this->namespace, '/paired/admin/reports', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_financial_reports' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Coupon Management
+        register_rest_route( $this->namespace, '/paired/admin/coupons', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_coupons' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/coupons', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_create_coupon' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/coupons/(?P<id>\d+)', array(
+            'methods'             => 'PUT',
+            'callback'            => array( $this, 'admin_update_coupon' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/coupons/(?P<id>\d+)', array(
+            'methods'             => 'DELETE',
+            'callback'            => array( $this, 'admin_delete_coupon' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Platform Settings
+        register_rest_route( $this->namespace, '/paired/admin/settings', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/settings', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_settings' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
     }
@@ -8888,6 +8956,462 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
         delete_user_meta( $user_id, '_paired_deactivated' );
         return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TIER 2: TRANSACTION HISTORY, REPORTS, COUPONS, SETTINGS
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Admin: Transaction History — bookings with payment data.
+     */
+    public function admin_list_transactions( WP_REST_Request $request ) {
+        $search    = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page      = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
+        $per_page  = 20;
+        $date_from = sanitize_text_field( $request->get_param( 'date_from' ) ?: '' );
+        $date_to   = sanitize_text_field( $request->get_param( 'date_to' ) ?: '' );
+        $payment_status = sanitize_text_field( $request->get_param( 'payment_status' ) ?: '' );
+
+        $args = array(
+            'post_type'      => 'bpu_booking',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => array(
+                array(
+                    'key'     => '_bpu_booking_payment_status',
+                    'compare' => 'EXISTS',
+                ),
+            ),
+        );
+
+        if ( $payment_status ) {
+            $args['meta_query'][] = array(
+                'key'   => '_bpu_booking_payment_status',
+                'value' => $payment_status,
+            );
+        }
+
+        if ( $date_from || $date_to ) {
+            $date_meta = array( 'key' => '_bpu_booking_date' );
+            if ( $date_from && $date_to ) {
+                $date_meta['value']   = array( $date_from, $date_to );
+                $date_meta['compare'] = 'BETWEEN';
+                $date_meta['type']    = 'DATE';
+            } elseif ( $date_from ) {
+                $date_meta['value']   = $date_from;
+                $date_meta['compare'] = '>=';
+                $date_meta['type']    = 'DATE';
+            } else {
+                $date_meta['value']   = $date_to;
+                $date_meta['compare'] = '<=';
+                $date_meta['type']    = 'DATE';
+            }
+            $args['meta_query'][] = $date_meta;
+        }
+
+        $query  = new WP_Query( $args );
+        $total  = $query->found_posts;
+        $result = array();
+
+        foreach ( $query->posts as $post ) {
+            $pid        = $post->ID;
+            $mentor_id  = (int) get_post_meta( $pid, '_bpu_booking_mentor_id', true );
+            $mentee_id  = (int) get_post_meta( $pid, '_bpu_booking_mentee_id', true );
+            $mentor     = $mentor_id ? get_user_by( 'id', $mentor_id ) : null;
+            $mentee     = $mentee_id ? get_user_by( 'id', $mentee_id ) : null;
+
+            // Search filter
+            if ( $search ) {
+                $mentor_name  = $mentor ? $mentor->display_name : '';
+                $mentee_name  = $mentee ? $mentee->display_name : '';
+                $mentee_email = $mentee ? $mentee->user_email : '';
+                $haystack = strtolower( $mentor_name . ' ' . $mentee_name . ' ' . $mentee_email );
+                if ( strpos( $haystack, strtolower( $search ) ) === false ) {
+                    continue;
+                }
+            }
+
+            $result[] = array(
+                'id'                  => $pid,
+                'booking_date'        => get_post_meta( $pid, '_bpu_booking_date', true ),
+                'booking_status'      => get_post_meta( $pid, '_bpu_booking_status', true ) ?: 'pending',
+                'payment_status'      => get_post_meta( $pid, '_bpu_booking_payment_status', true ),
+                'payment_amount'      => (float) get_post_meta( $pid, '_bpu_booking_payment_amount', true ),
+                'stripe_payment_id'   => get_post_meta( $pid, '_bpu_booking_stripe_payment_id', true ) ?: '',
+                'stripe_session_id'   => get_post_meta( $pid, '_bpu_booking_stripe_session_id', true ) ?: '',
+                'created_at'          => get_the_date( 'c', $post ),
+                'mentor'              => $mentor ? array(
+                    'id'           => $mentor_id,
+                    'display_name' => $mentor->display_name,
+                    'email'        => $mentor->user_email,
+                    'avatar_url'   => get_user_meta( $mentor_id, '_paired_photo_url', true ) ?: get_avatar_url( $mentor_id, array( 'size' => 64 ) ),
+                ) : null,
+                'mentee'              => $mentee ? array(
+                    'id'           => $mentee_id,
+                    'display_name' => $mentee->display_name,
+                    'email'        => $mentee->user_email,
+                    'avatar_url'   => get_avatar_url( $mentee_id, array( 'size' => 64 ) ),
+                ) : null,
+            );
+        }
+
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'transactions' => $result,
+            'total'        => $total,
+            'page'         => $page,
+            'per_page'     => $per_page,
+            'pages'        => ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    /**
+     * Admin: Financial Reports — aggregated stats.
+     */
+    public function admin_financial_reports( WP_REST_Request $request ) {
+        // Fetch all bookings with payment data
+        $args = array(
+            'post_type'      => 'bpu_booking',
+            'post_status'    => 'publish',
+            'posts_per_page' => -1,
+            'meta_query'     => array(
+                array(
+                    'key'     => '_bpu_booking_payment_status',
+                    'value'   => 'paid',
+                ),
+            ),
+        );
+
+        $query = new WP_Query( $args );
+        $total_revenue     = 0.0;
+        $revenue_by_month  = array();
+        $revenue_by_mentor = array();
+        $booking_count     = 0;
+
+        foreach ( $query->posts as $post ) {
+            $pid    = $post->ID;
+            $amount = (float) get_post_meta( $pid, '_bpu_booking_payment_amount', true );
+            $date   = get_post_meta( $pid, '_bpu_booking_date', true );
+            $mentor_id = (int) get_post_meta( $pid, '_bpu_booking_mentor_id', true );
+
+            $total_revenue += $amount;
+            $booking_count++;
+
+            // Revenue by month
+            if ( $date ) {
+                $month_key = substr( $date, 0, 7 ); // YYYY-MM
+                if ( ! isset( $revenue_by_month[ $month_key ] ) ) {
+                    $revenue_by_month[ $month_key ] = array( 'month' => $month_key, 'revenue' => 0.0, 'count' => 0 );
+                }
+                $revenue_by_month[ $month_key ]['revenue'] += $amount;
+                $revenue_by_month[ $month_key ]['count']++;
+            }
+
+            // Revenue by mentor
+            if ( $mentor_id ) {
+                $mk = (string) $mentor_id;
+                if ( ! isset( $revenue_by_mentor[ $mk ] ) ) {
+                    $mentor = get_user_by( 'id', $mentor_id );
+                    $revenue_by_mentor[ $mk ] = array(
+                        'mentor_id'    => $mentor_id,
+                        'display_name' => $mentor ? $mentor->display_name : 'Unknown',
+                        'revenue'      => 0.0,
+                        'count'        => 0,
+                    );
+                }
+                $revenue_by_mentor[ $mk ]['revenue'] += $amount;
+                $revenue_by_mentor[ $mk ]['count']++;
+            }
+        }
+
+        wp_reset_postdata();
+
+        // Sort months descending
+        krsort( $revenue_by_month );
+
+        // Sort mentors by revenue descending
+        usort( $revenue_by_mentor, function( $a, $b ) {
+            return $b['revenue'] <=> $a['revenue'];
+        } );
+
+        $average_booking_value = $booking_count > 0 ? round( $total_revenue / $booking_count, 2 ) : 0;
+
+        return new WP_REST_Response( array(
+            'success'               => true,
+            'total_revenue'         => round( $total_revenue, 2 ),
+            'total_paid_bookings'   => $booking_count,
+            'average_booking_value' => $average_booking_value,
+            'revenue_by_month'      => array_values( $revenue_by_month ),
+            'revenue_by_mentor'     => array_values( $revenue_by_mentor ),
+        ), 200 );
+    }
+
+    /**
+     * Admin: List Coupons.
+     */
+    public function admin_list_coupons( WP_REST_Request $request ) {
+        $page     = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
+        $per_page = 20;
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+
+        $args = array(
+            'post_type'      => 'bpu_coupon',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+
+        if ( $search ) {
+            $args['meta_query'] = array(
+                array(
+                    'key'     => '_bpu_coupon_code',
+                    'value'   => $search,
+                    'compare' => 'LIKE',
+                ),
+            );
+        }
+
+        $query  = new WP_Query( $args );
+        $total  = $query->found_posts;
+        $result = array();
+
+        foreach ( $query->posts as $post ) {
+            $pid = $post->ID;
+            $result[] = array(
+                'id'             => $pid,
+                'code'           => get_post_meta( $pid, '_bpu_coupon_code', true ),
+                'discount_type'  => get_post_meta( $pid, '_bpu_coupon_discount_type', true ),
+                'discount_value' => (float) get_post_meta( $pid, '_bpu_coupon_discount_value', true ),
+                'expiry_date'    => get_post_meta( $pid, '_bpu_coupon_expiry_date', true ),
+                'max_uses'       => (int) get_post_meta( $pid, '_bpu_coupon_max_uses', true ),
+                'current_uses'   => (int) get_post_meta( $pid, '_bpu_coupon_current_uses', true ),
+                'is_active'      => (bool) get_post_meta( $pid, '_bpu_coupon_is_active', true ),
+                'created_at'     => get_the_date( 'c', $post ),
+            );
+        }
+
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'coupons'  => $result,
+            'total'    => $total,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    /**
+     * Admin: Create Coupon.
+     */
+    public function admin_create_coupon( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $code = sanitize_text_field( $body['code'] ?? '' );
+        if ( ! $code ) {
+            return new WP_Error( 'missing_code', 'Coupon code is required.', array( 'status' => 400 ) );
+        }
+
+        $discount_type = sanitize_text_field( $body['discount_type'] ?? 'percentage' );
+        if ( ! in_array( $discount_type, array( 'percentage', 'fixed' ), true ) ) {
+            return new WP_Error( 'invalid_discount_type', 'Discount type must be percentage or fixed.', array( 'status' => 400 ) );
+        }
+
+        $discount_value = (float) ( $body['discount_value'] ?? 0 );
+        $expiry_date    = sanitize_text_field( $body['expiry_date'] ?? '' );
+        $max_uses       = (int) ( $body['max_uses'] ?? 0 );
+        $is_active      = isset( $body['is_active'] ) ? ( (int) $body['is_active'] ) : 1;
+
+        // Check for duplicate coupon code
+        $existing = get_posts( array(
+            'post_type'   => 'bpu_coupon',
+            'post_status' => 'publish',
+            'numberposts' => 1,
+            'meta_query'  => array(
+                array( 'key' => '_bpu_coupon_code', 'value' => strtoupper( $code ) ),
+            ),
+        ) );
+        if ( ! empty( $existing ) ) {
+            return new WP_Error( 'duplicate_code', 'A coupon with this code already exists.', array( 'status' => 409 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_coupon',
+            'post_status' => 'publish',
+            'post_title'  => strtoupper( $code ),
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'create_failed', 'Failed to create coupon.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_coupon_code', strtoupper( $code ) );
+        update_post_meta( $post_id, '_bpu_coupon_discount_type', $discount_type );
+        update_post_meta( $post_id, '_bpu_coupon_discount_value', $discount_value );
+        update_post_meta( $post_id, '_bpu_coupon_expiry_date', $expiry_date );
+        update_post_meta( $post_id, '_bpu_coupon_max_uses', $max_uses );
+        update_post_meta( $post_id, '_bpu_coupon_current_uses', 0 );
+        update_post_meta( $post_id, '_bpu_coupon_is_active', $is_active );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'coupon'  => array(
+                'id'             => $post_id,
+                'code'           => strtoupper( $code ),
+                'discount_type'  => $discount_type,
+                'discount_value' => $discount_value,
+                'expiry_date'    => $expiry_date,
+                'max_uses'       => $max_uses,
+                'current_uses'   => 0,
+                'is_active'      => (bool) $is_active,
+            ),
+        ), 201 );
+    }
+
+    /**
+     * Admin: Update Coupon.
+     */
+    public function admin_update_coupon( WP_REST_Request $request ) {
+        $coupon_id = (int) $request->get_param( 'id' );
+        $post      = get_post( $coupon_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_coupon' ) {
+            return new WP_Error( 'not_found', 'Coupon not found.', array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $updatable_fields = array(
+            'code'           => '_bpu_coupon_code',
+            'discount_type'  => '_bpu_coupon_discount_type',
+            'discount_value' => '_bpu_coupon_discount_value',
+            'expiry_date'    => '_bpu_coupon_expiry_date',
+            'max_uses'       => '_bpu_coupon_max_uses',
+            'is_active'      => '_bpu_coupon_is_active',
+        );
+
+        foreach ( $updatable_fields as $field => $meta_key ) {
+            if ( ! isset( $body[ $field ] ) ) continue;
+
+            $value = $body[ $field ];
+
+            if ( $field === 'code' ) {
+                $value = strtoupper( sanitize_text_field( $value ) );
+                wp_update_post( array( 'ID' => $coupon_id, 'post_title' => $value ) );
+            } elseif ( $field === 'discount_type' ) {
+                if ( ! in_array( $value, array( 'percentage', 'fixed' ), true ) ) continue;
+                $value = sanitize_text_field( $value );
+            } elseif ( $field === 'discount_value' ) {
+                $value = (float) $value;
+            } elseif ( $field === 'max_uses' ) {
+                $value = (int) $value;
+            } elseif ( $field === 'is_active' ) {
+                $value = (int) $value;
+            } else {
+                $value = sanitize_text_field( $value );
+            }
+
+            update_post_meta( $coupon_id, $meta_key, $value );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'coupon'  => array(
+                'id'             => $coupon_id,
+                'code'           => get_post_meta( $coupon_id, '_bpu_coupon_code', true ),
+                'discount_type'  => get_post_meta( $coupon_id, '_bpu_coupon_discount_type', true ),
+                'discount_value' => (float) get_post_meta( $coupon_id, '_bpu_coupon_discount_value', true ),
+                'expiry_date'    => get_post_meta( $coupon_id, '_bpu_coupon_expiry_date', true ),
+                'max_uses'       => (int) get_post_meta( $coupon_id, '_bpu_coupon_max_uses', true ),
+                'current_uses'   => (int) get_post_meta( $coupon_id, '_bpu_coupon_current_uses', true ),
+                'is_active'      => (bool) get_post_meta( $coupon_id, '_bpu_coupon_is_active', true ),
+            ),
+        ), 200 );
+    }
+
+    /**
+     * Admin: Delete Coupon.
+     */
+    public function admin_delete_coupon( WP_REST_Request $request ) {
+        $coupon_id = (int) $request->get_param( 'id' );
+        $post      = get_post( $coupon_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_coupon' ) {
+            return new WP_Error( 'not_found', 'Coupon not found.', array( 'status' => 404 ) );
+        }
+
+        wp_delete_post( $coupon_id, true );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * Admin: Get Platform Settings.
+     */
+    public function admin_get_settings( WP_REST_Request $request ) {
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'settings' => array(
+                'commission_rate'       => (float) get_option( '_paired_platform_commission_rate', 0 ),
+                'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
+                'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
+                'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+            ),
+        ), 200 );
+    }
+
+    /**
+     * Admin: Update Platform Settings.
+     */
+    public function admin_update_settings( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $allowed = array(
+            'commission_rate'      => '_paired_platform_commission_rate',
+            'currency'             => '_paired_platform_currency',
+            'booking_buffer_hours' => '_paired_platform_booking_buffer_hours',
+            'max_bookings_per_day' => '_paired_platform_max_bookings_per_day',
+        );
+
+        foreach ( $allowed as $field => $option_key ) {
+            if ( ! isset( $body[ $field ] ) ) continue;
+
+            $value = $body[ $field ];
+
+            if ( $field === 'commission_rate' ) {
+                $value = max( 0, min( 100, (float) $value ) );
+            } elseif ( $field === 'currency' ) {
+                $value = strtoupper( sanitize_text_field( $value ) );
+            } elseif ( $field === 'booking_buffer_hours' ) {
+                $value = max( 0, (int) $value );
+            } elseif ( $field === 'max_bookings_per_day' ) {
+                $value = max( 1, (int) $value );
+            }
+
+            update_option( $option_key, $value );
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'settings' => array(
+                'commission_rate'       => (float) get_option( '_paired_platform_commission_rate', 0 ),
+                'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
+                'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
+                'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+            ),
+        ), 200 );
     }
 
     // ═══════════════════════════════════════════════════════════════
