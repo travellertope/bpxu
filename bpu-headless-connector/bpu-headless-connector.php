@@ -591,6 +591,11 @@ class BPU_Headless_Connector {
                             return (bool) preg_match( '/^\d{2}:\d{2}-\d{2}:\d{2}$/', $value );
                         },
                     ),
+                    'session_id' => array(
+                        'required'          => false,
+                        'default'           => 0,
+                        'sanitize_callback' => 'absint',
+                    ),
                     'notes' => array(
                         'required'          => false,
                         'default'           => '',

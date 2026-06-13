@@ -7,6 +7,17 @@ interface OnboardingStep {
     label: string;
     completed: boolean;
     href: string;
+    optional?: boolean;
+}
+
+interface OnboardingData {
+    steps: OnboardingStep[];
+    completed: number;
+    total: number;
+    percentage: number;
+    all_required_done: boolean;
+    required_completed: number;
+    required_total: number;
 }
 
 const STEP_LINKS: Record<string, string> = {
@@ -21,7 +32,7 @@ const STEP_LINKS: Record<string, string> = {
 };
 
 export default function OnboardingChecklist() {
-    const [steps, setSteps] = useState<OnboardingStep[]>([]);
+    const [onboarding, setOnboarding] = useState<OnboardingData | null>(null);
     const [loading, setLoading] = useState(true);
     const [dismissed, setDismissed] = useState(false);
 
@@ -41,12 +52,12 @@ export default function OnboardingChecklist() {
                 const data = await res.json();
                 if (!res.ok) throw new Error('Failed to load onboarding.');
                 const mapped: OnboardingStep[] = (data.steps || []).map(
-                    (s: { key: string; label: string; completed: boolean; link?: string }) => ({
+                    (s: { key: string; label: string; completed: boolean; link?: string; optional?: boolean }) => ({
                         ...s,
                         href: s.link || STEP_LINKS[s.key] || '/paired/mentor/settings',
                     })
                 );
-                setSteps(mapped);
+                setOnboarding({ ...data, steps: mapped });
             } catch {
                 /* fail silently */
             } finally {
@@ -61,13 +72,13 @@ export default function OnboardingChecklist() {
         setDismissed(true);
     }
 
-    if (loading || dismissed) return null;
+    if (loading || dismissed || !onboarding) return null;
 
-    const completed = steps.filter(s => s.completed).length;
-    const total = steps.length;
-    if (total === 0 || completed === total) return null;
+    // Hide when all required steps are done (optional steps don't block)
+    if (onboarding.all_required_done) return null;
 
-    const pct = Math.round((completed / total) * 100);
+    const { steps, percentage, required_completed, required_total } = onboarding;
+    const pct = percentage;
 
     return (
         <div
@@ -82,7 +93,7 @@ export default function OnboardingChecklist() {
                     <div>
                         <h3 className="font-bold text-lg">Complete Your Profile</h3>
                         <p className="text-sm" style={{ color: 'var(--text-2)' }}>
-                            {completed} of {total} steps done ({pct}%)
+                            {required_completed} of {required_total} required steps done ({pct}%)
                         </p>
                     </div>
                     <button

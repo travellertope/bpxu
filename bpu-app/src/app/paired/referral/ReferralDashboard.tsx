@@ -17,6 +17,7 @@ interface ReferralStats {
 
 export default function ReferralDashboard() {
     const [code, setCode] = useState('');
+    const [shareLink, setShareLink] = useState('');
     const [stats, setStats] = useState<ReferralStats>({ total_referrals: 0, points: 0 });
     const [referrals, setReferrals] = useState<Referral[]>([]);
     const [loading, setLoading] = useState(true);
@@ -35,6 +36,8 @@ export default function ReferralDashboard() {
                 if (!codeRes.ok) throw new Error(codeData.error || 'Failed to load referral code.');
                 if (!statsRes.ok) throw new Error(statsData.error || 'Failed to load referral stats.');
                 setCode(codeData.code || '');
+                // Use the canonical link from the API (points to /register?ref=CODE)
+                setShareLink(codeData.link || '');
                 setStats({
                     total_referrals: statsData.total_referrals || 0,
                     points: statsData.points || 0,
@@ -48,10 +51,6 @@ export default function ReferralDashboard() {
         }
         load();
     }, []);
-
-    const shareLink = code
-        ? `${typeof window !== 'undefined' ? window.location.origin : ''}/paired?ref=${code}`
-        : '';
 
     async function copyToClipboard(text: string, type: 'code' | 'link') {
         try {
