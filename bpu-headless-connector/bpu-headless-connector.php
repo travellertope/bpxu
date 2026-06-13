@@ -1224,6 +1224,35 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_review_kyc' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // Admin: Bookings
+        register_rest_route( $this->namespace, '/paired/admin/bookings', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_bookings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/bookings/(?P<id>\d+)/status', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_booking_status' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Mentees
+        register_rest_route( $this->namespace, '/paired/admin/mentees', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_mentees' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/mentees/(?P<id>\d+)/deactivate', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_deactivate_mentee' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/mentees/(?P<id>\d+)/activate', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_activate_mentee' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
     }
 
     /**
@@ -8653,6 +8682,212 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         wp_reset_postdata();
 
         return new WP_REST_Response( array( 'success' => true, 'payouts' => $payouts ), 200 );
+    }
+
+    public function admin_list_bookings( WP_REST_Request $request ) {
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: 'all' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
+        $per_page = 20;
+
+        $args = array(
+            'post_type'      => 'bpu_booking',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => array(),
+        );
+
+        if ( $status !== 'all' ) {
+            $args['meta_query'][] = array(
+                'key'   => '_bpu_booking_status',
+                'value' => $status,
+            );
+        }
+
+        $query  = new WP_Query( $args );
+        $total  = $query->found_posts;
+        $result = array();
+
+        foreach ( $query->posts as $post ) {
+            $pid        = $post->ID;
+            $mentor_id  = (int) get_post_meta( $pid, '_bpu_booking_mentor_id', true );
+            $mentee_id  = (int) get_post_meta( $pid, '_bpu_booking_mentee_id', true );
+            $mentor     = $mentor_id ? get_user_by( 'id', $mentor_id ) : null;
+            $mentee     = $mentee_id ? get_user_by( 'id', $mentee_id ) : null;
+            $bk_status  = get_post_meta( $pid, '_bpu_booking_status', true ) ?: 'pending';
+            $date       = get_post_meta( $pid, '_bpu_booking_date', true );
+            $time_slot  = get_post_meta( $pid, '_bpu_booking_time_slot', true );
+
+            // Search filter
+            if ( $search ) {
+                $mentor_name = $mentor ? $mentor->display_name : '';
+                $mentee_name = $mentee ? $mentee->display_name : '';
+                $mentee_email = $mentee ? $mentee->user_email : '';
+                $haystack = strtolower( $mentor_name . ' ' . $mentee_name . ' ' . $mentee_email );
+                if ( strpos( $haystack, strtolower( $search ) ) === false ) {
+                    continue;
+                }
+            }
+
+            $result[] = array(
+                'id'           => $pid,
+                'status'       => $bk_status,
+                'date'         => $date,
+                'time_slot'    => $time_slot,
+                'notes'        => get_post_meta( $pid, '_bpu_booking_notes', true ) ?: '',
+                'created_at'   => get_the_date( 'c', $post ),
+                'payment_amount' => (float) get_post_meta( $pid, '_bpu_booking_payment_amount', true ),
+                'payment_status' => get_post_meta( $pid, '_bpu_booking_payment_status', true ) ?: '',
+                'mentor'       => $mentor ? array(
+                    'id'           => $mentor_id,
+                    'display_name' => $mentor->display_name,
+                    'email'        => $mentor->user_email,
+                    'avatar_url'   => get_user_meta( $mentor_id, '_paired_photo_url', true ) ?: get_avatar_url( $mentor_id, array( 'size' => 64 ) ),
+                ) : null,
+                'mentee'       => $mentee ? array(
+                    'id'           => $mentee_id,
+                    'display_name' => $mentee->display_name,
+                    'email'        => $mentee->user_email,
+                    'avatar_url'   => get_avatar_url( $mentee_id, array( 'size' => 64 ) ),
+                ) : null,
+            );
+        }
+
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'    => true,
+            'bookings'   => $result,
+            'total'      => $total,
+            'page'       => $page,
+            'per_page'   => $per_page,
+            'pages'      => ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    public function admin_update_booking_status( WP_REST_Request $request ) {
+        $booking_id = (int) $request->get_param( 'id' );
+        $body       = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+
+        $allowed = array( 'confirmed', 'completed', 'cancelled', 'pending' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'invalid_status', 'Invalid status.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $booking_id );
+        if ( ! $post || $post->post_type !== 'bpu_booking' ) {
+            return new WP_Error( 'not_found', 'Booking not found.', array( 'status' => 404 ) );
+        }
+
+        update_post_meta( $booking_id, '_bpu_booking_status', $new_status );
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => $new_status ), 200 );
+    }
+
+    public function admin_list_mentees( WP_REST_Request $request ) {
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, (int) $request->get_param( 'page' ) ?: 1 );
+        $per_page = 20;
+
+        $args = array(
+            'number'  => $per_page,
+            'offset'  => ( $page - 1 ) * $per_page,
+            'orderby' => 'registered',
+            'order'   => 'DESC',
+            'fields'  => 'all',
+            // Exclude mentors and admins — show users who have booked as mentees
+            'role__not_in' => array( 'administrator' ),
+        );
+
+        if ( $search ) {
+            $args['search']         = '*' . $search . '*';
+            $args['search_columns'] = array( 'user_login', 'user_email', 'display_name' );
+        }
+
+        $user_query = new WP_User_Query( $args );
+        $users      = $user_query->get_results();
+        $total      = $user_query->get_total();
+        $result     = array();
+
+        foreach ( $users as $user ) {
+            $uid = $user->ID;
+
+            // Booking count as mentee
+            $bookings = get_posts( array(
+                'post_type'   => 'bpu_booking',
+                'post_status' => 'publish',
+                'numberposts' => -1,
+                'meta_query'  => array(
+                    array( 'key' => '_bpu_booking_mentee_id', 'value' => $uid, 'type' => 'NUMERIC' ),
+                ),
+                'fields' => 'ids',
+            ) );
+            $booking_count = count( $bookings );
+
+            // Last booking date
+            $last_booking = '';
+            if ( $booking_count > 0 ) {
+                $latest = get_posts( array(
+                    'post_type'      => 'bpu_booking',
+                    'post_status'    => 'publish',
+                    'numberposts'    => 1,
+                    'orderby'        => 'date',
+                    'order'          => 'DESC',
+                    'meta_query'     => array(
+                        array( 'key' => '_bpu_booking_mentee_id', 'value' => $uid, 'type' => 'NUMERIC' ),
+                    ),
+                ) );
+                $last_booking = $latest ? get_the_date( 'c', $latest[0] ) : '';
+            }
+
+            $is_active = ! get_user_meta( $uid, '_paired_deactivated', true );
+
+            $result[] = array(
+                'id'            => $uid,
+                'display_name'  => $user->display_name,
+                'email'         => $user->user_email,
+                'avatar_url'    => get_avatar_url( $uid, array( 'size' => 64 ) ),
+                'registered'    => $user->user_registered,
+                'booking_count' => $booking_count,
+                'last_booking'  => $last_booking,
+                'is_active'     => $is_active,
+                'roles'         => $user->roles,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'mentees'  => $result,
+            'total'    => $total,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    public function admin_deactivate_mentee( WP_REST_Request $request ) {
+        $user_id = (int) $request->get_param( 'id' );
+        $user    = get_user_by( 'id', $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'not_found', 'User not found.', array( 'status' => 404 ) );
+        }
+        update_user_meta( $user_id, '_paired_deactivated', '1' );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function admin_activate_mentee( WP_REST_Request $request ) {
+        $user_id = (int) $request->get_param( 'id' );
+        $user    = get_user_by( 'id', $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'not_found', 'User not found.', array( 'status' => 404 ) );
+        }
+        delete_user_meta( $user_id, '_paired_deactivated' );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 
     // ═══════════════════════════════════════════════════════════════

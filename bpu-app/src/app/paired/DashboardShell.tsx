@@ -97,8 +97,12 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                     {isAdmin && (
                         <div className="dash-nav-section">
                             <div className="dash-nav-label">Admin</div>
+                            <NavLink href="/paired/admin/dashboard" icon="dashboard" label="Admin Dashboard" active={isActive('/paired/admin/dashboard')} onClick={close} />
+                            <NavLink href="/paired/admin/bookings" icon="bookings" label="Bookings" active={isActive('/paired/admin/bookings')} onClick={close} />
+                            <NavLink href="/paired/admin/mentees" icon="mentees" label="Mentees" active={isActive('/paired/admin/mentees')} onClick={close} />
+                            <NavLink href="/paired/admin/payouts" icon="chart" label="Payouts" active={isActive('/paired/admin/payouts')} onClick={close} />
+                            <NavLink href="/paired/admin/mentors" icon="profile" label="Mentors" active={isActive('/paired/admin/mentors')} onClick={close} />
                             <NavLink href="/paired/admin/applications" icon="apps" label="Applications" active={isActive('/paired/admin/applications')} onClick={close} />
-                            <NavLink href="/paired/admin/mentors" icon="mentees" label="Mentors" active={isActive('/paired/admin/mentors')} onClick={close} />
                             <NavLink href="/paired/admin/stats" icon="chart" label="Analytics" active={isActive('/paired/admin/stats')} onClick={close} />
                             <NavLink href="/paired/admin/kyc" icon="shield" label="KYC" active={isActive('/paired/admin/kyc')} onClick={close} />
                             <NavLink href="/paired/admin/referrals" icon="referral" label="Referrals" active={isActive('/paired/admin/referrals')} onClick={close} />
