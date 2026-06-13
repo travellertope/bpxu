@@ -21,7 +21,9 @@ export function middleware(req: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  response.headers.set('x-next-pathname', url.pathname);
+  return response;
 }
 
 export const config = {
