@@ -25,8 +25,10 @@ export default async function PairedLayout({ children }: { children: React.React
             {session.authenticated && (
               <>
                 <a href="/paired/dashboard" className="btn btn-ghost btn-sm">My sessions</a>
+                <a href="/paired/mentee/bookings" className="btn btn-ghost btn-sm">Bookings</a>
                 <a href="/paired/messages" className="btn btn-ghost btn-sm">Messages</a>
                 <a href="/paired/favourites" className="btn btn-ghost btn-sm">Favourites</a>
+                <a href="/paired/notifications" className="btn btn-ghost btn-sm">Notifications</a>
                 <a href="/paired/referral" className="btn btn-ghost btn-sm">Referrals</a>
               </>
             )}
