@@ -15,6 +15,10 @@ export default function ChangePasswordForm() {
         setError('');
         setSuccess('');
 
+        if (!currentPassword.trim()) {
+            setError('Please enter your current password.');
+            return;
+        }
         if (newPassword.length < 8) {
             setError('New password must be at least 8 characters.');
             return;
@@ -31,12 +35,13 @@ export default function ChangePasswordForm() {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 setError(data.message || data.error || 'Failed to change password.');
                 return;
             }
             setSuccess('Password changed successfully.');
+            setTimeout(() => setSuccess(''), 4000);
             setCurrentPassword('');
             setNewPassword('');
             setConfirmPassword('');

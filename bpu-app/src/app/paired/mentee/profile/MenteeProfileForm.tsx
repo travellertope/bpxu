@@ -106,7 +106,8 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
     useEffect(() => {
         if (skillInput.length < 2) { setSkillSuggestions([]); setShowSuggestions(false); return; }
         const q = skillInput.toLowerCase();
-        const matches = allSkills.filter(s => s.toLowerCase().includes(q) && !skills.includes(s)).slice(0, 6);
+        const lowerSkills = skills.map(sk => sk.toLowerCase());
+        const matches = allSkills.filter(s => s.toLowerCase().includes(q) && !lowerSkills.includes(s.toLowerCase())).slice(0, 6);
         setSkillSuggestions(matches);
         setShowSuggestions(matches.length > 0);
     }, [skillInput, allSkills, skills]);
@@ -124,7 +125,9 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
 
     function addSkill(s: string) {
         const trimmed = s.trim();
-        if (trimmed && !skills.includes(trimmed)) setSkills(prev => [...prev, trimmed]);
+        if (trimmed && !skills.some(existing => existing.toLowerCase() === trimmed.toLowerCase())) {
+            setSkills(prev => [...prev, trimmed]);
+        }
         setSkillInput('');
         setShowSuggestions(false);
     }
@@ -159,7 +162,7 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
                     bio,
                 }),
             });
-            const data = await res.json();
+            const data = await res.json().catch(() => ({}));
             if (!res.ok) {
                 setError(data.message || data.error || 'Failed to save profile.');
                 return;
@@ -332,7 +335,7 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
                                     addSkill(skillInput);
                                 }
                             }}
-                            placeholder="Type a skill and press Enter..."
+                            placeholder="Type a skill and press Enter or comma..."
                         />
                         {showSuggestions && (
                             <div

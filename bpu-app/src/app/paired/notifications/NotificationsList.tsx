@@ -15,6 +15,7 @@ interface Notification {
 function timeAgo(dateStr: string): string {
     const now = new Date();
     const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
     const diff = Math.floor((now.getTime() - date.getTime()) / 1000);
     if (diff < 60) return 'just now';
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
@@ -137,7 +138,7 @@ export default function NotificationsList() {
                         className="text-sm font-medium"
                         style={{ color: 'var(--purple)', background: 'none', border: 'none', cursor: 'pointer' }}
                     >
-                        {markingAll ? 'Marking...' : 'Mark all as read'}
+                        {markingAll ? 'Marking...' : `Mark all as read (${unreadCount})`}
                     </button>
                 </div>
             )}

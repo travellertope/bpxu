@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 import { decodeHtml } from '@/lib/utils';
 
 interface Booking {
@@ -56,8 +56,14 @@ export default function MenteeBookings({ initial }: { initial: Booking[] }) {
     const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-    const today = new Date().toISOString().split('T')[0];
+    function localToday(): string {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    const today = localToday();
 
     const filtered = useMemo(() => {
         let list: Booking[];
@@ -85,11 +91,12 @@ export default function MenteeBookings({ initial }: { initial: Booking[] }) {
         cancelled: bookings.filter(b => b.status === 'cancelled').length,
     }), [bookings, today]);
 
-    function flash(msg: string, type: 'success' | 'error') {
+    const flash = useCallback((msg: string, type: 'success' | 'error') => {
         if (type === 'success') { setSuccess(msg); setError(''); }
         else { setError(msg); setSuccess(''); }
-        setTimeout(() => { setSuccess(''); setError(''); }, 4000);
-    }
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => { setSuccess(''); setError(''); }, 4000);
+    }, []);
 
     async function cancelBooking(id: number) {
         setCancellingId(id);

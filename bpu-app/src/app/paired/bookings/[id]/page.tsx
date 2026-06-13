@@ -89,7 +89,8 @@ export default async function BookingDetailPage({
 
     if (!booking) notFound();
 
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const isUpcoming = booking.date >= today;
     const other = booking.role === 'mentee' ? booking.mentor : booking.mentee;
     const otherLabel = booking.role === 'mentee' ? 'Mentor' : 'Mentee';

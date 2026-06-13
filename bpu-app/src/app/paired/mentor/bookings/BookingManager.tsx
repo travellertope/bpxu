@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useCallback } from 'react';
 
 interface MenteeProfile {
     career_goals?: string;
@@ -88,8 +88,9 @@ export default function BookingManager({ initial }: { initial: Booking[] }) {
     const [expandedNotes, setExpandedNotes] = useState<Set<number>>(new Set());
     const [confirmDecline, setConfirmDecline] = useState<number | null>(null);
     const [expandedProfiles, setExpandedProfiles] = useState<Set<number>>(new Set());
+    const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-    function flash(msg: string, type: 'success' | 'error') {
+    const flash = useCallback((msg: string, type: 'success' | 'error') => {
         if (type === 'success') {
             setSuccess(msg);
             setError('');
@@ -97,11 +98,12 @@ export default function BookingManager({ initial }: { initial: Booking[] }) {
             setError(msg);
             setSuccess('');
         }
-        setTimeout(() => {
+        clearTimeout(flashTimer.current);
+        flashTimer.current = setTimeout(() => {
             setSuccess('');
             setError('');
         }, 4000);
-    }
+    }, []);
 
     async function updateStatus(id: number, status: 'confirmed' | 'cancelled' | 'completed') {
         const actionKey = `${id}-${status}`;
