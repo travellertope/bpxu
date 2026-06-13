@@ -3,6 +3,17 @@
 import { useState, useEffect, useRef } from 'react';
 
 interface MenteeProfile {
+    first_name?: string;
+    last_name?: string;
+    phone_number?: string;
+    gender?: string;
+    country?: string;
+    city?: string;
+    employment_status?: string;
+    linkedin_profile?: string;
+    years_of_experience?: string;
+    mentorship_availability?: string;
+    bp_network?: string;
     industry?: string;
     career_goals?: string;
     skills_to_develop?: string[];
@@ -14,33 +25,61 @@ interface Props {
 }
 
 const INDUSTRIES = [
-    'Technology',
-    'Finance & Banking',
-    'Healthcare',
-    'Education',
-    'Legal',
-    'Marketing & Advertising',
-    'Media & Entertainment',
-    'Engineering',
-    'Consulting',
-    'Non-Profit',
-    'Government & Public Sector',
-    'Real Estate',
-    'Retail & E-Commerce',
-    'Energy & Utilities',
-    'Construction',
-    'Hospitality & Tourism',
-    'Transport & Logistics',
-    'Telecommunications',
-    'Creative & Design',
+    'Advertising/Public Relations', 'Aerospace/Aviation', 'Arts & Entertainment',
+    'Banking/Mortgage', 'Business Development', 'Clerical/Administrative',
+    'Construction/Facilities', 'Consulting', 'Consumer Goods', 'Customer Service',
+    'Education/Training', 'Energy', 'Engineering', 'Financial Services',
+    'Government/Military', 'Healthcare', 'Hospitality/Travel', 'Human Resources',
+    'Insurance', 'Internet/Technology', 'Legal', 'Management/Executive',
+    'Manufacturing/Operations', 'Marketing', 'Media/Publishing', 'Non-Profit',
+    'Pharmaceutical/Biotech', 'Professional Services', 'Real Estate',
+    'Retail/E-Commerce', 'Science/Research', 'Social Services', 'Technology/IT',
+    'Telecommunications', 'Transport/Logistics', 'Other',
+];
+
+const EMPLOYMENT_STATUSES = [
+    'Employed Full-Time',
+    'Employed Part-Time',
+    'Self-employed',
+    'Not employed but looking for work',
+    'Student',
+    'Freelance/Contract',
+    'Career break',
+    'Retired',
     'Other',
 ];
 
+const EXPERIENCE_OPTIONS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11-15', '16-20', '20+'];
+
+const AVAILABILITY_OPTIONS = [
+    'Once a month',
+    'Twice a month',
+    'Once in 2 months',
+    'Weekly',
+    'Flexible',
+];
+
+const BP_NETWORKS = ['UK', 'Europe', 'Ireland', 'Australia'];
+
+const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say', 'Other'];
+
 export default function MenteeProfileForm({ initialProfile }: Props) {
+    const [firstName, setFirstName] = useState(initialProfile.first_name || '');
+    const [lastName, setLastName] = useState(initialProfile.last_name || '');
+    const [phone, setPhone] = useState(initialProfile.phone_number || '');
+    const [gender, setGender] = useState(initialProfile.gender || '');
+    const [country, setCountry] = useState(initialProfile.country || '');
+    const [city, setCity] = useState(initialProfile.city || '');
+    const [employmentStatus, setEmploymentStatus] = useState(initialProfile.employment_status || '');
+    const [linkedin, setLinkedin] = useState(initialProfile.linkedin_profile || '');
+    const [yearsExp, setYearsExp] = useState(initialProfile.years_of_experience || '');
+    const [mentorshipAvailability, setMentorshipAvailability] = useState(initialProfile.mentorship_availability || '');
+    const [bpNetwork, setBpNetwork] = useState(initialProfile.bp_network || '');
     const [industry, setIndustry] = useState(initialProfile.industry || '');
     const [careerGoals, setCareerGoals] = useState(initialProfile.career_goals || '');
     const [skills, setSkills] = useState<string[]>(initialProfile.skills_to_develop || []);
     const [bio, setBio] = useState(initialProfile.bio || '');
+
     const [skillInput, setSkillInput] = useState('');
     const [skillSuggestions, setSkillSuggestions] = useState<string[]>([]);
     const [allSkills, setAllSkills] = useState<string[]>([]);
@@ -51,33 +90,27 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
     const suggestionsRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Fetch available skills
     useEffect(() => {
         async function fetchSkills() {
             try {
                 const res = await fetch('/api/paired/skills');
                 if (res.ok) {
                     const data = await res.json();
-                    const skillsMap = data.skills || {};
-                    const flat = Object.values(skillsMap).flat() as string[];
-                    setAllSkills(flat);
+                    setAllSkills((data.skills || []).map((s: { name: string }) => s.name));
                 }
-            } catch {
-                // Fallback skills
-                setAllSkills([
-                    'Leadership', 'Communication', 'Public Speaking', 'Project Management',
-                    'Data Analysis', 'Strategic Thinking', 'Networking', 'Negotiation',
-                    'Time Management', 'Problem Solving', 'Financial Literacy', 'Coding',
-                    'Design Thinking', 'Mentoring', 'Writing', 'Marketing',
-                    'Business Development', 'Career Transition', 'Interview Skills',
-                    'Personal Branding', 'Entrepreneurship', 'Team Building',
-                ]);
-            }
+            } catch { /* */ }
         }
         fetchSkills();
     }, []);
 
-    // Close suggestions when clicking outside
+    useEffect(() => {
+        if (skillInput.length < 2) { setSkillSuggestions([]); setShowSuggestions(false); return; }
+        const q = skillInput.toLowerCase();
+        const matches = allSkills.filter(s => s.toLowerCase().includes(q) && !skills.includes(s)).slice(0, 6);
+        setSkillSuggestions(matches);
+        setShowSuggestions(matches.length > 0);
+    }, [skillInput, allSkills, skills]);
+
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
             if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node) &&
@@ -89,58 +122,37 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Filter suggestions
-    useEffect(() => {
-        if (skillInput.trim().length === 0) {
-            setSkillSuggestions([]);
-            return;
-        }
-        const lower = skillInput.toLowerCase();
-        const filtered = allSkills
-            .filter(s => s.toLowerCase().includes(lower) && !skills.includes(s))
-            .slice(0, 8);
-        setSkillSuggestions(filtered);
-    }, [skillInput, allSkills, skills]);
-
-    function addSkill(skill: string) {
-        const trimmed = skill.trim();
-        if (trimmed && !skills.includes(trimmed)) {
-            setSkills(prev => [...prev, trimmed]);
-        }
+    function addSkill(s: string) {
+        const trimmed = s.trim();
+        if (trimmed && !skills.includes(trimmed)) setSkills(prev => [...prev, trimmed]);
         setSkillInput('');
         setShowSuggestions(false);
-        inputRef.current?.focus();
     }
 
-    function removeSkill(skill: string) {
-        setSkills(prev => prev.filter(s => s !== skill));
+    function removeSkill(s: string) {
+        setSkills(prev => prev.filter(x => x !== s));
     }
 
-    function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            if (skillSuggestions.length > 0) {
-                addSkill(skillSuggestions[0]);
-            } else if (skillInput.trim()) {
-                addSkill(skillInput);
-            }
-        }
-        if (e.key === 'Backspace' && !skillInput && skills.length > 0) {
-            removeSkill(skills[skills.length - 1]);
-        }
-    }
-
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
+    async function handleSave() {
         setSaving(true);
         setError('');
         setSuccess('');
-
         try {
             const res = await fetch('/api/paired/mentee/profile', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    first_name: firstName,
+                    last_name: lastName,
+                    phone_number: phone,
+                    gender,
+                    country,
+                    city,
+                    employment_status: employmentStatus,
+                    linkedin_profile: linkedin,
+                    years_of_experience: yearsExp,
+                    mentorship_availability: mentorshipAvailability,
+                    bp_network: bpNetwork,
                     industry,
                     career_goals: careerGoals,
                     skills_to_develop: skills,
@@ -150,10 +162,10 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
             const data = await res.json();
             if (!res.ok) {
                 setError(data.message || data.error || 'Failed to save profile.');
-            } else {
-                setSuccess('Profile saved successfully.');
-                setTimeout(() => setSuccess(''), 4000);
+                return;
             }
+            setSuccess('Profile saved successfully.');
+            setTimeout(() => setSuccess(''), 4000);
         } catch {
             setError('Something went wrong. Please try again.');
         } finally {
@@ -162,160 +174,202 @@ export default function MenteeProfileForm({ initialProfile }: Props) {
     }
 
     return (
-        <form onSubmit={handleSubmit} className="card card-p space-y-6">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             {error && <div className="alert alert-red">{error}</div>}
             {success && <div className="alert alert-green">{success}</div>}
 
-            {/* Industry */}
-            <div>
-                <label htmlFor="industry" className="field-label mb-2 block">Industry</label>
-                <select
-                    id="industry"
-                    className="field-input"
-                    value={industry}
-                    onChange={(e) => setIndustry(e.target.value)}
-                >
-                    <option value="">Select your industry</option>
-                    {INDUSTRIES.map((ind) => (
-                        <option key={ind} value={ind}>{ind}</option>
-                    ))}
-                </select>
+            {/* Personal Info */}
+            <div className="card card-p" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <h2 className="text-lg font-bold">Personal Information</h2>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="field-label" htmlFor="first-name">First Name</label>
+                        <input id="first-name" type="text" className="field-input mt-1" value={firstName} onChange={e => setFirstName(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="field-label" htmlFor="last-name">Last Name</label>
+                        <input id="last-name" type="text" className="field-input mt-1" value={lastName} onChange={e => setLastName(e.target.value)} />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="field-label" htmlFor="phone">Phone Number</label>
+                        <input id="phone" type="tel" className="field-input mt-1" value={phone} onChange={e => setPhone(e.target.value)} />
+                    </div>
+                    <div>
+                        <label className="field-label" htmlFor="gender">Gender</label>
+                        <select id="gender" className="field-input mt-1" value={gender} onChange={e => setGender(e.target.value)}>
+                            <option value="">Select gender</option>
+                            {GENDERS.map(g => <option key={g} value={g}>{g}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="field-label" htmlFor="country">Country</label>
+                        <input id="country" type="text" className="field-input mt-1" value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g. United Kingdom" />
+                    </div>
+                    <div>
+                        <label className="field-label" htmlFor="city">City / Town</label>
+                        <input id="city" type="text" className="field-input mt-1" value={city} onChange={e => setCity(e.target.value)} placeholder="e.g. London" />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="field-label" htmlFor="bp-network">BP Network</label>
+                    <select id="bp-network" className="field-input mt-1" value={bpNetwork} onChange={e => setBpNetwork(e.target.value)}>
+                        <option value="">Select network</option>
+                        {BP_NETWORKS.map(n => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                    <p className="text-xs mt-1" style={{ color: 'var(--text-3)' }}>The Black Professionals United regional network you belong to.</p>
+                </div>
             </div>
 
-            {/* Career Goals */}
-            <div>
-                <label htmlFor="career-goals" className="field-label mb-2 block">Career Goals</label>
-                <textarea
-                    id="career-goals"
-                    className="field-textarea"
-                    rows={4}
-                    value={careerGoals}
-                    onChange={(e) => setCareerGoals(e.target.value)}
-                    placeholder="What are your career aspirations? Where do you see yourself in the next 2-5 years?"
-                />
+            {/* Career Info */}
+            <div className="card card-p" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <h2 className="text-lg font-bold">Career Information</h2>
+
+                <div>
+                    <label className="field-label" htmlFor="industry">Industry / Field of Expertise</label>
+                    <select id="industry" className="field-input mt-1" value={industry} onChange={e => setIndustry(e.target.value)}>
+                        <option value="">Select industry</option>
+                        {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+                    </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label className="field-label" htmlFor="employment">Employment Status</label>
+                        <select id="employment" className="field-input mt-1" value={employmentStatus} onChange={e => setEmploymentStatus(e.target.value)}>
+                            <option value="">Select status</option>
+                            {EMPLOYMENT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="field-label" htmlFor="years-exp">Years of Experience</label>
+                        <select id="years-exp" className="field-input mt-1" value={yearsExp} onChange={e => setYearsExp(e.target.value)}>
+                            <option value="">Select years</option>
+                            {EXPERIENCE_OPTIONS.map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label className="field-label" htmlFor="linkedin">LinkedIn Profile URL</label>
+                    <input id="linkedin" type="url" className="field-input mt-1" value={linkedin} onChange={e => setLinkedin(e.target.value)} placeholder="https://linkedin.com/in/your-profile" />
+                </div>
             </div>
 
-            {/* Skills to Develop */}
-            <div>
-                <label className="field-label mb-2 block">Skills to Develop</label>
-                <div
-                    className="field-input"
-                    style={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 6,
-                        padding: '8px 12px',
-                        minHeight: 44,
-                        alignItems: 'center',
-                        cursor: 'text',
-                    }}
-                    onClick={() => inputRef.current?.focus()}
-                >
-                    {skills.map((skill) => (
-                        <span
-                            key={skill}
-                            className="badge badge-purple"
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                paddingRight: 4,
-                            }}
-                        >
-                            {skill}
-                            <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); removeSkill(skill); }}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: '0 2px',
-                                    fontSize: '1rem',
-                                    lineHeight: 1,
-                                    color: 'inherit',
-                                    opacity: 0.7,
-                                }}
-                                aria-label={`Remove ${skill}`}
-                            >
-                                x
-                            </button>
-                        </span>
-                    ))}
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={skillInput}
-                        onChange={(e) => { setSkillInput(e.target.value); setShowSuggestions(true); }}
-                        onFocus={() => setShowSuggestions(true)}
-                        onKeyDown={handleKeyDown}
-                        placeholder={skills.length === 0 ? 'Type to search skills...' : ''}
-                        style={{
-                            border: 'none',
-                            outline: 'none',
-                            background: 'transparent',
-                            flex: 1,
-                            minWidth: 120,
-                            fontSize: 'inherit',
-                            color: 'inherit',
-                            padding: '2px 0',
-                        }}
+            {/* Mentorship Profile */}
+            <div className="card card-p" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <h2 className="text-lg font-bold">Mentorship Profile</h2>
+
+                <div>
+                    <label className="field-label" htmlFor="availability">Preferred Mentorship Availability</label>
+                    <select id="availability" className="field-input mt-1" value={mentorshipAvailability} onChange={e => setMentorshipAvailability(e.target.value)}>
+                        <option value="">Select availability</option>
+                        {AVAILABILITY_OPTIONS.map(a => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                </div>
+
+                <div>
+                    <label className="field-label" htmlFor="bio">About Me</label>
+                    <textarea
+                        id="bio"
+                        className="field-input mt-1"
+                        rows={3}
+                        value={bio}
+                        onChange={e => setBio(e.target.value)}
+                        placeholder="A short introduction about yourself..."
                     />
                 </div>
-                {/* Suggestions Dropdown */}
-                {showSuggestions && skillSuggestions.length > 0 && (
-                    <div
-                        ref={suggestionsRef}
-                        className="card"
-                        style={{
-                            marginTop: 4,
-                            maxHeight: 200,
-                            overflowY: 'auto',
-                            boxShadow: '0 4px 16px rgba(0,0,0,.1)',
-                        }}
-                    >
-                        {skillSuggestions.map((s) => (
-                            <button
-                                key={s}
-                                type="button"
-                                onClick={() => addSkill(s)}
-                                className="w-full text-left p-3 text-sm hover:bg-surface transition-colors"
+
+                <div>
+                    <label className="field-label" htmlFor="career-goals">Career Goals</label>
+                    <textarea
+                        id="career-goals"
+                        className="field-input mt-1"
+                        rows={3}
+                        value={careerGoals}
+                        onChange={e => setCareerGoals(e.target.value)}
+                        placeholder="What are you hoping to achieve through mentorship?"
+                    />
+                </div>
+
+                {/* Skills tags */}
+                <div>
+                    <label className="field-label">Skills to Develop</label>
+                    {skills.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-2 mb-2">
+                            {skills.map(s => (
+                                <span key={s} className="badge badge-purple flex items-center gap-1">
+                                    {s}
+                                    <button
+                                        type="button"
+                                        onClick={() => removeSkill(s)}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', color: 'inherit', lineHeight: 1 }}
+                                        aria-label={`Remove ${s}`}
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    <div style={{ position: 'relative' }}>
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            className="field-input mt-1"
+                            value={skillInput}
+                            onChange={e => setSkillInput(e.target.value)}
+                            onKeyDown={e => {
+                                if ((e.key === 'Enter' || e.key === ',') && skillInput.trim()) {
+                                    e.preventDefault();
+                                    addSkill(skillInput);
+                                }
+                            }}
+                            placeholder="Type a skill and press Enter..."
+                        />
+                        {showSuggestions && (
+                            <div
+                                ref={suggestionsRef}
+                                className="card"
                                 style={{
-                                    border: 'none',
-                                    background: 'transparent',
-                                    cursor: 'pointer',
-                                    borderBottom: '1px solid var(--border)',
+                                    position: 'absolute', top: '100%', left: 0, right: 0,
+                                    zIndex: 20, marginTop: 4, overflow: 'hidden',
+                                    boxShadow: '0 4px 16px rgba(0,0,0,.1)',
                                 }}
                             >
-                                {s}
-                            </button>
-                        ))}
+                                {skillSuggestions.map(s => (
+                                    <button
+                                        key={s}
+                                        type="button"
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-surface transition-colors"
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                                        onMouseDown={e => { e.preventDefault(); addSkill(s); }}
+                                    >
+                                        {s}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                )}
-                <p className="text-xs text-text-3 mt-1">Press Enter to add a skill. Click x to remove.</p>
+                </div>
             </div>
 
-            {/* Bio */}
-            <div>
-                <label htmlFor="bio" className="field-label mb-2 block">Bio</label>
-                <textarea
-                    id="bio"
-                    className="field-textarea"
-                    rows={4}
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                    placeholder="Tell mentors a bit about yourself, your background, and what you're looking for in a mentorship."
-                />
-            </div>
-
-            {/* Submit */}
-            <button
-                type="submit"
-                className="btn btn-purple btn-lg w-full"
-                disabled={saving}
-            >
+            <button onClick={handleSave} disabled={saving} className="btn btn-purple">
                 {saving ? 'Saving...' : 'Save Profile'}
             </button>
-        </form>
+
+            <p className="text-sm text-center" style={{ color: 'var(--text-3)' }}>
+                <a href="/paired/settings/change-password" className="hover:underline" style={{ color: 'var(--purple)' }}>
+                    Change password
+                </a>
+            </p>
+        </div>
     );
 }

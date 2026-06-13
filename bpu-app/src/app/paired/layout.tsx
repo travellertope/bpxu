@@ -30,6 +30,7 @@ export default async function PairedLayout({ children }: { children: React.React
                 <a href="/paired/favourites" className="btn btn-ghost btn-sm">Favourites</a>
                 <a href="/paired/notifications" className="btn btn-ghost btn-sm">Notifications</a>
                 <a href="/paired/referral" className="btn btn-ghost btn-sm">Referrals</a>
+                <a href="/paired/mentee/profile" className="btn btn-ghost btn-sm">Profile</a>
               </>
             )}
             {session.authenticated && session.user?.roles.includes('mentor') && (

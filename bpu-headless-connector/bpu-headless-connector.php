@@ -1067,6 +1067,13 @@ class BPU_Headless_Connector {
             ),
         ) );
 
+        // ── Change Password ──────────────────────────────────────
+        register_rest_route( $this->namespace, '/paired/account/change-password', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'change_password' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
         // ── Phase 2: Admin Mentor Management ────────────────────
         register_rest_route( $this->namespace, '/paired/admin/mentors', array(
             'methods'             => WP_REST_Server::READABLE,
@@ -7836,14 +7843,25 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         return new WP_REST_Response( array(
             'success' => true,
             'profile' => array(
-                'user_id'           => $user_id,
-                'display_name'      => $user->display_name,
-                'email'             => $user->user_email,
-                'avatar_url'        => get_avatar_url( $user_id, array( 'size' => 128 ) ),
-                'career_goals'      => get_user_meta( $user_id, '_paired_career_goals', true ) ?: '',
-                'skills_to_develop' => $skills,
-                'industry'          => get_user_meta( $user_id, '_paired_industry', true ) ?: '',
-                'bio'               => get_user_meta( $user_id, '_paired_bio', true ) ?: '',
+                'user_id'                 => $user_id,
+                'display_name'            => $user->display_name,
+                'email'                   => $user->user_email,
+                'first_name'              => $user->first_name ?: get_user_meta( $user_id, 'first_name', true ) ?: '',
+                'last_name'               => $user->last_name ?: get_user_meta( $user_id, 'last_name', true ) ?: '',
+                'phone_number'            => get_user_meta( $user_id, 'phone_number', true ) ?: '',
+                'gender'                  => get_user_meta( $user_id, 'what_is_your_gender', true ) ?: get_user_meta( $user_id, 'gender', true ) ?: '',
+                'country'                 => get_user_meta( $user_id, 'country_location', true ) ?: '',
+                'city'                    => get_user_meta( $user_id, 'location_city', true ) ?: '',
+                'employment_status'       => get_user_meta( $user_id, 'current_employment_status', true ) ?: get_user_meta( $user_id, 'employment_status', true ) ?: '',
+                'linkedin_profile'        => get_user_meta( $user_id, 'linkedin_profile', true ) ?: '',
+                'years_of_experience'     => get_user_meta( $user_id, 'years_of_experience', true ) ?: '',
+                'mentorship_availability' => get_user_meta( $user_id, 'mentorship_availability', true ) ?: '',
+                'bp_network'              => get_user_meta( $user_id, 'bp_network', true ) ?: '',
+                'avatar_url'              => get_user_meta( $user_id, '_paired_photo_url', true ) ?: get_avatar_url( $user_id, array( 'size' => 128 ) ),
+                'career_goals'            => get_user_meta( $user_id, '_paired_career_goals', true ) ?: '',
+                'skills_to_develop'       => $skills,
+                'industry'                => get_user_meta( $user_id, '_paired_industry', true ) ?: '',
+                'bio'                     => get_user_meta( $user_id, '_paired_bio', true ) ?: '',
             ),
         ), 200 );
     }
@@ -7860,8 +7878,46 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
 
         $body = $request->get_json_params();
 
+        // Simple string fields mapped to their meta keys.
+        $simple_fields = array(
+            'phone_number'            => 'phone_number',
+            'gender'                  => 'what_is_your_gender',
+            'country'                 => 'country_location',
+            'city'                    => 'location_city',
+            'employment_status'       => 'current_employment_status',
+            'linkedin_profile'        => 'linkedin_profile',
+            'years_of_experience'     => 'years_of_experience',
+            'mentorship_availability' => 'mentorship_availability',
+            'bp_network'              => 'bp_network',
+            'industry'                => '_paired_industry',
+        );
+        foreach ( $simple_fields as $body_key => $meta_key ) {
+            if ( array_key_exists( $body_key, $body ) ) {
+                update_user_meta( $user_id, $meta_key, sanitize_text_field( (string) $body[ $body_key ] ) );
+            }
+        }
+
+        // Name fields — update WP core fields and display_name.
+        $first = isset( $body['first_name'] ) ? sanitize_text_field( (string) $body['first_name'] ) : null;
+        $last  = isset( $body['last_name'] )  ? sanitize_text_field( (string) $body['last_name'] )  : null;
+        if ( $first !== null || $last !== null ) {
+            $user_obj  = get_userdata( $user_id );
+            $new_first = $first ?? $user_obj->first_name;
+            $new_last  = $last  ?? $user_obj->last_name;
+            wp_update_user( array(
+                'ID'           => $user_id,
+                'first_name'   => $new_first,
+                'last_name'    => $new_last,
+                'display_name' => trim( "$new_first $new_last" ) ?: $user_obj->user_login,
+            ) );
+        }
+
         if ( isset( $body['career_goals'] ) ) {
             update_user_meta( $user_id, '_paired_career_goals', sanitize_textarea_field( $body['career_goals'] ) );
+        }
+
+        if ( isset( $body['bio'] ) ) {
+            update_user_meta( $user_id, '_paired_bio', sanitize_textarea_field( $body['bio'] ) );
         }
 
         if ( isset( $body['skills_to_develop'] ) ) {
@@ -7878,31 +7934,73 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             update_user_meta( $user_id, '_paired_industry', sanitize_text_field( $body['industry'] ) );
         }
 
-        if ( isset( $body['bio'] ) ) {
-            update_user_meta( $user_id, '_paired_bio', sanitize_textarea_field( $body['bio'] ) );
+        // Return the updated profile (re-read from DB).
+        $updated_skills = get_user_meta( $user_id, '_paired_skills_to_develop', true );
+        if ( ! is_array( $updated_skills ) ) {
+            $updated_skills = array();
         }
-
-        // Return the updated profile.
-        $skills = get_user_meta( $user_id, '_paired_skills_to_develop', true );
-        if ( ! is_array( $skills ) ) {
-            $skills = array();
-        }
-
-        $user = get_userdata( $user_id );
+        $updated_user = get_userdata( $user_id );
 
         return new WP_REST_Response( array(
             'success' => true,
             'profile' => array(
-                'user_id'           => $user_id,
-                'display_name'      => $user ? $user->display_name : '',
-                'email'             => $user ? $user->user_email : '',
-                'avatar_url'        => get_avatar_url( $user_id, array( 'size' => 128 ) ),
-                'career_goals'      => get_user_meta( $user_id, '_paired_career_goals', true ) ?: '',
-                'skills_to_develop' => $skills,
-                'industry'          => get_user_meta( $user_id, '_paired_industry', true ) ?: '',
-                'bio'               => get_user_meta( $user_id, '_paired_bio', true ) ?: '',
+                'user_id'                 => $user_id,
+                'display_name'            => $updated_user ? $updated_user->display_name : '',
+                'email'                   => $updated_user ? $updated_user->user_email : '',
+                'first_name'              => $updated_user ? $updated_user->first_name : '',
+                'last_name'               => $updated_user ? $updated_user->last_name : '',
+                'phone_number'            => get_user_meta( $user_id, 'phone_number', true ) ?: '',
+                'gender'                  => get_user_meta( $user_id, 'what_is_your_gender', true ) ?: get_user_meta( $user_id, 'gender', true ) ?: '',
+                'country'                 => get_user_meta( $user_id, 'country_location', true ) ?: '',
+                'city'                    => get_user_meta( $user_id, 'location_city', true ) ?: '',
+                'employment_status'       => get_user_meta( $user_id, 'current_employment_status', true ) ?: get_user_meta( $user_id, 'employment_status', true ) ?: '',
+                'linkedin_profile'        => get_user_meta( $user_id, 'linkedin_profile', true ) ?: '',
+                'years_of_experience'     => get_user_meta( $user_id, 'years_of_experience', true ) ?: '',
+                'mentorship_availability' => get_user_meta( $user_id, 'mentorship_availability', true ) ?: '',
+                'bp_network'              => get_user_meta( $user_id, 'bp_network', true ) ?: '',
+                'avatar_url'              => get_user_meta( $user_id, '_paired_photo_url', true ) ?: get_avatar_url( $user_id, array( 'size' => 128 ) ),
+                'career_goals'            => get_user_meta( $user_id, '_paired_career_goals', true ) ?: '',
+                'skills_to_develop'       => $updated_skills,
+                'industry'                => get_user_meta( $user_id, '_paired_industry', true ) ?: '',
+                'bio'                     => get_user_meta( $user_id, '_paired_bio', true ) ?: '',
             ),
         ), 200 );
+    }
+
+    /**
+     * POST /paired/account/change-password — Change the authenticated user's password.
+     */
+    public function change_password( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body            = $request->get_json_params();
+        $current_password = $body['current_password'] ?? '';
+        $new_password     = $body['new_password'] ?? '';
+
+        if ( empty( $current_password ) || empty( $new_password ) ) {
+            return new WP_Error( 'missing_fields', __( 'Both current and new password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( strlen( $new_password ) < 8 ) {
+            return new WP_Error( 'password_too_short', __( 'New password must be at least 8 characters.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( ! wp_check_password( $current_password, $user->user_pass, $user_id ) ) {
+            return new WP_Error( 'wrong_password', __( 'Current password is incorrect.', 'bpu' ), array( 'status' => 403 ) );
+        }
+
+        wp_set_password( $new_password, $user_id );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════
