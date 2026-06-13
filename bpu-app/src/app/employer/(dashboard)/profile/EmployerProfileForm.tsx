@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import Link from 'next/link';
-import { Employer } from '../../jobs/types';
+import { Employer } from '@/app/jobs/types';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -93,42 +93,7 @@ export default function EmployerProfileForm({ initialProfile, jwt }: Props) {
         .join('');
 
     return (
-        <div className="min-h-screen flex flex-col">
-            <header className="topbar">
-                <div className="topbar-inner">
-                    <a href="/" className="topbar-brand">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" />
-                    </a>
-                    <div className="flex items-center gap-3">
-                        <span className="text-sm text-text-2 hidden sm:block">{profile.name}</span>
-                        <Link href="/jobs" className="btn btn-ghost btn-sm">View job board</Link>
-                        <Link href="/employer/jobs/new" className="btn btn-amber btn-sm">Post a job +</Link>
-                    </div>
-                </div>
-            </header>
-
-            <main className="flex-1 wrap py-8">
-                {/* Nav tabs */}
-                <nav className="flex gap-1 mb-8 border-b border-border">
-                    {[
-                        { label: 'My Jobs', href: '/employer/jobs' },
-                        { label: 'Company Profile', href: '/employer/profile' },
-                    ].map(tab => (
-                        <Link
-                            key={tab.href}
-                            href={tab.href}
-                            className="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
-                            style={{
-                                borderColor: tab.href === '/employer/profile' ? 'var(--brand)' : 'transparent',
-                                color: tab.href === '/employer/profile' ? 'var(--brand)' : 'var(--text-2)',
-                            }}
-                        >
-                            {tab.label}
-                        </Link>
-                    ))}
-                </nav>
-
+        <div className="fade-up">
                 <div className="max-w-2xl">
                     <h1 className="text-2xl font-bold mb-1">Company Profile</h1>
                     <p className="text-text-2 text-sm mb-8">
@@ -286,12 +251,6 @@ export default function EmployerProfileForm({ initialProfile, jwt }: Props) {
                         </div>
                     </form>
                 </div>
-            </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border mt-8">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/" className="hover:underline">Back to Portal</a>
-            </footer>
         </div>
     );
 }

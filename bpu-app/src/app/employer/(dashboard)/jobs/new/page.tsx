@@ -50,15 +50,7 @@ export default function NewJobPage() {
     const set = (key: string, val: string) => setForm(f => ({ ...f, [key]: val }));
 
     return (
-        <div className="min-h-screen flex flex-col">
-            <header className="topbar">
-                <div className="topbar-inner">
-                    <a href="/" className="topbar-brand"><img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" /></a>
-                    <a href="/employer/jobs" className="btn btn-ghost btn-sm">← My jobs</a>
-                </div>
-            </header>
-
-            <main className="flex-1 wrap-sm py-8 space-y-6">
+        <div className="fade-up space-y-6">
                 <div>
                     <h1 className="text-2xl font-bold">Post a new job</h1>
                     <p className="section-sub">Jobs posted by employers are reviewed before going live.</p>
@@ -187,7 +179,6 @@ export default function NewJobPage() {
                         </button>
                     </div>
                 </form>
-            </main>
         </div>
     );
 }
