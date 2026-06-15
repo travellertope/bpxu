@@ -86,7 +86,7 @@ export default function MemberDashboardShell({ currentPath, userName, userEmail,
                     {isAdmin && (
                         <div className="dash-nav-section">
                             <div className="dash-nav-label">Admin</div>
-                            <NavLink href="/paired/admin/dashboard" icon="settings" label="Site Admin" active={isActive('/paired/admin/dashboard')} onClick={close} />
+                            <NavLink href="/admin/dashboard" icon="settings" label="Site Admin" active={isActive('/admin/dashboard')} onClick={close} />
                         </div>
                     )}
                 </nav>
