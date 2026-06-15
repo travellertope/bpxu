@@ -1483,6 +1483,13 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_remove_team_member' ),
             'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_team' ); },
         ) );
+
+        // Admin: Employer list (for job form dropdown)
+        register_rest_route( $this->namespace, '/admin/employers', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_employers' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
     }
 
     /**
@@ -10893,6 +10900,36 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => $status ), 200 );
+    }
+
+    /**
+     * GET /admin/employers — list all employer taxonomy terms for job form.
+     */
+    public function admin_get_employers( WP_REST_Request $request ) {
+        $terms = get_terms( array(
+            'taxonomy'   => 'bpu_employer',
+            'hide_empty' => false,
+            'orderby'    => 'name',
+            'order'      => 'ASC',
+        ) );
+
+        if ( is_wp_error( $terms ) ) {
+            return new WP_REST_Response( array( 'employers' => array() ), 200 );
+        }
+
+        $employers = array();
+        foreach ( $terms as $term ) {
+            $employers[] = array(
+                'id'          => $term->term_id,
+                'name'        => $term->name,
+                'logo_url'    => get_term_meta( $term->term_id, 'logo_url', true ) ?: '',
+                'website'     => get_term_meta( $term->term_id, 'website', true ) ?: '',
+                'description' => $term->description,
+                'job_count'   => $term->count,
+            );
+        }
+
+        return new WP_REST_Response( array( 'employers' => $employers ), 200 );
     }
 
     /**

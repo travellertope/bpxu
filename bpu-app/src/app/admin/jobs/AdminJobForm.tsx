@@ -1,12 +1,19 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 
 interface Question {
     id: string;
     question: string;
     required: boolean;
+}
+
+interface Employer {
+    id: number;
+    name: string;
+    logo_url: string;
+    job_count: number;
 }
 
 export interface JobData {
@@ -25,7 +32,9 @@ export interface JobData {
     expires: string;
     remote: boolean;
     featured: boolean;
+    filled: boolean;
     screening_questions: Question[];
+    employer?: { id: number; name: string } | null;
 }
 
 interface AdminJobFormProps {
@@ -33,8 +42,22 @@ interface AdminJobFormProps {
     mode: 'create' | 'edit';
 }
 
+const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship'];
+const INDUSTRIES = [
+    'Technology', 'Finance', 'Healthcare', 'Education', 'Legal',
+    'Marketing', 'Engineering', 'HR & Recruitment', 'Creative & Media',
+    'Public Sector', 'Consulting', 'Other',
+];
+
 export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
     const router = useRouter();
+    const [employers, setEmployers] = useState<Employer[]>([]);
+    const [employerSearch, setEmployerSearch] = useState('');
+    const [showEmployerDropdown, setShowEmployerDropdown] = useState(false);
+    const [selectedEmployer, setSelectedEmployer] = useState<Employer | null>(
+        initialData?.employer ? { id: initialData.employer.id, name: initialData.employer.name, logo_url: '', job_count: 0 } : null
+    );
+
     const [form, setForm] = useState({
         title: initialData?.title || '',
         company: initialData?.company || '',
@@ -50,6 +73,7 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
         expires_date: initialData?.expires || '',
         remote: initialData?.remote || false,
         featured: initialData?.featured || false,
+        filled: initialData?.filled || false,
     });
     const [questions, setQuestions] = useState<Question[]>(
         initialData?.screening_questions?.map(q => ({
@@ -60,6 +84,34 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
     );
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+
+    const fetchEmployers = useCallback(async () => {
+        try {
+            const res = await fetch('/api/paired/admin/employers');
+            if (res.ok) {
+                const data = await res.json();
+                setEmployers(data.employers || []);
+            }
+        } catch { /* ignore */ }
+    }, []);
+
+    useEffect(() => { fetchEmployers(); }, [fetchEmployers]);
+
+    const filteredEmployers = employers.filter(e =>
+        e.name.toLowerCase().includes(employerSearch.toLowerCase())
+    );
+
+    const selectEmployer = (emp: Employer) => {
+        setSelectedEmployer(emp);
+        setForm(f => ({ ...f, company: emp.name }));
+        setEmployerSearch('');
+        setShowEmployerDropdown(false);
+    };
+
+    const clearEmployer = () => {
+        setSelectedEmployer(null);
+        setForm(f => ({ ...f, company: '' }));
+    };
 
     const addQuestion = () =>
         setQuestions(qs => [...qs, { id: crypto.randomUUID(), question: '', required: false }]);
@@ -90,6 +142,7 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                 expires_date: form.expires_date,
                 remote: form.remote,
                 featured: form.featured,
+                filled: form.filled,
                 screening_questions: questions.filter(q => q.question.trim()),
             };
 
@@ -116,7 +169,7 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
 
     return (
         <div className="fade-up space-y-6">
-            {error && <div className="alert alert-red text-sm">{error}</div>}
+            {error && <div className="card card-p" style={{ borderLeft: '4px solid #ef4444', background: 'rgba(239,68,68,0.08)' }}><p className="text-sm" style={{ color: '#ef4444' }}>{error}</p></div>}
 
             <form onSubmit={handleSubmit} className="space-y-5">
                 {/* Job type toggle */}
@@ -141,7 +194,79 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                     </p>
                 </div>
 
-                {/* Basic info */}
+                {/* Employer selection */}
+                <div className="card card-p space-y-3">
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Employer</p>
+                    {selectedEmployer ? (
+                        <div className="flex items-center gap-3 p-3 rounded-lg" style={{ background: 'var(--surface-2)' }}>
+                            {selectedEmployer.logo_url && (
+                                <img src={selectedEmployer.logo_url} alt="" className="w-8 h-8 rounded object-contain" style={{ background: '#fff' }} />
+                            )}
+                            <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-sm">{selectedEmployer.name}</p>
+                                <p className="text-xs text-text-3">{selectedEmployer.job_count} jobs posted</p>
+                            </div>
+                            <button type="button" onClick={clearEmployer} className="btn btn-ghost btn-sm text-xs">Change</button>
+                        </div>
+                    ) : (
+                        <div className="relative">
+                            <input
+                                className="field-input"
+                                placeholder="Search employers..."
+                                value={employerSearch}
+                                onChange={e => { setEmployerSearch(e.target.value); setShowEmployerDropdown(true); }}
+                                onFocus={() => setShowEmployerDropdown(true)}
+                            />
+                            {showEmployerDropdown && (
+                                <div
+                                    className="absolute z-10 left-0 right-0 mt-1 max-h-48 overflow-y-auto rounded-lg shadow-lg"
+                                    style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+                                >
+                                    {filteredEmployers.length === 0 ? (
+                                        <div className="px-4 py-3 text-sm text-text-3">
+                                            {employers.length === 0 ? 'Loading employers...' : 'No employers match'}
+                                        </div>
+                                    ) : (
+                                        filteredEmployers.map(emp => (
+                                            <button
+                                                key={emp.id}
+                                                type="button"
+                                                onClick={() => selectEmployer(emp)}
+                                                className="w-full text-left px-4 py-2 flex items-center gap-3 hover:bg-surface-2 transition-colors"
+                                            >
+                                                {emp.logo_url ? (
+                                                    <img src={emp.logo_url} alt="" className="w-6 h-6 rounded object-contain" style={{ background: '#fff' }} />
+                                                ) : (
+                                                    <span className="w-6 h-6 rounded flex items-center justify-center text-xs font-bold" style={{ background: 'var(--surface-3)', color: 'var(--text-3)' }}>
+                                                        {emp.name.charAt(0)}
+                                                    </span>
+                                                )}
+                                                <span className="text-sm">{emp.name}</span>
+                                                <span className="text-xs text-text-3 ml-auto">{emp.job_count} jobs</span>
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                            <p className="text-xs text-text-3 mt-2">
+                                Select an existing employer or type a company name below to use custom text.
+                            </p>
+                        </div>
+                    )}
+                    {!selectedEmployer && (
+                        <div>
+                            <label className="field-label">Or enter company name manually</label>
+                            <input
+                                className="field-input"
+                                placeholder="Company name"
+                                value={form.company}
+                                onChange={e => set('company', e.target.value)}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Role details */}
                 <div className="card card-p space-y-4">
                     <p className="text-xs font-bold uppercase tracking-wide text-text-3">Role details</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -153,15 +278,6 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                                 placeholder="e.g. Senior Software Engineer"
                                 value={form.title}
                                 onChange={e => set('title', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="field-label">Company name *</label>
-                            <input
-                                className="field-input"
-                                required
-                                value={form.company}
-                                onChange={e => set('company', e.target.value)}
                             />
                         </div>
                         <div>
@@ -182,7 +298,7 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                                 onChange={e => set('employment_type', e.target.value)}
                             >
                                 <option value="">Select...</option>
-                                {['Full-time', 'Part-time', 'Contract', 'Freelance', 'Internship'].map(o => (
+                                {EMPLOYMENT_TYPES.map(o => (
                                     <option key={o}>{o}</option>
                                 ))}
                             </select>
@@ -195,40 +311,8 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                                 onChange={e => set('industry', e.target.value)}
                             >
                                 <option value="">Select...</option>
-                                {['Technology', 'Finance', 'Legal', 'Healthcare', 'Engineering', 'Marketing', 'Education', 'Other'].map(o => (
+                                {INDUSTRIES.map(o => (
                                     <option key={o}>{o}</option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="field-label">Salary min</label>
-                            <input
-                                type="number"
-                                className="field-input"
-                                placeholder="30000"
-                                value={form.salary_min}
-                                onChange={e => set('salary_min', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="field-label">Salary max</label>
-                            <input
-                                type="number"
-                                className="field-input"
-                                placeholder="50000"
-                                value={form.salary_max}
-                                onChange={e => set('salary_max', e.target.value)}
-                            />
-                        </div>
-                        <div>
-                            <label className="field-label">Currency</label>
-                            <select
-                                className="field-input"
-                                value={form.salary_currency}
-                                onChange={e => set('salary_currency', e.target.value)}
-                            >
-                                {['GBP', 'USD', 'EUR'].map(c => (
-                                    <option key={c} value={c}>{c}</option>
                                 ))}
                             </select>
                         </div>
@@ -257,9 +341,48 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                     </div>
                 </div>
 
-                {/* Admin-specific toggles */}
+                {/* Salary */}
                 <div className="card card-p space-y-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Admin options</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Salary</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div>
+                            <label className="field-label">Min</label>
+                            <input
+                                type="number"
+                                className="field-input"
+                                placeholder="30000"
+                                value={form.salary_min}
+                                onChange={e => set('salary_min', e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label className="field-label">Max</label>
+                            <input
+                                type="number"
+                                className="field-input"
+                                placeholder="50000"
+                                value={form.salary_max}
+                                onChange={e => set('salary_max', e.target.value)}
+                            />
+                        </div>
+                        <div>
+                            <label className="field-label">Currency</label>
+                            <select
+                                className="field-input"
+                                value={form.salary_currency}
+                                onChange={e => set('salary_currency', e.target.value)}
+                            >
+                                <option value="GBP">GBP (£)</option>
+                                <option value="USD">USD ($)</option>
+                                <option value="EUR">EUR (€)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Admin toggles */}
+                <div className="card card-p space-y-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-text-3">Options</p>
                     <div className="flex flex-wrap gap-6">
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -268,7 +391,7 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                                 onChange={e => set('remote', e.target.checked)}
                                 className="w-4 h-4"
                             />
-                            <span className="text-sm">Remote</span>
+                            <span className="text-sm">Remote position</span>
                         </label>
                         <label className="flex items-center gap-2 cursor-pointer">
                             <input
@@ -277,7 +400,16 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                                 onChange={e => set('featured', e.target.checked)}
                                 className="w-4 h-4"
                             />
-                            <span className="text-sm">Featured</span>
+                            <span className="text-sm">Featured listing</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={form.filled}
+                                onChange={e => set('filled', e.target.checked)}
+                                className="w-4 h-4"
+                            />
+                            <span className="text-sm">Position filled</span>
                         </label>
                     </div>
                 </div>
