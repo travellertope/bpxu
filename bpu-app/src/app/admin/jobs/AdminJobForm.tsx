@@ -95,8 +95,8 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
 
             const url =
                 mode === 'create'
-                    ? '/api/admin/jobs/create'
-                    : `/api/admin/jobs/${initialData?.id}`;
+                    ? '/api/paired/admin/jobs/create'
+                    : `/api/paired/admin/jobs/${initialData?.id}`;
             const method = mode === 'create' ? 'POST' : 'PUT';
 
             const res = await fetch(url, {

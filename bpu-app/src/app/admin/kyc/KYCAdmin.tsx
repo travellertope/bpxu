@@ -23,7 +23,7 @@ export default function KYCAdmin() {
     async function load(status: string) {
         setLoading(true);
         try {
-            const res = await fetch(`/api/admin/kyc?status=${status}`);
+            const res = await fetch(`/api/paired/admin/kyc?status=${status}`);
             const data = await res.json();
             setSubmissions(data.submissions || []);
         } catch {
@@ -38,7 +38,7 @@ export default function KYCAdmin() {
     async function handleAction(userId: number, status: 'approved' | 'rejected') {
         setActionLoading(userId);
         try {
-            await fetch(`/api/admin/kyc/${userId}`, {
+            await fetch(`/api/paired/admin/kyc/${userId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status, rejection_reason: status === 'rejected' ? rejectReason : '' }),

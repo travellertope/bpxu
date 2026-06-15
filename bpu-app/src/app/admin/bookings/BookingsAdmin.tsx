@@ -71,7 +71,7 @@ export default function BookingsAdmin() {
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (search.trim()) params.set('search', search.trim());
 
-            const res = await fetch(`/api/admin/bookings?${params}`);
+            const res = await fetch(`/api/paired/admin/bookings?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load bookings.');
             setBookings(data.bookings || []);
@@ -101,7 +101,7 @@ export default function BookingsAdmin() {
     async function updateStatus(bookingId: number, newStatus: string) {
         setUpdatingId(bookingId);
         try {
-            const res = await fetch(`/api/admin/bookings/${bookingId}/status`, {
+            const res = await fetch(`/api/paired/admin/bookings/${bookingId}/status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus }),

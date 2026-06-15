@@ -40,7 +40,7 @@ export default function CouponAdmin() {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch('/api/admin/coupons');
+            const res = await fetch('/api/paired/admin/coupons');
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load coupons.');
             setCoupons(data.coupons || []);
@@ -92,7 +92,7 @@ export default function CouponAdmin() {
         };
 
         try {
-            const url = editingId ? `/api/admin/coupons/${editingId}` : '/api/admin/coupons';
+            const url = editingId ? `/api/paired/admin/coupons/${editingId}` : '/api/paired/admin/coupons';
             const method = editingId ? 'PUT' : 'POST';
             const res = await fetch(url, {
                 method,
@@ -113,7 +113,7 @@ export default function CouponAdmin() {
     async function deleteCoupon(coupon: Coupon) {
         setDeletingId(coupon.id);
         try {
-            const res = await fetch(`/api/admin/coupons/${coupon.id}`, { method: 'DELETE' });
+            const res = await fetch(`/api/paired/admin/coupons/${coupon.id}`, { method: 'DELETE' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to delete.');
             setCoupons(prev => prev.filter(c => c.id !== coupon.id));

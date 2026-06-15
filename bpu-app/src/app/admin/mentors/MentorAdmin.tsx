@@ -55,7 +55,7 @@ export default function MentorAdmin() {
             });
             if (search.trim()) params.set('search', search.trim());
 
-            const res = await fetch(`/api/admin/mentors?${params}`);
+            const res = await fetch(`/api/paired/admin/mentors?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load mentors.');
             setMentors(data.mentors || []);
@@ -93,7 +93,7 @@ export default function MentorAdmin() {
         setEditError('');
 
         try {
-            const res = await fetch(`/api/admin/mentors/${editingMentor.id}`, {
+            const res = await fetch(`/api/paired/admin/mentors/${editingMentor.id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(editData),
@@ -121,7 +121,7 @@ export default function MentorAdmin() {
         const newStatus = mentor.status === 'active' ? 'inactive' : 'active';
 
         try {
-            const res = await fetch(`/api/admin/mentors/${mentor.id}/status`, {
+            const res = await fetch(`/api/paired/admin/mentors/${mentor.id}/status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus }),

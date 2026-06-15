@@ -24,7 +24,7 @@ export default function ReferralAdmin() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch('/api/admin/referrals');
+                const res = await fetch('/api/paired/admin/referrals');
                 const json = await res.json();
                 if (!res.ok) throw new Error(json.error || 'Failed to load referrals.');
                 setData({

@@ -19,7 +19,7 @@ export default function SkillsAdmin() {
         setLoading(true);
         setError('');
         try {
-            const res = await fetch('/api/admin/skills');
+            const res = await fetch('/api/paired/admin/skills');
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load skills.');
             setSkills(data.skills || {});
@@ -37,7 +37,7 @@ export default function SkillsAdmin() {
         setError('');
         setSuccess('');
         try {
-            const res = await fetch('/api/admin/skills', {
+            const res = await fetch('/api/paired/admin/skills', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ skills }),
@@ -57,7 +57,7 @@ export default function SkillsAdmin() {
         if (!confirm('Reset all skills to platform defaults? Custom changes will be lost.')) return;
         setSaving(true);
         try {
-            const res = await fetch('/api/admin/skills/reset', { method: 'POST' });
+            const res = await fetch('/api/paired/admin/skills/reset', { method: 'POST' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to reset.');
             await fetchSkills();

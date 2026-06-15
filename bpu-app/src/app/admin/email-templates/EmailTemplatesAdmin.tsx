@@ -26,7 +26,7 @@ export default function EmailTemplatesAdmin() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch('/api/admin/email-templates');
+                const res = await fetch('/api/paired/admin/email-templates');
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed to load templates.');
                 setTemplates(data.templates || []);
@@ -54,7 +54,7 @@ export default function EmailTemplatesAdmin() {
         setSaveSuccess('');
 
         try {
-            const res = await fetch('/api/admin/email-templates', {
+            const res = await fetch('/api/paired/admin/email-templates', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: editing.key, subject: formSubject, body: formBody }),
@@ -79,7 +79,7 @@ export default function EmailTemplatesAdmin() {
         setSaveError('');
 
         try {
-            const res = await fetch('/api/admin/email-templates', {
+            const res = await fetch('/api/paired/admin/email-templates', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ key: editing.key, subject: '', body: '' }),

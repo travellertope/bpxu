@@ -26,7 +26,7 @@ export default function ReferralSettingsForm() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch('/api/admin/referral-settings');
+                const res = await fetch('/api/paired/admin/referral-settings');
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed to load settings.');
                 setSettings({
@@ -52,7 +52,7 @@ export default function ReferralSettingsForm() {
         setSuccess('');
 
         try {
-            const res = await fetch('/api/admin/referral-settings', {
+            const res = await fetch('/api/paired/admin/referral-settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

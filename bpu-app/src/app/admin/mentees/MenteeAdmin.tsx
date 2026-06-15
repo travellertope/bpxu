@@ -33,7 +33,7 @@ export default function MenteeAdmin() {
             const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
             if (search.trim()) params.set('search', search.trim());
 
-            const res = await fetch(`/api/admin/mentees?${params}`);
+            const res = await fetch(`/api/paired/admin/mentees?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load mentees.');
             setMentees(data.mentees || []);
@@ -59,7 +59,7 @@ export default function MenteeAdmin() {
         setActionLoadingId(mentee.id);
         const endpoint = mentee.is_active ? 'deactivate' : 'activate';
         try {
-            const res = await fetch(`/api/admin/mentees/${mentee.id}/${endpoint}`, { method: 'POST' });
+            const res = await fetch(`/api/paired/admin/mentees/${mentee.id}/${endpoint}`, { method: 'POST' });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Action failed.');
             setMentees(prev => prev.map(m => m.id === mentee.id ? { ...m, is_active: !mentee.is_active } : m));

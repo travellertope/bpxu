@@ -52,7 +52,7 @@ export default function TeamAdmin() {
 
     const fetchTeam = useCallback(async () => {
         try {
-            const res = await fetch('/api/admin/team');
+            const res = await fetch('/api/paired/admin/team');
             if (!res.ok) throw new Error('Failed to fetch');
             const json = await res.json();
             setData(json);
@@ -69,7 +69,7 @@ export default function TeamAdmin() {
         setError('');
         setSuccess('');
         try {
-            const res = await fetch(`/api/admin/team/${memberId}/role`, {
+            const res = await fetch(`/api/paired/admin/team/${memberId}/role`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ role: newRole }),
@@ -88,7 +88,7 @@ export default function TeamAdmin() {
         setError('');
         setSuccess('');
         try {
-            const res = await fetch(`/api/admin/team/${memberId}/remove`, {
+            const res = await fetch(`/api/paired/admin/team/${memberId}/remove`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
@@ -108,7 +108,7 @@ export default function TeamAdmin() {
         setError('');
         setSuccess('');
         try {
-            const res = await fetch('/api/admin/team/invite', {
+            const res = await fetch('/api/paired/admin/team/invite', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email: inviteEmail, role: inviteRole }),

@@ -73,7 +73,7 @@ export default function JobsAdmin() {
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (search.trim()) params.set('search', search.trim());
 
-            const res = await fetch(`/api/admin/jobs?${params}`);
+            const res = await fetch(`/api/paired/admin/jobs?${params}`);
             const data: JobsResponse = await res.json();
             if (!res.ok) throw new Error((data as unknown as { error: string }).error || 'Failed to load jobs.');
             setJobs(data.jobs || []);
@@ -104,7 +104,7 @@ export default function JobsAdmin() {
     async function updateStatus(jobId: number, newStatus: string) {
         setUpdatingId(jobId);
         try {
-            const res = await fetch(`/api/admin/jobs/${jobId}/status`, {
+            const res = await fetch(`/api/paired/admin/jobs/${jobId}/status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus }),

@@ -26,7 +26,7 @@ export default function PayoutsAdmin() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch('/api/admin/payouts');
+                const res = await fetch('/api/paired/admin/payouts');
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed to load payouts.');
                 setPayouts(data.payouts || []);

@@ -37,7 +37,7 @@ export default function FinancialReports() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch('/api/admin/reports');
+                const res = await fetch('/api/paired/admin/reports');
                 const json = await res.json();
                 if (!res.ok) throw new Error(json.error || 'Failed to load reports.');
                 setData(json);

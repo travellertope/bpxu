@@ -72,7 +72,7 @@ export default function JobApplicationsAdmin() {
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (search.trim()) params.set('search', search.trim());
 
-            const res = await fetch(`/api/admin/applications?${params}`);
+            const res = await fetch(`/api/paired/admin/applications?${params}`);
             const data: ApplicationsResponse = await res.json();
             if (!res.ok) throw new Error((data as unknown as { error: string }).error || 'Failed to load applications.');
             setApplications(data.applications || []);
@@ -104,7 +104,7 @@ export default function JobApplicationsAdmin() {
     async function updateStatus(appId: number, newStatus: string) {
         setUpdatingId(appId);
         try {
-            const res = await fetch(`/api/admin/applications/${appId}/status`, {
+            const res = await fetch(`/api/paired/admin/applications/${appId}/status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ status: newStatus }),

@@ -43,7 +43,7 @@ export default function TransactionsAdmin() {
             if (statusFilter !== 'all') params.set('status', statusFilter);
             if (search.trim()) params.set('search', search.trim());
 
-            const res = await fetch(`/api/admin/transactions?${params}`);
+            const res = await fetch(`/api/paired/admin/transactions?${params}`);
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Failed to load transactions.');
             setTransactions(data.transactions || []);

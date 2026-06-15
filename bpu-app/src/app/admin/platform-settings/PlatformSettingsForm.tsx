@@ -26,7 +26,7 @@ export default function PlatformSettingsForm() {
     useEffect(() => {
         async function load() {
             try {
-                const res = await fetch('/api/admin/settings');
+                const res = await fetch('/api/paired/admin/settings');
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error || 'Failed to load settings.');
                 setSettings({
@@ -51,7 +51,7 @@ export default function PlatformSettingsForm() {
         setSuccess('');
 
         try {
-            const res = await fetch('/api/admin/settings', {
+            const res = await fetch('/api/paired/admin/settings', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(settings),
