@@ -45,6 +45,9 @@ class BPU_Headless_Connector {
         // Register mentor role
         add_action( 'init', array( $this, 'register_mentor_role' ) );
 
+        // Register admin team roles (editor, moderator)
+        add_action( 'init', array( $this, 'register_admin_team_roles' ) );
+
         // SSO token relay handoff (runs on every page load, checks for handoff query param)
         add_action( 'init', array( $this, 'handle_sso_handoff' ) );
 
@@ -327,6 +330,48 @@ class BPU_Headless_Connector {
         if ( ! get_role( 'mentor' ) ) {
             add_role( 'mentor', __( 'Mentor', 'bpu' ), array( 'read' => true ) );
         }
+    }
+
+    /**
+     * Register admin team roles with granular capabilities.
+     */
+    public function register_admin_team_roles() {
+        if ( ! get_role( 'bpu_editor' ) ) {
+            add_role( 'bpu_editor', __( 'BPU Editor', 'bpu' ), array(
+                'read'                    => true,
+                'bpu_view_dashboard'      => true,
+                'bpu_manage_jobs'         => true,
+                'bpu_manage_applications' => true,
+                'bpu_view_reports'        => true,
+            ) );
+        }
+        if ( ! get_role( 'bpu_moderator' ) ) {
+            add_role( 'bpu_moderator', __( 'BPU Moderator', 'bpu' ), array(
+                'read'                    => true,
+                'bpu_view_dashboard'      => true,
+                'bpu_manage_applications' => true,
+            ) );
+        }
+        $admin = get_role( 'administrator' );
+        if ( $admin ) {
+            $admin->add_cap( 'bpu_view_dashboard' );
+            $admin->add_cap( 'bpu_manage_jobs' );
+            $admin->add_cap( 'bpu_manage_applications' );
+            $admin->add_cap( 'bpu_manage_team' );
+            $admin->add_cap( 'bpu_view_reports' );
+        }
+    }
+
+    /**
+     * Check if JWT user has a specific BPU capability.
+     */
+    public function check_bpu_capability( WP_REST_Request $request, string $capability ): bool {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return false;
+        }
+        $user = get_userdata( intval( $payload['user_id'] ) );
+        return $user && $user->has_cap( $capability );
     }
 
     /**
@@ -1361,6 +1406,82 @@ class BPU_Headless_Connector {
             'methods'             => 'POST',
             'callback'            => array( $this, 'admin_update_referral_settings' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Job Management (requires bpu_manage_jobs)
+        register_rest_route( $this->namespace, '/admin/jobs', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_jobs' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+            'args'                => array(
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 20, 'sanitize_callback' => 'absint' ),
+                'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/jobs/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_job_status' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/jobs/(?P<id>\d+)', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'admin_get_single_job' ),
+                'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => array( $this, 'admin_delete_job' ),
+                'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+            ),
+        ) );
+
+        // Admin: Job Applications Management (requires bpu_manage_applications)
+        register_rest_route( $this->namespace, '/admin/applications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_applications' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_applications' ); },
+            'args'                => array(
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 20, 'sanitize_callback' => 'absint' ),
+                'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/applications/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_application_status' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_applications' ); },
+        ) );
+
+        // Admin: Team Management (requires bpu_manage_team — administrators only)
+        register_rest_route( $this->namespace, '/admin/team', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_team' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_team' ); },
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/team/(?P<id>\d+)/role', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_team_role' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_team' ); },
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/team/invite', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_invite_team_member' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_team' ); },
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/team/(?P<id>\d+)/remove', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_remove_team_member' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_team' ); },
         ) );
     }
 
@@ -3035,7 +3156,7 @@ Rules:
             return false;
         }
         $user = get_userdata( intval( $payload['user_id'] ) );
-        return $user && $user->has_cap( 'promote_users' );
+        return $user && ( $user->has_cap( 'promote_users' ) || $user->has_cap( 'bpu_view_dashboard' ) );
     }
 
     /** GET /bpu/v1/sso/profile — returns fresh profile data for a JWT holder. */
@@ -6509,6 +6630,213 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
 
         wp_trash_post( $job_id );
         return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    // ── Admin Job Management ────────────────────────────────────
+
+    public function admin_get_jobs( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+
+        $post_statuses = array( 'publish', 'pending', 'draft', 'trash' );
+        if ( $status && in_array( $status, $post_statuses, true ) ) {
+            $post_statuses = array( $status );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => $post_statuses,
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query( $args );
+        $jobs  = array();
+        foreach ( $query->posts as $post ) {
+            $job                = $this->format_job_for_api( $post );
+            $job['post_status'] = $post->post_status;
+            $job['author_name'] = get_the_author_meta( 'display_name', $post->post_author );
+            $jobs[]             = $job;
+        }
+
+        // Also get counts per status for the tab badges
+        $counts = array(
+            'all'     => intval( wp_count_posts( 'bpu_job' )->publish ) + intval( wp_count_posts( 'bpu_job' )->pending ) + intval( wp_count_posts( 'bpu_job' )->draft ),
+            'pending' => intval( wp_count_posts( 'bpu_job' )->pending ),
+            'publish' => intval( wp_count_posts( 'bpu_job' )->publish ),
+            'draft'   => intval( wp_count_posts( 'bpu_job' )->draft ),
+            'trash'   => intval( wp_count_posts( 'bpu_job' )->trash ),
+        );
+
+        return new WP_REST_Response( array(
+            'jobs'        => $jobs,
+            'total'       => $query->found_posts,
+            'total_pages' => $query->max_num_pages,
+            'counts'      => $counts,
+        ), 200 );
+    }
+
+    public function admin_get_single_job( WP_REST_Request $request ) {
+        $job_id = intval( $request->get_param( 'id' ) );
+        $post   = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $job                = $this->format_job_for_api( $post );
+        $job['post_status'] = $post->post_status;
+
+        return new WP_REST_Response( array( 'job' => $job ), 200 );
+    }
+
+    public function admin_update_job_status( WP_REST_Request $request ) {
+        $job_id     = intval( $request->get_param( 'id' ) );
+        $body       = $request->get_json_params();
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+
+        $allowed = array( 'publish', 'pending', 'draft', 'trash' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'bpu_invalid', __( 'Invalid status.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $job_id );
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        wp_update_post( array( 'ID' => $job_id, 'post_status' => $new_status ) );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'job_id'  => $job_id,
+            'status'  => $new_status,
+        ), 200 );
+    }
+
+    public function admin_delete_job( WP_REST_Request $request ) {
+        $job_id = intval( $request->get_param( 'id' ) );
+        $post   = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        wp_delete_post( $job_id, true );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function admin_get_applications( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+
+        $valid_statuses = array( 'pending', 'reviewed', 'shortlisted', 'rejected' );
+
+        $meta_query = array();
+        if ( $status && in_array( $status, $valid_statuses, true ) ) {
+            $meta_query[] = array( 'key' => '_bpu_status', 'value' => $status );
+        }
+
+        if ( $search ) {
+            $meta_query[] = array(
+                'relation' => 'OR',
+                array( 'key' => '_bpu_applicant_name',  'value' => $search, 'compare' => 'LIKE' ),
+                array( 'key' => '_bpu_applicant_email', 'value' => $search, 'compare' => 'LIKE' ),
+            );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( ! empty( $meta_query ) ) {
+            $args['meta_query'] = $meta_query;
+        }
+
+        $query        = new WP_Query( $args );
+        $applications = array();
+
+        foreach ( $query->posts as $post ) {
+            $job_id  = intval( get_post_meta( $post->ID, '_bpu_job_id', true ) );
+            $cv_id   = intval( get_post_meta( $post->ID, '_bpu_cv_id', true ) );
+            $answers = maybe_unserialize( get_post_meta( $post->ID, '_bpu_screening_answers', true ) );
+
+            $applications[] = array(
+                'id'                 => $post->ID,
+                'applicant_name'     => get_post_meta( $post->ID, '_bpu_applicant_name', true ),
+                'applicant_email'    => get_post_meta( $post->ID, '_bpu_applicant_email', true ),
+                'applicant_phone'    => get_post_meta( $post->ID, '_bpu_applicant_phone', true ),
+                'cv_url'             => $cv_id ? wp_get_attachment_url( $cv_id ) : '',
+                'cover_letter'       => get_post_meta( $post->ID, '_bpu_cover_letter', true ),
+                'screening_answers'  => is_array( $answers ) ? $answers : array(),
+                'status'             => get_post_meta( $post->ID, '_bpu_status', true ) ?: 'pending',
+                'applied_at'         => get_post_meta( $post->ID, '_bpu_applied_at', true ),
+                'job_id'             => $job_id,
+                'job_title'          => $job_id ? get_the_title( $job_id ) : '(Deleted job)',
+                'job_company'        => $job_id ? get_post_meta( $job_id, '_bpu_company', true ) : '',
+            );
+        }
+
+        // Count by status
+        $count_args = array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        );
+        $all_ids = get_posts( $count_args );
+        $counts  = array( 'all' => count( $all_ids ), 'pending' => 0, 'reviewed' => 0, 'shortlisted' => 0, 'rejected' => 0 );
+        foreach ( $all_ids as $aid ) {
+            $s = get_post_meta( $aid, '_bpu_status', true ) ?: 'pending';
+            if ( isset( $counts[ $s ] ) ) {
+                $counts[ $s ]++;
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'applications' => $applications,
+            'total'        => $query->found_posts,
+            'total_pages'  => $query->max_num_pages,
+            'counts'       => $counts,
+        ), 200 );
+    }
+
+    public function admin_update_application_status( WP_REST_Request $request ) {
+        $app_id     = intval( $request->get_param( 'id' ) );
+        $body       = $request->get_json_params();
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+
+        $allowed = array( 'pending', 'reviewed', 'shortlisted', 'rejected' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'bpu_invalid', __( 'Invalid status.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $app_id );
+        if ( ! $post || $post->post_type !== 'bpu_job_application' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Application not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        update_post_meta( $app_id, '_bpu_status', $new_status );
+
+        return new WP_REST_Response( array(
+            'success'        => true,
+            'application_id' => $app_id,
+            'status'         => $new_status,
+        ), 200 );
     }
 
     public function submit_job_application( WP_REST_Request $request ) {
@@ -10565,6 +10893,181 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         );
 
         return new WP_REST_Response( array( 'success' => true, 'status' => $status ), 200 );
+    }
+
+    /**
+     * GET /admin/team — list all team members (users with admin roles).
+     */
+    public function admin_get_team( WP_REST_Request $request ) {
+        $team_roles = array( 'administrator', 'bpu_editor', 'bpu_moderator' );
+        $users = get_users( array(
+            'role__in' => $team_roles,
+            'orderby'  => 'display_name',
+            'order'    => 'ASC',
+        ) );
+
+        $role_labels = array(
+            'administrator' => 'Administrator',
+            'bpu_editor'    => 'Editor',
+            'bpu_moderator' => 'Moderator',
+        );
+
+        $role_capabilities = array(
+            'administrator' => array( 'bpu_view_dashboard', 'bpu_manage_jobs', 'bpu_manage_applications', 'bpu_manage_team', 'bpu_view_reports' ),
+            'bpu_editor'    => array( 'bpu_view_dashboard', 'bpu_manage_jobs', 'bpu_manage_applications', 'bpu_view_reports' ),
+            'bpu_moderator' => array( 'bpu_view_dashboard', 'bpu_manage_applications' ),
+        );
+
+        $members = array();
+        foreach ( $users as $user ) {
+            $team_role = 'subscriber';
+            foreach ( $team_roles as $r ) {
+                if ( in_array( $r, (array) $user->roles, true ) ) {
+                    $team_role = $r;
+                    break;
+                }
+            }
+            $members[] = array(
+                'id'           => $user->ID,
+                'display_name' => $user->display_name,
+                'email'        => $user->user_email,
+                'role'         => $team_role,
+                'role_label'   => $role_labels[ $team_role ] ?? $team_role,
+                'capabilities' => $role_capabilities[ $team_role ] ?? array(),
+                'registered'   => $user->user_registered,
+            );
+        }
+
+        $counts = array(
+            'all'           => count( $members ),
+            'administrator' => 0,
+            'bpu_editor'    => 0,
+            'bpu_moderator' => 0,
+        );
+        foreach ( $members as $m ) {
+            if ( isset( $counts[ $m['role'] ] ) ) {
+                $counts[ $m['role'] ]++;
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'members' => $members,
+            'counts'  => $counts,
+            'roles'   => array(
+                array( 'slug' => 'administrator', 'label' => 'Administrator', 'description' => 'Full access to all admin features', 'capabilities' => $role_capabilities['administrator'] ),
+                array( 'slug' => 'bpu_editor',    'label' => 'Editor',        'description' => 'Manage jobs, applications, and view reports', 'capabilities' => $role_capabilities['bpu_editor'] ),
+                array( 'slug' => 'bpu_moderator', 'label' => 'Moderator',    'description' => 'View dashboard and manage applications', 'capabilities' => $role_capabilities['bpu_moderator'] ),
+            ),
+        ), 200 );
+    }
+
+    /**
+     * POST /admin/team/{id}/role — change a team member's role.
+     */
+    public function admin_update_team_role( WP_REST_Request $request ) {
+        $user_id  = intval( $request['id'] );
+        $new_role = sanitize_text_field( $request->get_param( 'role' ) );
+
+        $allowed_roles = array( 'administrator', 'bpu_editor', 'bpu_moderator' );
+        if ( ! in_array( $new_role, $allowed_roles, true ) ) {
+            return new WP_Error( 'invalid_role', 'Invalid role.', array( 'status' => 400 ) );
+        }
+
+        $user = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', 'User not found.', array( 'status' => 404 ) );
+        }
+
+        $payload   = $this->verify_jwt_bearer( $request );
+        $actor_id  = intval( $payload['user_id'] );
+        if ( $actor_id === $user_id ) {
+            return new WP_Error( 'cannot_change_own_role', 'You cannot change your own role.', array( 'status' => 400 ) );
+        }
+
+        $team_roles = array( 'administrator', 'bpu_editor', 'bpu_moderator' );
+        foreach ( $team_roles as $r ) {
+            $user->remove_role( $r );
+        }
+        $user->add_role( $new_role );
+
+        return new WP_REST_Response( array( 'success' => true, 'role' => $new_role ), 200 );
+    }
+
+    /**
+     * POST /admin/team/invite — invite a user to the admin team by email.
+     */
+    public function admin_invite_team_member( WP_REST_Request $request ) {
+        $email = sanitize_email( $request->get_param( 'email' ) );
+        $role  = sanitize_text_field( $request->get_param( 'role' ) );
+
+        if ( ! is_email( $email ) ) {
+            return new WP_Error( 'invalid_email', 'Please provide a valid email address.', array( 'status' => 400 ) );
+        }
+
+        $allowed_roles = array( 'bpu_editor', 'bpu_moderator' );
+        if ( ! in_array( $role, $allowed_roles, true ) ) {
+            return new WP_Error( 'invalid_role', 'Can only invite as Editor or Moderator.', array( 'status' => 400 ) );
+        }
+
+        $user = get_user_by( 'email', $email );
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', 'No account found with that email. The user must register first.', array( 'status' => 404 ) );
+        }
+
+        $team_roles = array( 'administrator', 'bpu_editor', 'bpu_moderator' );
+        $already_team = false;
+        foreach ( $team_roles as $r ) {
+            if ( in_array( $r, (array) $user->roles, true ) ) {
+                $already_team = true;
+                break;
+            }
+        }
+        if ( $already_team ) {
+            return new WP_Error( 'already_team_member', 'This user is already a team member.', array( 'status' => 400 ) );
+        }
+
+        $user->add_role( $role );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'member'  => array(
+                'id'           => $user->ID,
+                'display_name' => $user->display_name,
+                'email'        => $user->user_email,
+                'role'         => $role,
+            ),
+        ), 200 );
+    }
+
+    /**
+     * POST /admin/team/{id}/remove — remove a user from the admin team.
+     */
+    public function admin_remove_team_member( WP_REST_Request $request ) {
+        $user_id = intval( $request['id'] );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', 'User not found.', array( 'status' => 404 ) );
+        }
+
+        $payload  = $this->verify_jwt_bearer( $request );
+        $actor_id = intval( $payload['user_id'] );
+        if ( $actor_id === $user_id ) {
+            return new WP_Error( 'cannot_remove_self', 'You cannot remove yourself from the team.', array( 'status' => 400 ) );
+        }
+
+        if ( in_array( 'administrator', (array) $user->roles, true ) ) {
+            return new WP_Error( 'cannot_remove_admin', 'Cannot remove an administrator. Demote them first.', array( 'status' => 400 ) );
+        }
+
+        $team_roles = array( 'bpu_editor', 'bpu_moderator' );
+        foreach ( $team_roles as $r ) {
+            $user->remove_role( $r );
+        }
+        if ( empty( array_intersect( (array) $user->roles, array( 'subscriber', 'bpu_pro', 'mentor', 'bpu_employer' ) ) ) ) {
+            $user->add_role( 'subscriber' );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 }
 

@@ -54,8 +54,9 @@ export default async function PairedLayout({ children }: { children: React.React
   }
 
   const user = session.user!;
-  const isMentor = user.roles.includes('mentor');
-  const isAdmin = user.roles.includes('administrator');
+  const roles = Array.isArray(user.roles) ? user.roles : Object.values(user.roles);
+  const isMentor = roles.includes('mentor');
+  const isAdmin = roles.includes('administrator') || roles.includes('bpu_editor') || roles.includes('bpu_moderator');
 
   return (
     <DashboardShell
@@ -64,6 +65,7 @@ export default async function PairedLayout({ children }: { children: React.React
       userEmail={user.email || ''}
       isMentor={isMentor}
       isAdmin={isAdmin}
+      userRoles={roles as string[]}
       notificationBell={<NotificationBell />}
     >
       {children}

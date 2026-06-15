@@ -7,20 +7,18 @@ import { CVReview, BPUApi } from '@/lib/api';
 function ProGate({ children, isPro, feature }: { children: React.ReactNode; isPro: boolean; feature: string }) {
     if (isPro) return <>{children}</>;
     return (
-        <div style={{ position: 'relative' }}>
-            {/* Blurred preview */}
+        <div style={{ position: 'relative', minHeight: '220px' }}>
             <div style={{ filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none', opacity: 0.5 }} aria-hidden="true">
                 {children}
             </div>
-            {/* Overlay */}
             <div
                 className="absolute inset-0 flex flex-col items-center justify-center gap-3"
-                style={{ background: 'rgba(0,0,0,0.7)', borderRadius: 'var(--radius)', padding: '2rem' }}
+                style={{ background: 'rgba(0,0,0,0.75)', borderRadius: 'var(--radius)', padding: '2rem', color: '#ffffff' }}
             >
-                <p className="text-3xl">&#9733;</p>
-                <p className="text-white font-bold text-base text-center">{feature}</p>
-                <p className="text-white/75 text-sm text-center">Requires BPU Pro membership</p>
-                <a href="/upgrade" className="btn btn-amber btn-sm">Upgrade to Pro &rarr;</a>
+                <p style={{ fontSize: '2rem', lineHeight: 1, color: '#f59e0b' }}>★</p>
+                <p style={{ fontWeight: 700, fontSize: '1rem', textAlign: 'center', color: '#ffffff' }}>{feature}</p>
+                <p style={{ fontSize: '0.875rem', textAlign: 'center', color: 'rgba(255,255,255,0.75)' }}>Requires BPU Pro membership</p>
+                <a href="/upgrade" className="btn btn-amber btn-sm">Upgrade to Pro →</a>
             </div>
         </div>
     );
