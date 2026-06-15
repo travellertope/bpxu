@@ -146,6 +146,11 @@ export default function JobsAdmin() {
                 </div>
             </div>
 
+            {/* Create Job button */}
+            <div>
+                <a href="/paired/admin/jobs/new" className="btn btn-purple btn-sm">Create Job +</a>
+            </div>
+
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', padding: 4, borderRadius: 10, width: 'fit-content', flexWrap: 'wrap' }}>
                 {STATUS_TABS.map(tab => (
@@ -238,18 +243,27 @@ export default function JobsAdmin() {
                                         <td className="p-3 text-center text-sm text-text-2">{j.applications ?? 0}</td>
                                         <td className="p-3 text-sm text-text-3">{j.date}</td>
                                         <td className="p-3 text-right">
-                                            <select
-                                                className="field-input"
-                                                style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', display: 'inline-block', width: 'auto' }}
-                                                value={j.status}
-                                                disabled={updatingId === j.id}
-                                                onChange={e => updateStatus(j.id, e.target.value)}
-                                            >
-                                                {VALID_STATUSES.map(s => {
-                                                    const info = STATUS_BADGE[s];
-                                                    return <option key={s} value={s}>{info?.label || s}</option>;
-                                                })}
-                                            </select>
+                                            <div className="flex items-center justify-end gap-2">
+                                                <a
+                                                    href={`/paired/admin/jobs/${j.id}/edit`}
+                                                    className="btn btn-ghost btn-sm"
+                                                    style={{ fontSize: '0.75rem' }}
+                                                >
+                                                    Edit
+                                                </a>
+                                                <select
+                                                    className="field-input"
+                                                    style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', display: 'inline-block', width: 'auto' }}
+                                                    value={j.status}
+                                                    disabled={updatingId === j.id}
+                                                    onChange={e => updateStatus(j.id, e.target.value)}
+                                                >
+                                                    {VALID_STATUSES.map(s => {
+                                                        const info = STATUS_BADGE[s];
+                                                        return <option key={s} value={s}>{info?.label || s}</option>;
+                                                    })}
+                                                </select>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -292,10 +306,19 @@ export default function JobsAdmin() {
                                         <p className="text-sm font-semibold">{j.applications ?? 0}</p>
                                     </div>
                                 </div>
-                                <div className="flex items-center justify-between">
-                                    {flashId === j.id && (
-                                        <span className="text-xs text-green-500 font-semibold">Updated!</span>
-                                    )}
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <a
+                                            href={`/paired/admin/jobs/${j.id}/edit`}
+                                            className="btn btn-ghost btn-sm"
+                                            style={{ fontSize: '0.75rem' }}
+                                        >
+                                            Edit
+                                        </a>
+                                        {flashId === j.id && (
+                                            <span className="text-xs text-green-500 font-semibold">Updated!</span>
+                                        )}
+                                    </div>
                                     <select
                                         className="field-input ml-auto"
                                         style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', display: 'inline-block', width: 'auto' }}

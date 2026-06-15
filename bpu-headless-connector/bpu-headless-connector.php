@@ -1383,8 +1383,34 @@ class BPU_Headless_Connector {
         ) );
 
         register_rest_route( $this->namespace, '/admin/jobs/(?P<id>\d+)', array(
-            'methods'             => WP_REST_Server::DELETABLE,
-            'callback'            => array( $this, 'admin_delete_job' ),
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'admin_get_single_job' ),
+                'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::DELETABLE,
+                'callback'            => array( $this, 'admin_delete_job' ),
+                'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            ),
+        ) );
+
+        // Admin: Job Applications Management
+        register_rest_route( $this->namespace, '/admin/applications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_applications' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 20, 'sanitize_callback' => 'absint' ),
+                'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/applications/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_application_status' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
     }
@@ -6587,6 +6613,20 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         ), 200 );
     }
 
+    public function admin_get_single_job( WP_REST_Request $request ) {
+        $job_id = intval( $request->get_param( 'id' ) );
+        $post   = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $job                = $this->format_job_for_api( $post );
+        $job['post_status'] = $post->post_status;
+
+        return new WP_REST_Response( array( 'job' => $job ), 200 );
+    }
+
     public function admin_update_job_status( WP_REST_Request $request ) {
         $job_id     = intval( $request->get_param( 'id' ) );
         $body       = $request->get_json_params();
@@ -6622,6 +6662,111 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         wp_delete_post( $job_id, true );
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    public function admin_get_applications( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+
+        $valid_statuses = array( 'pending', 'reviewed', 'shortlisted', 'rejected' );
+
+        $meta_query = array();
+        if ( $status && in_array( $status, $valid_statuses, true ) ) {
+            $meta_query[] = array( 'key' => '_bpu_status', 'value' => $status );
+        }
+
+        if ( $search ) {
+            $meta_query[] = array(
+                'relation' => 'OR',
+                array( 'key' => '_bpu_applicant_name',  'value' => $search, 'compare' => 'LIKE' ),
+                array( 'key' => '_bpu_applicant_email', 'value' => $search, 'compare' => 'LIKE' ),
+            );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( ! empty( $meta_query ) ) {
+            $args['meta_query'] = $meta_query;
+        }
+
+        $query        = new WP_Query( $args );
+        $applications = array();
+
+        foreach ( $query->posts as $post ) {
+            $job_id  = intval( get_post_meta( $post->ID, '_bpu_job_id', true ) );
+            $cv_id   = intval( get_post_meta( $post->ID, '_bpu_cv_id', true ) );
+            $answers = maybe_unserialize( get_post_meta( $post->ID, '_bpu_screening_answers', true ) );
+
+            $applications[] = array(
+                'id'                 => $post->ID,
+                'applicant_name'     => get_post_meta( $post->ID, '_bpu_applicant_name', true ),
+                'applicant_email'    => get_post_meta( $post->ID, '_bpu_applicant_email', true ),
+                'applicant_phone'    => get_post_meta( $post->ID, '_bpu_applicant_phone', true ),
+                'cv_url'             => $cv_id ? wp_get_attachment_url( $cv_id ) : '',
+                'cover_letter'       => get_post_meta( $post->ID, '_bpu_cover_letter', true ),
+                'screening_answers'  => is_array( $answers ) ? $answers : array(),
+                'status'             => get_post_meta( $post->ID, '_bpu_status', true ) ?: 'pending',
+                'applied_at'         => get_post_meta( $post->ID, '_bpu_applied_at', true ),
+                'job_id'             => $job_id,
+                'job_title'          => $job_id ? get_the_title( $job_id ) : '(Deleted job)',
+                'job_company'        => $job_id ? get_post_meta( $job_id, '_bpu_company', true ) : '',
+            );
+        }
+
+        // Count by status
+        $count_args = array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => -1,
+            'fields'         => 'ids',
+        );
+        $all_ids = get_posts( $count_args );
+        $counts  = array( 'all' => count( $all_ids ), 'pending' => 0, 'reviewed' => 0, 'shortlisted' => 0, 'rejected' => 0 );
+        foreach ( $all_ids as $aid ) {
+            $s = get_post_meta( $aid, '_bpu_status', true ) ?: 'pending';
+            if ( isset( $counts[ $s ] ) ) {
+                $counts[ $s ]++;
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'applications' => $applications,
+            'total'        => $query->found_posts,
+            'total_pages'  => $query->max_num_pages,
+            'counts'       => $counts,
+        ), 200 );
+    }
+
+    public function admin_update_application_status( WP_REST_Request $request ) {
+        $app_id     = intval( $request->get_param( 'id' ) );
+        $body       = $request->get_json_params();
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+
+        $allowed = array( 'pending', 'reviewed', 'shortlisted', 'rejected' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'bpu_invalid', __( 'Invalid status.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $app_id );
+        if ( ! $post || $post->post_type !== 'bpu_job_application' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Application not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        update_post_meta( $app_id, '_bpu_status', $new_status );
+
+        return new WP_REST_Response( array(
+            'success'        => true,
+            'application_id' => $app_id,
+            'status'         => $new_status,
+        ), 200 );
     }
 
     public function submit_job_application( WP_REST_Request $request ) {

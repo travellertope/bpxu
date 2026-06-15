@@ -1,0 +1,21 @@
+import { getBPUSession } from '@/lib/auth';
+import { redirect } from 'next/navigation';
+import AdminJobForm from '../AdminJobForm';
+
+export default async function AdminNewJobPage() {
+    const session = await getBPUSession();
+    if (!session.authenticated || !session.user) {
+        redirect('/login?returnTo=/paired/admin/jobs/new');
+    }
+    if (!session.user.roles.includes('administrator')) {
+        redirect('/paired/dashboard');
+    }
+
+    return (
+        <div className="fade-up">
+            <h1 className="text-3xl font-bold mb-2">Create New Job</h1>
+            <p className="text-text-2 mb-8">Create and publish a job directly as an admin.</p>
+            <AdminJobForm mode="create" />
+        </div>
+    );
+}
