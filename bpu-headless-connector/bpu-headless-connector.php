@@ -1362,6 +1362,31 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_update_referral_settings' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // Admin: Job Management
+        register_rest_route( $this->namespace, '/admin/jobs', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_jobs' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 20, 'sanitize_callback' => 'absint' ),
+                'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/jobs/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_job_status' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/jobs/(?P<id>\d+)', array(
+            'methods'             => WP_REST_Server::DELETABLE,
+            'callback'            => array( $this, 'admin_delete_job' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
     }
 
     /**
@@ -6508,6 +6533,94 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
 
         wp_trash_post( $job_id );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    // ── Admin Job Management ────────────────────────────────────
+
+    public function admin_get_jobs( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+
+        $post_statuses = array( 'publish', 'pending', 'draft', 'trash' );
+        if ( $status && in_array( $status, $post_statuses, true ) ) {
+            $post_statuses = array( $status );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => $post_statuses,
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query( $args );
+        $jobs  = array();
+        foreach ( $query->posts as $post ) {
+            $job                = $this->format_job_for_api( $post );
+            $job['post_status'] = $post->post_status;
+            $job['author_name'] = get_the_author_meta( 'display_name', $post->post_author );
+            $jobs[]             = $job;
+        }
+
+        // Also get counts per status for the tab badges
+        $counts = array(
+            'all'     => intval( wp_count_posts( 'bpu_job' )->publish ) + intval( wp_count_posts( 'bpu_job' )->pending ) + intval( wp_count_posts( 'bpu_job' )->draft ),
+            'pending' => intval( wp_count_posts( 'bpu_job' )->pending ),
+            'publish' => intval( wp_count_posts( 'bpu_job' )->publish ),
+            'draft'   => intval( wp_count_posts( 'bpu_job' )->draft ),
+            'trash'   => intval( wp_count_posts( 'bpu_job' )->trash ),
+        );
+
+        return new WP_REST_Response( array(
+            'jobs'        => $jobs,
+            'total'       => $query->found_posts,
+            'total_pages' => $query->max_num_pages,
+            'counts'      => $counts,
+        ), 200 );
+    }
+
+    public function admin_update_job_status( WP_REST_Request $request ) {
+        $job_id     = intval( $request->get_param( 'id' ) );
+        $body       = $request->get_json_params();
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+
+        $allowed = array( 'publish', 'pending', 'draft', 'trash' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'bpu_invalid', __( 'Invalid status.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $job_id );
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        wp_update_post( array( 'ID' => $job_id, 'post_status' => $new_status ) );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'job_id'  => $job_id,
+            'status'  => $new_status,
+        ), 200 );
+    }
+
+    public function admin_delete_job( WP_REST_Request $request ) {
+        $job_id = intval( $request->get_param( 'id' ) );
+        $post   = get_post( $job_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        wp_delete_post( $job_id, true );
+
         return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 

@@ -100,6 +100,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                         <div className="dash-nav-section">
                             <div className="dash-nav-label">Admin</div>
                             <NavLink href="/paired/admin/dashboard" icon="dashboard" label="Admin Dashboard" active={isActive('/paired/admin/dashboard')} onClick={close} />
+                            <NavLink href="/paired/admin/jobs" icon="apps" label="Job Board" active={isActive('/paired/admin/jobs')} onClick={close} />
                             <NavLink href="/paired/admin/bookings" icon="bookings" label="Bookings" active={isActive('/paired/admin/bookings')} onClick={close} />
                             <NavLink href="/paired/admin/mentees" icon="mentees" label="Mentees" active={isActive('/paired/admin/mentees')} onClick={close} />
                             <NavLink href="/paired/admin/payouts" icon="chart" label="Payouts" active={isActive('/paired/admin/payouts')} onClick={close} />
