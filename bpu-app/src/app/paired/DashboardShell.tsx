@@ -106,22 +106,28 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                             <div className="dash-nav-label">Admin</div>
                             <NavLink href="/admin/dashboard" icon="dashboard" label="Admin Dashboard" active={isActive('/admin/dashboard')} onClick={close} />
                             {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/jobs" icon="apps" label="Job Board" active={isActive('/admin/jobs')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/bookings" icon="bookings" label="Bookings" active={isActive('/admin/bookings')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/mentees" icon="mentees" label="Mentees" active={isActive('/admin/mentees')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/payouts" icon="chart" label="Payouts" active={isActive('/admin/payouts')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/mentors" icon="profile" label="Mentors" active={isActive('/admin/mentors')} onClick={close} />}
                             <NavLink href="/admin/applications" icon="apps" label="Applications" active={isActive('/admin/applications')} onClick={close} />
-                            {hasRole('administrator') && <NavLink href="/admin/transactions" icon="dollar" label="Transactions" active={isActive('/admin/transactions')} onClick={close} />}
                             {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/reports" icon="chart" label="Reports" active={isActive('/admin/reports')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/coupons" icon="tag" label="Coupons" active={isActive('/admin/coupons')} onClick={close} />}
                             {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/stats" icon="chart" label="Analytics" active={isActive('/admin/stats')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/kyc" icon="shield" label="KYC" active={isActive('/admin/kyc')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/admin/transactions" icon="dollar" label="Transactions" active={isActive('/admin/transactions')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/admin/coupons" icon="tag" label="Coupons" active={isActive('/admin/coupons')} onClick={close} />}
                             {hasRole('administrator') && <NavLink href="/admin/email-templates" icon="messages" label="Email Templates" active={isActive('/admin/email-templates')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/skills" icon="chart" label="Skills" active={isActive('/admin/skills')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/referrals" icon="referral" label="Referrals" active={isActive('/admin/referrals')} onClick={close} />}
-                            {hasRole('administrator') && <NavLink href="/admin/referral-settings" icon="settings" label="Referral Settings" active={isActive('/admin/referral-settings')} onClick={close} />}
                             {hasRole('administrator') && <NavLink href="/admin/team" icon="profile" label="Team" active={isActive('/admin/team')} onClick={close} />}
                             {hasRole('administrator') && <NavLink href="/admin/platform-settings" icon="settings" label="Settings" active={isActive('/admin/platform-settings')} onClick={close} />}
+                        </div>
+                    )}
+
+                    {isAdmin && hasRole('administrator') && (
+                        <div className="dash-nav-section">
+                            <div className="dash-nav-label">PAIRED Admin</div>
+                            <NavLink href="/admin/mentors" icon="profile" label="Mentors" active={isActive('/admin/mentors')} onClick={close} />
+                            <NavLink href="/admin/mentees" icon="mentees" label="Mentees" active={isActive('/admin/mentees')} onClick={close} />
+                            <NavLink href="/admin/bookings" icon="bookings" label="Bookings" active={isActive('/admin/bookings')} onClick={close} />
+                            <NavLink href="/admin/payouts" icon="chart" label="Payouts" active={isActive('/admin/payouts')} onClick={close} />
+                            <NavLink href="/admin/kyc" icon="shield" label="KYC" active={isActive('/admin/kyc')} onClick={close} />
+                            <NavLink href="/admin/skills" icon="chart" label="Skills" active={isActive('/admin/skills')} onClick={close} />
+                            <NavLink href="/admin/referrals" icon="referral" label="Referrals" active={isActive('/admin/referrals')} onClick={close} />
+                            <NavLink href="/admin/referral-settings" icon="settings" label="Referral Settings" active={isActive('/admin/referral-settings')} onClick={close} />
                         </div>
                     )}
                 </nav>
