@@ -7,7 +7,8 @@ export default async function AdminApplicationsPage() {
     if (!session.authenticated || !session.user) {
         redirect('/login?returnTo=/paired/admin/applications');
     }
-    if (!session.user.roles.includes('administrator')) {
+    const adminRoles = ['administrator', 'bpu_editor', 'bpu_moderator'];
+    if (!adminRoles.some(r => session.user!.roles.includes(r))) {
         redirect('/paired/dashboard');
     }
 

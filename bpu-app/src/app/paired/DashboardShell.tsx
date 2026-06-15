@@ -8,6 +8,7 @@ interface Props {
     userEmail: string;
     isMentor: boolean;
     isAdmin: boolean;
+    userRoles?: string[];
     children: React.ReactNode;
     notificationBell: React.ReactNode;
 }
@@ -41,12 +42,16 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: s
     );
 }
 
-export default function DashboardShell({ currentPath, userName, userEmail, isMentor, isAdmin, children, notificationBell }: Props) {
+export default function DashboardShell({ currentPath, userName, userEmail, isMentor, isAdmin, userRoles = [], children, notificationBell }: Props) {
     const [open, setOpen] = useState(false);
 
     function isActive(href: string) {
         if (href === '/paired/dashboard') return currentPath === '/paired/dashboard';
         return currentPath.startsWith(href);
+    }
+
+    function hasRole(...roles: string[]) {
+        return roles.some(r => userRoles.includes(r));
     }
 
     const close = () => setOpen(false);
@@ -100,22 +105,23 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                         <div className="dash-nav-section">
                             <div className="dash-nav-label">Admin</div>
                             <NavLink href="/paired/admin/dashboard" icon="dashboard" label="Admin Dashboard" active={isActive('/paired/admin/dashboard')} onClick={close} />
-                            <NavLink href="/paired/admin/jobs" icon="apps" label="Job Board" active={isActive('/paired/admin/jobs')} onClick={close} />
-                            <NavLink href="/paired/admin/bookings" icon="bookings" label="Bookings" active={isActive('/paired/admin/bookings')} onClick={close} />
-                            <NavLink href="/paired/admin/mentees" icon="mentees" label="Mentees" active={isActive('/paired/admin/mentees')} onClick={close} />
-                            <NavLink href="/paired/admin/payouts" icon="chart" label="Payouts" active={isActive('/paired/admin/payouts')} onClick={close} />
-                            <NavLink href="/paired/admin/mentors" icon="profile" label="Mentors" active={isActive('/paired/admin/mentors')} onClick={close} />
+                            {hasRole('administrator', 'bpu_editor') && <NavLink href="/paired/admin/jobs" icon="apps" label="Job Board" active={isActive('/paired/admin/jobs')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/bookings" icon="bookings" label="Bookings" active={isActive('/paired/admin/bookings')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/mentees" icon="mentees" label="Mentees" active={isActive('/paired/admin/mentees')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/payouts" icon="chart" label="Payouts" active={isActive('/paired/admin/payouts')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/mentors" icon="profile" label="Mentors" active={isActive('/paired/admin/mentors')} onClick={close} />}
                             <NavLink href="/paired/admin/applications" icon="apps" label="Applications" active={isActive('/paired/admin/applications')} onClick={close} />
-                            <NavLink href="/paired/admin/transactions" icon="dollar" label="Transactions" active={isActive('/paired/admin/transactions')} onClick={close} />
-                            <NavLink href="/paired/admin/reports" icon="chart" label="Reports" active={isActive('/paired/admin/reports')} onClick={close} />
-                            <NavLink href="/paired/admin/coupons" icon="tag" label="Coupons" active={isActive('/paired/admin/coupons')} onClick={close} />
-                            <NavLink href="/paired/admin/stats" icon="chart" label="Analytics" active={isActive('/paired/admin/stats')} onClick={close} />
-                            <NavLink href="/paired/admin/kyc" icon="shield" label="KYC" active={isActive('/paired/admin/kyc')} onClick={close} />
-                            <NavLink href="/paired/admin/email-templates" icon="messages" label="Email Templates" active={isActive('/paired/admin/email-templates')} onClick={close} />
-                            <NavLink href="/paired/admin/skills" icon="chart" label="Skills" active={isActive('/paired/admin/skills')} onClick={close} />
-                            <NavLink href="/paired/admin/referrals" icon="referral" label="Referrals" active={isActive('/paired/admin/referrals')} onClick={close} />
-                            <NavLink href="/paired/admin/referral-settings" icon="settings" label="Referral Settings" active={isActive('/paired/admin/referral-settings')} onClick={close} />
-                            <NavLink href="/paired/admin/platform-settings" icon="settings" label="Settings" active={isActive('/paired/admin/platform-settings')} onClick={close} />
+                            {hasRole('administrator') && <NavLink href="/paired/admin/transactions" icon="dollar" label="Transactions" active={isActive('/paired/admin/transactions')} onClick={close} />}
+                            {hasRole('administrator', 'bpu_editor') && <NavLink href="/paired/admin/reports" icon="chart" label="Reports" active={isActive('/paired/admin/reports')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/coupons" icon="tag" label="Coupons" active={isActive('/paired/admin/coupons')} onClick={close} />}
+                            {hasRole('administrator', 'bpu_editor') && <NavLink href="/paired/admin/stats" icon="chart" label="Analytics" active={isActive('/paired/admin/stats')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/kyc" icon="shield" label="KYC" active={isActive('/paired/admin/kyc')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/email-templates" icon="messages" label="Email Templates" active={isActive('/paired/admin/email-templates')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/skills" icon="chart" label="Skills" active={isActive('/paired/admin/skills')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/referrals" icon="referral" label="Referrals" active={isActive('/paired/admin/referrals')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/referral-settings" icon="settings" label="Referral Settings" active={isActive('/paired/admin/referral-settings')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/team" icon="profile" label="Team" active={isActive('/paired/admin/team')} onClick={close} />}
+                            {hasRole('administrator') && <NavLink href="/paired/admin/platform-settings" icon="settings" label="Settings" active={isActive('/paired/admin/platform-settings')} onClick={close} />}
                         </div>
                     )}
                 </nav>

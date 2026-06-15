@@ -7,7 +7,8 @@ export default async function AdminNewJobPage() {
     if (!session.authenticated || !session.user) {
         redirect('/login?returnTo=/paired/admin/jobs/new');
     }
-    if (!session.user.roles.includes('administrator')) {
+    const adminRoles = ['administrator', 'bpu_editor'];
+    if (!adminRoles.some(r => session.user!.roles.includes(r))) {
         redirect('/paired/dashboard');
     }
 
