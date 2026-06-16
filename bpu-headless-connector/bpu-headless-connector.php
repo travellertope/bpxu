@@ -6660,12 +6660,14 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
-        // Track impression
-        $impressions = intval( get_post_meta( $job_id, '_bpu_impressions', true ) ?: 0 );
-        update_post_meta( $job_id, '_bpu_impressions', $impressions + 1 );
+        $job = $this->format_job_for_api( $post );
 
-        $job                = $this->format_job_for_api( $post );
-        $job['impressions'] = $impressions + 1;
+        // Track impression unless the caller passes skip_impression=1
+        if ( ! $request->get_param( 'skip_impression' ) ) {
+            $impressions = intval( get_post_meta( $job_id, '_bpu_impressions', true ) ?: 0 ) + 1;
+            update_post_meta( $job_id, '_bpu_impressions', $impressions );
+            $job['impressions'] = $impressions;
+        }
 
         return new WP_REST_Response( array( 'job' => $job ), 200 );
     }
@@ -6678,10 +6680,17 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
-        $clicks = intval( get_post_meta( $job_id, '_bpu_clicks', true ) ?: 0 );
-        update_post_meta( $job_id, '_bpu_clicks', $clicks + 1 );
+        $clicks = intval( get_post_meta( $job_id, '_bpu_clicks', true ) ?: 0 ) + 1;
+        update_post_meta( $job_id, '_bpu_clicks', $clicks );
 
-        return new WP_REST_Response( array( 'success' => true, 'clicks' => $clicks + 1 ), 200 );
+        // Return apply_url so the caller can redirect without a second request
+        $apply_url = (string) get_post_meta( $job_id, '_bpu_apply_url', true );
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'clicks'    => $clicks,
+            'apply_url' => $apply_url,
+        ), 200 );
     }
 
     public function create_job( WP_REST_Request $request ) {
@@ -11676,23 +11685,8 @@ PROMPT;
 
 } // end class BPU_Headless_Connector
 
-// Initialize the connector.
 new BPU_Headless_Connector();
 
-// Schedule the weekly digest on activation; clear on deactivation.
-register_activation_hook( __FILE__, 'bpu_schedule_weekly_digest' );
-register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
-
-function bpu_schedule_weekly_digest() {
-    if ( ! wp_next_scheduled( 'bpu_weekly_job_digest' ) ) {
-        wp_schedule_event( strtotime( 'next Monday 08:00:00' ), 'weekly', 'bpu_weekly_job_digest' );
-    }
-}
-
-// Initialize the connector
-new BPU_Headless_Connector();
-
-// Schedule the weekly digest on activation; clear on deactivation.
 register_activation_hook( __FILE__, 'bpu_schedule_weekly_digest' );
 register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
 
