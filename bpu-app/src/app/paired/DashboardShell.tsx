@@ -115,7 +115,9 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                     <div className="dash-nav-label">Job Manager</div>
                                     {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/jobs" icon="apps" label="Job Board" active={isActive('/admin/jobs')} onClick={close} />}
                                     <NavLink href="/admin/applications" icon="apps" label="Applications" active={isActive('/admin/applications')} onClick={close} />
-                                    {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/reports" icon="chart" label="Reports" active={isActive('/admin/reports')} onClick={close} />}
+                                    {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/employers" icon="profile" label="Employers" active={isActive('/admin/employers')} onClick={close} />}
+                                    {hasRole('administrator') && <NavLink href="/admin/employer-accounts" icon="profile" label="Employer Accounts" active={isActive('/admin/employer-accounts')} onClick={close} />}
+                                    {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/job-reports" icon="chart" label="Job Board Reports" active={isActive('/admin/job-reports')} onClick={close} />}
                                 </div>
                             )}
 
@@ -138,6 +140,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                     <NavLink href="/admin/transactions" icon="dollar" label="Transactions" active={isActive('/admin/transactions')} onClick={close} />
                                     <NavLink href="/admin/payouts" icon="chart" label="Payouts" active={isActive('/admin/payouts')} onClick={close} />
                                     <NavLink href="/admin/coupons" icon="tag" label="Coupons" active={isActive('/admin/coupons')} onClick={close} />
+                                    <NavLink href="/admin/reports" icon="chart" label="Financial Reports" active={isActive('/admin/reports')} onClick={close} />
                                 </div>
                             )}
 

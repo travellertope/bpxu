@@ -144,6 +144,7 @@ export default function AdminJobForm({ initialData, mode }: AdminJobFormProps) {
                 featured: form.featured,
                 filled: form.filled,
                 screening_questions: questions.filter(q => q.question.trim()),
+                employer_term_id: selectedEmployer?.id ?? null,
             };
 
             const url =
