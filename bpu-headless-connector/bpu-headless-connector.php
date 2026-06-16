@@ -1514,6 +1514,13 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_get_employers' ),
             'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
         ) );
+
+        // Admin: Job board reports
+        register_rest_route( $this->namespace, '/admin/job-reports', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_job_reports' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
     }
 
     /**
@@ -11094,6 +11101,43 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
 
         return new WP_REST_Response( array( 'employers' => $employers ), 200 );
+    }
+
+    /**
+     * GET /admin/job-reports — job board performance stats with optional filters.
+     */
+    public function admin_get_job_reports( WP_REST_Request $request ) {
+        $filters = array(
+            'employer_term_id' => intval( $request->get_param( 'employer_term_id' ) ?: 0 ),
+            'job_type'         => sanitize_text_field( $request->get_param( 'job_type' ) ?: '' ),
+            'date_from'        => sanitize_text_field( $request->get_param( 'date_from' ) ?: '' ),
+            'date_to'          => sanitize_text_field( $request->get_param( 'date_to' ) ?: '' ),
+        );
+
+        $rows = $this->get_report_rows( $filters );
+
+        $total_imp = array_sum( array_column( $rows, 'impressions' ) );
+        $total_clk = array_sum( array_column( $rows, 'clicks' ) );
+        $total_app = array_sum( array_column( $rows, 'applications' ) );
+        $avg_ctr   = $total_imp > 0 ? round( $total_clk / $total_imp * 100, 1 ) : 0.0;
+
+        $employers = get_terms( array( 'taxonomy' => 'bpu_employer', 'hide_empty' => false, 'orderby' => 'name' ) );
+        if ( is_wp_error( $employers ) ) $employers = array();
+        $employer_options = array();
+        foreach ( $employers as $term ) {
+            $employer_options[] = array( 'id' => $term->term_id, 'name' => $term->name );
+        }
+
+        return new WP_REST_Response( array(
+            'summary'   => array(
+                'impressions'  => $total_imp,
+                'clicks'       => $total_clk,
+                'applications' => $total_app,
+                'avg_ctr'      => $avg_ctr,
+            ),
+            'rows'      => $rows,
+            'employers' => $employer_options,
+        ), 200 );
     }
 
     /**
