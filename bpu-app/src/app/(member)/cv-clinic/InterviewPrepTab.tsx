@@ -15,8 +15,8 @@ import {
     RatingInput,
     RatingSummary,
 } from './InterviewAnswerInputs';
+import { PrepHistoryEntry } from './cv-clinic-history-types';
 
-// Keyframe injected once — grows to 85% over 90s, honest about uncertainty.
 const PROGRESS_KEYFRAMES = `
 @keyframes bpuPrepLoad {
   0%   { width: 2% }
@@ -28,15 +28,89 @@ const PROGRESS_KEYFRAMES = `
 }
 `;
 
-const CLIENT_TIMEOUT_MS = 150_000; // 150s — gives PHP's 120s Gemini call room to complete
+const CLIENT_TIMEOUT_MS = 150_000;
 
 type Screen = 'input' | 'quiz' | 'summary';
 
-interface Props {
-    cvUrl: string;
+interface SaveSessionData {
+    jd: string;
+    questions: unknown[];
+    answers: Record<string, unknown>;
+    answeredCount: number;
 }
 
-export default function InterviewPrepTab({ cvUrl }: Props) {
+interface Props {
+    cvUrl: string;
+    prepHistory: PrepHistoryEntry[];
+    onSaveSession: (data: SaveSessionData) => void;
+}
+
+// ── Past Sessions History Panel ───────────────────────────────────────────────
+
+interface PrepHistoryPanelProps {
+    entries: PrepHistoryEntry[];
+    onReview: (entry: PrepHistoryEntry) => void;
+    onPractice: (entry: PrepHistoryEntry) => void;
+}
+
+function PrepHistoryPanel({ entries, onReview, onPractice }: PrepHistoryPanelProps) {
+    const [open, setOpen] = useState(false);
+    if (entries.length === 0) return null;
+    return (
+        <div>
+            <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setOpen((o: boolean) => !o)}
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+                <span>{open ? '▲' : '▼'}</span>
+                Past sessions ({entries.length})
+            </button>
+            {open && (
+                <div className="space-y-2" style={{ marginTop: '10px' }}>
+                    {entries.map((e: PrepHistoryEntry) => (
+                        <div
+                            key={e.id}
+                            className="card"
+                            style={{ padding: '10px 14px' }}
+                        >
+                            <div style={{ marginBottom: '8px' }}>
+                                <p style={{ fontWeight: 600, fontSize: '0.875rem', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' } as React.CSSProperties}>
+                                    {e.jd_snippet || 'Interview prep session'}
+                                </p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: '2px' }}>
+                                    {new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    {' · '}
+                                    {e.answered_count}/{e.question_count} answered
+                                </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ fontSize: '0.75rem' }}
+                                    onClick={() => { onReview(e); setOpen(false); }}
+                                >
+                                    Review answers
+                                </button>
+                                <button
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ fontSize: '0.75rem' }}
+                                    onClick={() => { onPractice(e); setOpen(false); }}
+                                >
+                                    Practice again
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export default function InterviewPrepTab({ cvUrl, prepHistory, onSaveSession }: Props) {
     const [screen, setScreen]       = useState<Screen>('input');
     const [jd, setJd]               = useState('');
     const [cvFile, setCvFile]       = useState<File | null>(null);
@@ -45,18 +119,13 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
     const [questions, setQuestions] = useState<InterviewQuestion[]>([]);
     const [currentQ, setCurrentQ]   = useState(0);
     const [answers, setAnswers]     = useState<Record<number, Answer>>({});
+    const [savedAt, setSavedAt]     = useState<string | null>(null);
+    const [saving, setSaving]       = useState(false);
 
-    // Per-question reveal state for summary screen
     const [summaryAimOpen, setSummaryAimOpen] = useState<Record<number, boolean>>({});
-
-    // Quiz-screen hint/aim toggles (reset on question change)
     const [hintOpen, setHintOpen] = useState(false);
     const [aimOpen,  setAimOpen]  = useState(false);
-
-    // Copy state
     const [copyState, setCopyState] = useState<'idle' | 'ok' | 'err'>('idle');
-
-    // "Start over" confirmation
     const [confirmRestart, setConfirmRestart] = useState(false);
 
     const abortRef    = useRef<AbortController | null>(null);
@@ -66,14 +135,16 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
     const total    = questions.length;
     const progress = total > 0 ? Math.round(((currentQ + 1) / total) * 100) : 0;
 
-    // ── Input screen ───────────────────────────────────────────────────────
+    const answeredCount = questions.filter((_: InterviewQuestion, i: number) => isAnswered(answers[i])).length;
+
+    // ── Generate ────────────────────────────────────────────────────────────
 
     const handleGenerate = async () => {
         if (!jd.trim()) { setError('Please paste the job description.'); return; }
         if (!cvUrl && !cvFile) { setError('Please upload your CV as a PDF.'); return; }
 
         const controller = new AbortController();
-        abortRef.current   = controller;
+        abortRef.current    = controller;
         timedOutRef.current = false;
 
         timeoutRef.current = setTimeout(() => {
@@ -94,19 +165,28 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
             if (!res.ok) throw new Error(data.error || 'Failed to generate questions.');
 
             const qs: InterviewQuestion[] = data.questions;
+            const emptyAnswers = Object.fromEntries(qs.map((q, i) => [i, emptyAnswer(q.type)]));
             setQuestions(qs);
-            setAnswers(Object.fromEntries(qs.map((q, i) => [i, emptyAnswer(q.type)])));
+            setAnswers(emptyAnswers);
             setCurrentQ(0);
             setHintOpen(false);
             setAimOpen(false);
             setSummaryAimOpen({});
+            setSavedAt(null);
             setScreen('quiz');
+
+            // Auto-save new session (empty answers)
+            onSaveSession({
+                jd: jd.trim(),
+                questions: qs,
+                answers: Object.fromEntries(Object.entries(emptyAnswers).map(([k, v]) => [k, v])),
+                answeredCount: 0,
+            });
         } catch (err: unknown) {
             if (err instanceof Error && err.name === 'AbortError') {
                 if (timedOutRef.current) {
                     setError('The AI took too long to respond. Gemini may be under heavy load — please try again.');
                 }
-                // User-initiated cancel: no error shown, form stays ready
             } else {
                 setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
             }
@@ -121,7 +201,47 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
         abortRef.current?.abort();
     };
 
-    // ── Answer helpers ─────────────────────────────────────────────────────
+    // ── Save progress ────────────────────────────────────────────────────────
+
+    const handleSaveProgress = () => {
+        setSaving(true);
+        onSaveSession({
+            jd,
+            questions,
+            answers: Object.fromEntries(Object.entries(answers).map(([k, v]) => [k, v])),
+            answeredCount,
+        });
+        setSavedAt(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }));
+        setSaving(false);
+    };
+
+    // ── Load from history ────────────────────────────────────────────────────
+
+    const loadSession = (entry: PrepHistoryEntry, mode: 'review' | 'practice') => {
+        const restoredAnswers: Record<number, Answer> = {};
+        if (mode === 'review') {
+            // Restore saved answers
+            Object.entries(entry.answers).forEach(([k, v]) => {
+                restoredAnswers[parseInt(k, 10)] = v as Answer;
+            });
+        } else {
+            // Practice again with empty answers
+            entry.questions.forEach((q, i) => {
+                restoredAnswers[i] = emptyAnswer(q.type);
+            });
+        }
+        setQuestions(entry.questions);
+        setAnswers(restoredAnswers);
+        setJd(entry.jd_snippet);
+        setCurrentQ(0);
+        setHintOpen(false);
+        setAimOpen(false);
+        setSummaryAimOpen({});
+        setSavedAt(null);
+        setScreen(mode === 'review' ? 'summary' : 'quiz');
+    };
+
+    // ── Navigation helpers ───────────────────────────────────────────────────
 
     const setAnswer = (i: number, a: Answer) => setAnswers((prev: Record<number, Answer>) => ({ ...prev, [i]: a }));
 
@@ -140,8 +260,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
     const goPrev = () => {
         if (currentQ > 0) goTo(currentQ - 1);
     };
-
-    // ── Restart with confirmation ──────────────────────────────────────────
 
     const anyAnswered = questions.some((_: InterviewQuestion, i: number) => isAnswered(answers[i]));
 
@@ -163,9 +281,8 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
         setError(null);
         setConfirmRestart(false);
         setSummaryAimOpen({});
+        setSavedAt(null);
     };
-
-    // ── Clipboard ──────────────────────────────────────────────────────────
 
     const handleCopy = () => {
         const text = questions.map((q: InterviewQuestion, i: number) => formatAnswerForCopy(q, answers[i])).join('\n\n---\n\n');
@@ -179,8 +296,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                 setTimeout(() => setCopyState('idle'), 3000);
             });
     };
-
-    // ── Shared restart button / confirmation panel ─────────────────────────
 
     const RestartButton = () => confirmRestart ? (
         <div className="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
@@ -196,7 +311,7 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
         </button>
     );
 
-    // ── Screen 1: Input ────────────────────────────────────────────────────
+    // ── Screen 1: Input ──────────────────────────────────────────────────────
 
     if (screen === 'input') {
         return (
@@ -253,9 +368,7 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                     {error && <div className="alert alert-red text-sm">{error}</div>}
 
                     {loading ? (
-                        <button onClick={handleCancel} className="btn btn-ghost">
-                            Cancel
-                        </button>
+                        <button onClick={handleCancel} className="btn btn-ghost">Cancel</button>
                     ) : (
                         <button onClick={handleGenerate} className="btn btn-amber">
                             Generate interview questions
@@ -278,11 +391,19 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                         </p>
                     </div>
                 )}
+
+                <div className="pt-2 border-t border-border">
+                    <PrepHistoryPanel
+                        entries={prepHistory}
+                        onReview={e => loadSession(e, 'review')}
+                        onPractice={e => loadSession(e, 'practice')}
+                    />
+                </div>
             </div>
         );
     }
 
-    // ── Screen 2: Quiz ─────────────────────────────────────────────────────
+    // ── Screen 2: Quiz ───────────────────────────────────────────────────────
 
     if (screen === 'quiz') {
         const q      = questions[currentQ];
@@ -293,13 +414,11 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
             <div className="space-y-4">
                 <style>{PROGRESS_KEYFRAMES}</style>
 
-                {/* Progress header */}
                 <div className="card card-p space-y-2">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">
                             Question {currentQ + 1} of {total}
                         </span>
-                        {/* Dot nav — 24px hit target, 8px visual dot */}
                         <div style={{ display: 'flex', gap: '2px' }}>
                             {questions.map((_: InterviewQuestion, i: number) => (
                                 <button
@@ -307,23 +426,15 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                                     onClick={() => goTo(i)}
                                     title={`Question ${i + 1}`}
                                     style={{
-                                        width: '24px',
-                                        height: '24px',
-                                        padding: 0,
-                                        border: 'none',
-                                        background: 'transparent',
-                                        cursor: 'pointer',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
+                                        width: '24px', height: '24px', padding: 0,
+                                        border: 'none', background: 'transparent',
+                                        cursor: 'pointer', display: 'flex',
+                                        alignItems: 'center', justifyContent: 'center',
                                     }}
                                 >
                                     <span style={{
-                                        display: 'block',
-                                        width: '8px',
-                                        height: '8px',
-                                        borderRadius: '50%',
-                                        transition: 'background 0.2s',
+                                        display: 'block', width: '8px', height: '8px',
+                                        borderRadius: '50%', transition: 'background 0.2s',
                                         background: i === currentQ
                                             ? 'var(--amber, #f59e0b)'
                                             : isAnswered(answers[i])
@@ -339,14 +450,12 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                     </div>
                 </div>
 
-                {/* Question card */}
                 <div className="card card-p space-y-4">
                     <div className="space-y-2">
                         <TypeBadge type={q.type} />
                         <p style={{ fontSize: '1.1rem', fontWeight: 600, lineHeight: 1.4 }}>{q.question}</p>
                     </div>
 
-                    {/* Hint */}
                     {q.hint && (
                         <div>
                             <button type="button" className="btn btn-ghost btn-sm"
@@ -362,7 +471,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                         </div>
                     )}
 
-                    {/* Answer input — type-safe via discriminated union */}
                     <div>
                         {answer.type === 'star' && (
                             <StarInput value={answer.data} onChange={d => setAnswer(currentQ, { type: 'star', data: d })} />
@@ -375,7 +483,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                         )}
                     </div>
 
-                    {/* Interviewer aim — reveal on demand */}
                     {q.aim && (
                         <div>
                             <button type="button" className="btn btn-ghost btn-sm"
@@ -391,7 +498,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                         </div>
                     )}
 
-                    {/* Navigation */}
                     <div style={{ display: 'flex', gap: '10px', justifyContent: 'space-between', paddingTop: '8px', borderTop: '1px solid var(--border)' }}>
                         <button className="btn btn-ghost btn-sm" onClick={goPrev} disabled={currentQ === 0}>
                             ← Back
@@ -404,14 +510,26 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                     </div>
                 </div>
 
+                <div className="card card-p" style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={handleSaveProgress}
+                        disabled={saving}
+                        style={{ fontSize: '0.8rem' }}
+                    >
+                        {saving ? 'Saving…' : '💾 Save progress'}
+                    </button>
+                    {savedAt && (
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>Saved at {savedAt}</span>
+                    )}
+                </div>
+
                 <RestartButton />
             </div>
         );
     }
 
-    // ── Screen 3: Summary ──────────────────────────────────────────────────
-
-    const answeredCount = questions.filter((_: InterviewQuestion, i: number) => isAnswered(answers[i])).length;
+    // ── Screen 3: Summary ────────────────────────────────────────────────────
 
     return (
         <div className="space-y-4">
@@ -441,7 +559,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                             <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>{q.question}</p>
                         </div>
 
-                        {/* Answer display — type-safe, no IIFEs */}
                         {answered ? (
                             <div style={{ fontSize: '0.875rem', color: 'var(--text-2)' }}>
                                 {a.type === 'star' && (
@@ -465,7 +582,6 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                             <p className="text-sm text-text-3 italic">Not answered</p>
                         )}
 
-                        {/* Interviewer aim — toggleable per question in summary too */}
                         {q.aim && (
                             <div>
                                 <button type="button" className="btn btn-ghost btn-sm"
@@ -489,16 +605,25 @@ export default function InterviewPrepTab({ cvUrl }: Props) {
                 );
             })}
 
-            {/* Actions */}
             <div className="card card-p space-y-2">
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                     <button className="btn btn-amber btn-sm" onClick={handleCopy}>
-                        {copyState === 'ok'  ? '✓ Copied!'              : '📋 Copy all answers'}
+                        {copyState === 'ok' ? '✓ Copied!' : '📋 Copy all answers'}
+                    </button>
+                    <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={handleSaveProgress}
+                        disabled={saving}
+                    >
+                        {saving ? 'Saving…' : '💾 Save answers'}
                     </button>
                     <button className="btn btn-ghost btn-sm" onClick={requestRestart}>
                         ↺ Start over
                     </button>
                 </div>
+                {savedAt && (
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-3)' }}>Answers saved at {savedAt}</p>
+                )}
                 {copyState === 'err' && (
                     <p className="text-xs text-red-500">
                         Clipboard access was blocked. Please copy the text manually.

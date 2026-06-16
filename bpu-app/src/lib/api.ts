@@ -374,4 +374,16 @@ export class BPUApi {
             return { success: false, error: 'Network error.' };
         }
     }
+
+    static async getCVClinicHistory(jwt: string): Promise<{ analyses: unknown[]; prep_sessions: unknown[] }> {
+        try {
+            const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/cv-clinic-history`, {
+                headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+            });
+            if (!response.ok) return { analyses: [], prep_sessions: [] };
+            return await response.json();
+        } catch {
+            return { analyses: [], prep_sessions: [] };
+        }
+    }
 }

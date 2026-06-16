@@ -4,10 +4,9 @@ import React, { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BPUUser } from '@/lib/auth';
 import { CVReview, BPUApi } from '@/lib/api';
+import { AnalysisHistoryEntry, PrepHistoryEntry } from './cv-clinic-history-types';
 import InterviewPrepTab from './InterviewPrepTab';
 
-// Keyframe for honest (non-misleading) indeterminate progress.
-// Advances slowly to ~85 % over 90 s and never reaches 100 until done.
 const PROGRESS_STYLE = `
 @keyframes bpuClinicLoad {
   0%   { width: 2% }
@@ -39,20 +38,85 @@ function ProGate({ children, isPro, feature }: { children: React.ReactNode; isPr
     );
 }
 
+// ── Analysis History Panel ────────────────────────────────────────────────────
+
+interface AnalysisHistoryPanelProps {
+    entries: AnalysisHistoryEntry[];
+    onLoad: (entry: AnalysisHistoryEntry) => void;
+}
+
+function AnalysisHistoryPanel({ entries, onLoad }: AnalysisHistoryPanelProps) {
+    const [open, setOpen] = useState(false);
+    if (entries.length === 0) return null;
+    return (
+        <div>
+            <button
+                className="btn btn-ghost btn-sm"
+                onClick={() => setOpen((o: boolean) => !o)}
+                style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+                <span>{open ? '▲' : '▼'}</span>
+                Past analyses ({entries.length})
+            </button>
+            {open && (
+                <div className="space-y-2" style={{ marginTop: '10px' }}>
+                    {entries.map((e: AnalysisHistoryEntry) => (
+                        <div
+                            key={e.id}
+                            className="card"
+                            style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}
+                        >
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ fontWeight: 600, fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    {e.role}
+                                </p>
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-3)', marginTop: '2px' }}>
+                                    {new Date(e.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    {' · '}
+                                    <span style={{
+                                        fontWeight: 700,
+                                        color: e.score >= 70 ? 'var(--green)' : e.score >= 45 ? '#a16207' : '#b91c1c',
+                                    }}>
+                                        {e.score}/100
+                                    </span>
+                                </p>
+                            </div>
+                            <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ fontSize: '0.75rem', flexShrink: 0 }}
+                                onClick={() => { onLoad(e); setOpen(false); }}
+                            >
+                                Load
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ── Main client ───────────────────────────────────────────────────────────────
+
 interface Props {
     user: BPUUser;
     reviews: CVReview[];
+    initialAnalyses: AnalysisHistoryEntry[];
+    initialPrepSessions: PrepHistoryEntry[];
 }
 
-export default function CVClinicClient({ user, reviews }: Props) {
+export default function CVClinicClient({ user, reviews, initialAnalyses, initialPrepSessions }: Props) {
     const router = useRouter();
     const isPro = user.is_pro;
 
-    // Sub-tab state
     const [cvTab, setCvTab] = useState<'analyse' | 'upload' | 'review' | 'prep'>('analyse');
-
-    // CV URL — updated after a successful upload
     const [cvUrl, setCvUrl] = useState(user.cv_url || '');
+
+    // ── Analysis history ──
+    const [analyzeHistory, setAnalyzeHistory] = useState<AnalysisHistoryEntry[]>(initialAnalyses);
+
+    // ── Prep history ──
+    const [prepHistory, setPrepHistory] = useState<PrepHistoryEntry[]>(initialPrepSessions);
 
     // ── AI Analysis state ──
     const [analyzeRole, setAnalyzeRole] = useState('');
@@ -116,7 +180,26 @@ export default function CVClinicClient({ user, reviews }: Props) {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Analysis failed.');
+
             setAnalyzeResult(data);
+
+            // Auto-save to history
+            const entry: AnalysisHistoryEntry = {
+                id: new Date().toISOString(),
+                date: new Date().toISOString(),
+                role: analyzeRole.trim(),
+                jd_snippet: analyzeJD.trim().slice(0, 200),
+                score: data.score,
+                strengths: data.strengths,
+                weaknesses: data.weaknesses,
+                recommendation: data.recommendation,
+            };
+            setAnalyzeHistory((prev: AnalysisHistoryEntry[]) => [entry, ...prev].slice(0, 10));
+            fetch('/api/member/save-cv-analysis', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(entry),
+            }).catch(() => undefined);
         } catch (err: unknown) {
             if (err instanceof Error && err.name === 'AbortError') return;
             setAnalyzeMsg({ type: 'err', text: err instanceof Error ? err.message : 'Analysis error.' });
@@ -130,6 +213,20 @@ export default function CVClinicClient({ user, reviews }: Props) {
         analyzeAbortRef.current?.abort();
         setAnalyzing(false);
         setAnalyzeMsg({ type: 'err', text: 'Analysis cancelled.' });
+    };
+
+    const handleLoadAnalysis = (entry: AnalysisHistoryEntry) => {
+        setAnalyzeRole(entry.role);
+        setAnalyzeJD(entry.jd_snippet);
+        setAnalyzeResult({
+            score: entry.score,
+            strengths: entry.strengths,
+            weaknesses: entry.weaknesses,
+            recommendation: entry.recommendation,
+        });
+        setAnalyzeMsg(null);
+        setAnalyzeCvFile(null);
+        setCvTab('analyse');
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,6 +306,29 @@ export default function CVClinicClient({ user, reviews }: Props) {
             : { type: 'err', text: result.error || 'Could not submit request.' }
         );
         setRequestingReview(false);
+    };
+
+    const handleSavePrepSession = async (sessionData: {
+        jd: string;
+        questions: unknown[];
+        answers: Record<string, unknown>;
+        answeredCount: number;
+    }) => {
+        const entry: PrepHistoryEntry = {
+            id: new Date().toISOString(),
+            date: new Date().toISOString(),
+            jd_snippet: sessionData.jd.slice(0, 200),
+            question_count: sessionData.questions.length,
+            answered_count: sessionData.answeredCount,
+            questions: sessionData.questions as PrepHistoryEntry['questions'],
+            answers: sessionData.answers as PrepHistoryEntry['answers'],
+        };
+        setPrepHistory((prev: PrepHistoryEntry[]) => [entry, ...prev].slice(0, 5));
+        fetch('/api/member/save-interview-prep', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(entry),
+        }).catch(() => undefined);
     };
 
     return (
@@ -320,11 +440,7 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                 </div>
                             )}
                             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                <button
-                                    onClick={handleCVAnalyze}
-                                    disabled={analyzing}
-                                    className="btn btn-amber"
-                                >
+                                <button onClick={handleCVAnalyze} disabled={analyzing} className="btn btn-amber">
                                     {analyzing ? 'Analysing…' : 'Analyse my CV'}
                                 </button>
                                 {analyzing && (
@@ -338,10 +454,7 @@ export default function CVClinicClient({ user, reviews }: Props) {
                         {analyzing && (
                             <div className="space-y-2 text-center py-4">
                                 <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                                    <div
-                                        className="h-full bg-brand rounded-full"
-                                        style={{ animation: 'bpuClinicLoad 90s linear forwards' }}
-                                    />
+                                    <div className="h-full bg-brand rounded-full" style={{ animation: 'bpuClinicLoad 90s linear forwards' }} />
                                 </div>
                                 <p className="text-sm text-text-2">Our AI is reviewing your CV{'…'}</p>
                             </div>
@@ -349,7 +462,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
 
                         {analyzeResult && (
                             <div className="space-y-4 pt-2 border-t border-border">
-                                {/* Score */}
                                 <div className="flex items-center gap-5">
                                     <div
                                         className="shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-2xl font-extrabold"
@@ -372,7 +484,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                     </div>
                                 </div>
 
-                                {/* Strengths */}
                                 {analyzeResult.strengths.length > 0 && (
                                     <div className="space-y-2">
                                         <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--green)' }}>Strengths</p>
@@ -386,7 +497,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                     </div>
                                 )}
 
-                                {/* Weaknesses */}
                                 {analyzeResult.weaknesses.length > 0 && (
                                     <div className="space-y-2">
                                         <p className="text-xs font-bold uppercase tracking-wide text-red-500">Areas to improve</p>
@@ -400,7 +510,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                     </div>
                                 )}
 
-                                {/* Recommendation */}
                                 {analyzeResult.recommendation && (
                                     <div className="card card-p space-y-1" style={{ background: 'var(--bg-2)' }}>
                                         <p className="text-xs font-bold uppercase tracking-wide text-text-3">Top recommendation</p>
@@ -408,20 +517,26 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                     </div>
                                 )}
 
-                                <button
-                                    onClick={() => setAnalyzeResult(null)}
-                                    className="btn btn-ghost btn-sm"
-                                >
+                                <button onClick={() => setAnalyzeResult(null)} className="btn btn-ghost btn-sm">
                                     Analyse again
                                 </button>
                             </div>
                         )}
+
+                        {/* History panel — shown below the result (or below the form if no result) */}
+                        <div className="pt-2 border-t border-border">
+                            <AnalysisHistoryPanel entries={analyzeHistory} onLoad={handleLoadAnalysis} />
+                        </div>
                     </div>
                 )}
 
                 {/* ── Tab: Interview Prep ── */}
                 {cvTab === 'prep' && (
-                    <InterviewPrepTab cvUrl={cvUrl} />
+                    <InterviewPrepTab
+                        cvUrl={cvUrl}
+                        prepHistory={prepHistory}
+                        onSaveSession={handleSavePrepSession}
+                    />
                 )}
 
                 {/* ── Tab: Upload & Parse ── */}
@@ -436,7 +551,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
                         </div>
 
                         <ProGate isPro={isPro} feature="CV upload &amp; AI parsing">
-                            {/* Current CV */}
                             {cvUrl && (
                                 <div className="alert alert-green flex items-center justify-between gap-4">
                                     <span className="text-sm font-medium">CV on file</span>
@@ -453,7 +567,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                 </div>
                             )}
 
-                            {/* Pending upload confirmation */}
                             {pendingUploadFile && (
                                 <div className="alert alert-green space-y-2">
                                     <p className="text-sm font-medium">Ready to upload: <strong>{pendingUploadFile.name}</strong></p>
@@ -469,7 +582,6 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                 </div>
                             )}
 
-                            {/* Upload area */}
                             {!pendingUploadFile && (
                                 <div className="card" style={{ borderStyle: 'dashed' }}>
                                     <label
@@ -497,10 +609,7 @@ export default function CVClinicClient({ user, reviews }: Props) {
                             {uploading && (
                                 <div className="space-y-2">
                                     <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                                        <div
-                                            className="h-full bg-brand rounded-full"
-                                            style={{ animation: 'bpuClinicLoad 90s linear forwards' }}
-                                        />
+                                        <div className="h-full bg-brand rounded-full" style={{ animation: 'bpuClinicLoad 90s linear forwards' }} />
                                     </div>
                                     <div className="flex justify-end">
                                         <button onClick={handleUploadCancel} className="btn btn-ghost btn-sm">Cancel</button>
@@ -554,10 +663,7 @@ export default function CVClinicClient({ user, reviews }: Props) {
                                             >
                                                 {requestingReview ? 'Submitting…' : 'Yes, submit'}
                                             </button>
-                                            <button
-                                                onClick={() => setReviewConfirm(false)}
-                                                className="btn btn-ghost btn-sm"
-                                            >
+                                            <button onClick={() => setReviewConfirm(false)} className="btn btn-ghost btn-sm">
                                                 Cancel
                                             </button>
                                         </div>

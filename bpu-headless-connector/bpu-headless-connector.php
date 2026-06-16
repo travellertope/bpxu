@@ -514,6 +514,23 @@ class BPU_Headless_Connector {
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
+        // 7. CV Clinic History — unified read + per-tool save
+        register_rest_route( $this->namespace, '/member/cv-clinic-history', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'handle_get_cv_clinic_history' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/member/save-cv-analysis', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_save_cv_analysis' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/member/save-interview-prep', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_save_interview_prep' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
         // ──────────────────────────────────────────────────────
         // 6. SSO Token Exchange (for PAIRED mentorship app)
         // ──────────────────────────────────────────────────────
@@ -3360,6 +3377,103 @@ Rules:
         );
 
         return new WP_REST_Response( array( 'success' => true, 'request_id' => $post_id ), 201 );
+    }
+
+    // ── CV Clinic History ──────────────────────────────────────────────────────
+
+    public function handle_get_cv_clinic_history( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $analyses = get_user_meta( $user_id, '_bpu_cv_analysis_log', true );
+        $sessions = get_user_meta( $user_id, '_bpu_interview_prep_log', true );
+
+        return new WP_REST_Response( array(
+            'analyses'      => is_array( $analyses ) ? $analyses : array(),
+            'prep_sessions' => is_array( $sessions ) ? $sessions : array(),
+        ), 200 );
+    }
+
+    public function handle_save_cv_analysis( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) {
+            return new WP_Error( 'invalid_body', __( 'Invalid request body.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        foreach ( array( 'role', 'score', 'strengths', 'weaknesses', 'recommendation' ) as $field ) {
+            if ( ! isset( $body[ $field ] ) ) {
+                return new WP_Error( 'missing_field', sprintf( 'Missing field: %s', $field ), array( 'status' => 400 ) );
+            }
+        }
+
+        $entry = array(
+            'id'             => sanitize_text_field( isset( $body['id'] ) ? (string) $body['id'] : uniqid( 'a_', true ) ),
+            'date'           => sanitize_text_field( isset( $body['date'] ) ? (string) $body['date'] : current_time( 'c' ) ),
+            'role'           => sanitize_text_field( mb_substr( (string) $body['role'], 0, 200 ) ),
+            'jd_snippet'     => sanitize_text_field( mb_substr( (string) ( $body['jd_snippet'] ?? '' ), 0, 200 ) ),
+            'score'          => max( 0, min( 100, intval( $body['score'] ) ) ),
+            'strengths'      => array_map( 'sanitize_text_field', array_slice( (array) $body['strengths'], 0, 10 ) ),
+            'weaknesses'     => array_map( 'sanitize_text_field', array_slice( (array) $body['weaknesses'], 0, 10 ) ),
+            'recommendation' => sanitize_text_field( mb_substr( (string) $body['recommendation'], 0, 1000 ) ),
+        );
+
+        $log = get_user_meta( $user_id, '_bpu_cv_analysis_log', true );
+        if ( ! is_array( $log ) ) {
+            $log = array();
+        }
+        array_unshift( $log, $entry );
+        update_user_meta( $user_id, '_bpu_cv_analysis_log', array_slice( $log, 0, 10 ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'entry' => $entry ), 201 );
+    }
+
+    public function handle_save_interview_prep( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+        $user_id = intval( $payload['user_id'] );
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) {
+            return new WP_Error( 'invalid_body', __( 'Invalid request body.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( strlen( wp_json_encode( $body ) ) > 100 * 1024 ) {
+            return new WP_Error( 'payload_too_large', __( 'Session data exceeds 100 KB limit.', 'bpu' ), array( 'status' => 413 ) );
+        }
+
+        if ( empty( $body['questions'] ) || ! is_array( $body['questions'] ) ) {
+            return new WP_Error( 'missing_questions', __( 'Questions are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $entry = array(
+            'id'             => sanitize_text_field( isset( $body['id'] ) ? (string) $body['id'] : uniqid( 'p_', true ) ),
+            'date'           => sanitize_text_field( isset( $body['date'] ) ? (string) $body['date'] : current_time( 'c' ) ),
+            'jd_snippet'     => sanitize_text_field( mb_substr( (string) ( $body['jd_snippet'] ?? '' ), 0, 200 ) ),
+            'question_count' => intval( $body['question_count'] ?? count( $body['questions'] ) ),
+            'answered_count' => max( 0, intval( $body['answered_count'] ?? 0 ) ),
+            'questions'      => $body['questions'],
+            'answers'        => is_array( $body['answers'] ) ? $body['answers'] : array(),
+        );
+
+        $log = get_user_meta( $user_id, '_bpu_interview_prep_log', true );
+        if ( ! is_array( $log ) ) {
+            $log = array();
+        }
+        array_unshift( $log, $entry );
+        update_user_meta( $user_id, '_bpu_interview_prep_log', array_slice( $log, 0, 5 ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'entry' => $entry ), 201 );
     }
 
     /**

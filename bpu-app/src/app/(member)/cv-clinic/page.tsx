@@ -2,6 +2,7 @@ import { getBPUSession } from '@/lib/auth';
 import { BPUApi } from '@/lib/api';
 import { cookies } from 'next/headers';
 import CVClinicClient from './CVClinicClient';
+import { AnalysisHistoryEntry, PrepHistoryEntry } from './cv-clinic-history-types';
 
 export default async function CVClinicPage() {
     const session = await getBPUSession();
@@ -13,7 +14,17 @@ export default async function CVClinicPage() {
 
     const cookieStore = await cookies();
     const jwt = cookieStore.get('bpu_session')?.value ?? '';
-    const reviews = await BPUApi.getCVClinicReviews(jwt);
+    const [reviews, historyRaw] = await Promise.all([
+        BPUApi.getCVClinicReviews(jwt),
+        BPUApi.getCVClinicHistory(jwt),
+    ]);
 
-    return <CVClinicClient user={session.user!} reviews={reviews} />;
+    return (
+        <CVClinicClient
+            user={session.user!}
+            reviews={reviews}
+            initialAnalyses={historyRaw.analyses as AnalysisHistoryEntry[]}
+            initialPrepSessions={historyRaw.prep_sessions as PrepHistoryEntry[]}
+        />
+    );
 }
