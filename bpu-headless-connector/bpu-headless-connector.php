@@ -1521,6 +1521,34 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_get_job_reports' ),
             'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
         ) );
+
+        // Admin: Employer Accounts — list terms with linked users
+        register_rest_route( $this->namespace, '/admin/employer-accounts', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_employer_accounts' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
+
+        // Admin: Link a user to an employer term
+        register_rest_route( $this->namespace, '/admin/employer-accounts/link', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_link_employer_account' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
+
+        // Admin: Unlink a user from an employer term
+        register_rest_route( $this->namespace, '/admin/employer-accounts/unlink', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_unlink_employer_account' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
+
+        // Admin: Search users for employer linking (live search)
+        register_rest_route( $this->namespace, '/admin/user-search', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_search_users' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
+        ) );
     }
 
     /**
@@ -6726,6 +6754,14 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             update_post_meta( $post_id, $key, $value );
         }
 
+        // Link employer taxonomy term if provided
+        if ( ! empty( $body['employer_term_id'] ) ) {
+            $term_id = intval( $body['employer_term_id'] );
+            if ( term_exists( $term_id, 'bpu_employer' ) ) {
+                wp_set_post_terms( $post_id, array( $term_id ), 'bpu_employer' );
+            }
+        }
+
         return new WP_REST_Response( array(
             'success' => true,
             'job_id'  => $post_id,
@@ -6782,6 +6818,18 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
                 );
             }, $body['screening_questions'] );
             update_post_meta( $job_id, '_bpu_screening_questions', maybe_serialize( $questions ) );
+        }
+
+        // Update employer taxonomy term if provided
+        if ( isset( $body['employer_term_id'] ) ) {
+            if ( $body['employer_term_id'] ) {
+                $term_id = intval( $body['employer_term_id'] );
+                if ( term_exists( $term_id, 'bpu_employer' ) ) {
+                    wp_set_post_terms( $job_id, array( $term_id ), 'bpu_employer' );
+                }
+            } else {
+                wp_set_post_terms( $job_id, array(), 'bpu_employer' );
+            }
         }
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
@@ -11141,6 +11189,124 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
     }
 
     /**
+     * GET /admin/employer-accounts — list all employer taxonomy terms with linked users.
+     */
+    public function admin_get_employer_accounts( WP_REST_Request $request ) {
+        $terms = get_terms( array( 'taxonomy' => 'bpu_employer', 'hide_empty' => false, 'orderby' => 'name', 'order' => 'ASC' ) );
+        if ( is_wp_error( $terms ) ) $terms = array();
+
+        $accounts = array();
+        foreach ( $terms as $term ) {
+            $logo_url  = get_term_meta( $term->term_id, '_bpu_employer_logo', true );
+            $job_count = $term->count;
+
+            $linked_users_raw = get_users( array(
+                'meta_key'   => '_bpu_employer_term_id',
+                'meta_value' => $term->term_id,
+                'orderby'    => 'display_name',
+                'order'      => 'ASC',
+            ) );
+
+            $linked_users = array();
+            foreach ( $linked_users_raw as $u ) {
+                $linked_users[] = array(
+                    'id'           => $u->ID,
+                    'display_name' => $u->display_name,
+                    'email'        => $u->user_email,
+                    'avatar_url'   => get_avatar_url( $u->ID, array( 'size' => 48 ) ),
+                );
+            }
+
+            $accounts[] = array(
+                'id'           => $term->term_id,
+                'name'         => $term->name,
+                'logo_url'     => $logo_url ?: '',
+                'job_count'    => intval( $job_count ),
+                'linked_users' => $linked_users,
+            );
+        }
+
+        return new WP_REST_Response( array( 'accounts' => $accounts ), 200 );
+    }
+
+    /**
+     * POST /admin/employer-accounts/link — link a user to an employer term.
+     */
+    public function admin_link_employer_account( WP_REST_Request $request ) {
+        $body    = $request->get_json_params();
+        $term_id = intval( $body['term_id'] ?? 0 );
+        $user_id = intval( $body['user_id'] ?? 0 );
+
+        if ( ! $term_id || ! $user_id ) {
+            return new WP_Error( 'bpu_missing', __( 'term_id and user_id are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( ! term_exists( $term_id, 'bpu_employer' ) ) {
+            return new WP_Error( 'bpu_not_found', __( 'Employer term not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+        if ( ! get_userdata( $user_id ) ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        update_user_meta( $user_id, '_bpu_employer_term_id', $term_id );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /admin/employer-accounts/unlink — unlink a user from their employer term.
+     */
+    public function admin_unlink_employer_account( WP_REST_Request $request ) {
+        $body    = $request->get_json_params();
+        $user_id = intval( $body['user_id'] ?? 0 );
+
+        if ( ! $user_id ) {
+            return new WP_Error( 'bpu_missing', __( 'user_id is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        delete_user_meta( $user_id, '_bpu_employer_term_id' );
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * GET /admin/user-search — search users by display name or email.
+     */
+    public function admin_search_users( WP_REST_Request $request ) {
+        $q    = sanitize_text_field( $request->get_param( 'q' ) ?: '' );
+        $role = sanitize_text_field( $request->get_param( 'role' ) ?: '' );
+
+        if ( empty( $q ) ) {
+            return new WP_REST_Response( array( 'users' => array() ), 200 );
+        }
+
+        $args = array(
+            'number'         => 10,
+            'search'         => '*' . $q . '*',
+            'search_columns' => array( 'display_name', 'user_email' ),
+            'orderby'        => 'display_name',
+            'order'          => 'ASC',
+        );
+
+        if ( $role ) {
+            $args['role'] = $role;
+        }
+
+        $users = get_users( $args );
+
+        $result = array();
+        foreach ( $users as $u ) {
+            $result[] = array(
+                'id'           => $u->ID,
+                'display_name' => $u->display_name,
+                'email'        => $u->user_email,
+                'avatar_url'   => get_avatar_url( $u->ID, array( 'size' => 48 ) ),
+            );
+        }
+
+        return new WP_REST_Response( array( 'users' => $result ), 200 );
+    }
+
+    /**
      * GET /admin/team — list all team members (users with admin roles).
      */
     public function admin_get_team( WP_REST_Request $request ) {
@@ -11313,19 +11479,6 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         }
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
-    }
-}
-
-// Initialize the connector
-new BPU_Headless_Connector();
-
-// Schedule the weekly digest on activation; clear on deactivation.
-register_activation_hook( __FILE__, 'bpu_schedule_weekly_digest' );
-register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
-
-function bpu_schedule_weekly_digest() {
-    if ( ! wp_next_scheduled( 'bpu_weekly_job_digest' ) ) {
-        wp_schedule_event( strtotime( 'next Monday 08:00:00' ), 'weekly', 'bpu_weekly_job_digest' );
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -11519,6 +11672,19 @@ PROMPT;
         }
 
         return $questions;
+    }
+}
+
+// Initialize the connector
+new BPU_Headless_Connector();
+
+// Schedule the weekly digest on activation; clear on deactivation.
+register_activation_hook( __FILE__, 'bpu_schedule_weekly_digest' );
+register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
+
+function bpu_schedule_weekly_digest() {
+    if ( ! wp_next_scheduled( 'bpu_weekly_job_digest' ) ) {
+        wp_schedule_event( strtotime( 'next Monday 08:00:00' ), 'weekly', 'bpu_weekly_job_digest' );
     }
 }
 
