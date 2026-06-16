@@ -1829,16 +1829,27 @@ class BPU_Headless_Connector {
             );
         }
 
-        $cv_file = $files['cv_file'];
+        $cv_file   = $files['cv_file'];
+        $max_bytes = 10 * 1024 * 1024; // 10 MB
 
-        // Validate file type (allow only PDFs for reliable parsing)
-        $file_type = wp_check_filetype( $cv_file['name'] );
-        if ( 'pdf' !== $file_type['ext'] ) {
-            return new WP_Error(
-                'rest_invalid_file_type',
-                __( 'Only PDF formats are supported for automatic CV parsing.', 'bpu' ),
-                array( 'status' => 400 )
-            );
+        // File size check before reading or storing anything.
+        if ( $cv_file['size'] > $max_bytes ) {
+            return new WP_Error( 'bpu_file_too_large', __( 'CV file must be 10 MB or smaller.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // MIME type check on actual bytes BEFORE storing to the media library.
+        if ( function_exists( 'finfo_open' ) ) {
+            $finfo = finfo_open( FILEINFO_MIME_TYPE );
+            $mime  = finfo_file( $finfo, $cv_file['tmp_name'] );
+            finfo_close( $finfo );
+            if ( 'application/pdf' !== $mime ) {
+                return new WP_Error( 'rest_invalid_file_type', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+            }
+        } else {
+            $file_type = wp_check_filetype( $cv_file['name'] );
+            if ( 'pdf' !== $file_type['ext'] ) {
+                return new WP_Error( 'rest_invalid_file_type', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+            }
         }
 
         // Include WordPress media uploading libraries
@@ -1855,10 +1866,12 @@ class BPU_Headless_Connector {
         // Save CV Attachment ID in member metavalues
         update_user_meta( $user_id, '_bpu_member_cv_id', $attachment_id );
 
-        // Extract PDF content and feed to Gemini Pro
+        // Extract PDF content and feed to Gemini.
         $file_path = get_attached_file( $attachment_id );
-        $file_data = file_get_contents( $file_path );
-        $base64_pdf = base64_encode( $file_data );
+        if ( ! $file_path || filesize( $file_path ) > $max_bytes ) {
+            return new WP_Error( 'bpu_file_too_large', __( 'Stored CV exceeds the 10 MB processing limit.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        $base64_pdf = base64_encode( file_get_contents( $file_path ) );
 
         // Trigger Google Cloud Vertex AI / Gemini API
         $parsed_profile = $this->parse_cv_with_gemini( $base64_pdf );
@@ -1887,7 +1900,14 @@ class BPU_Headless_Connector {
             return new WP_Error( 'bpu_unauthorized', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
         }
 
-        $user_id     = intval( $payload['user_id'] );
+        $user_id = intval( $payload['user_id'] );
+
+        // Per-user rate limit: one analysis per 20 seconds (free endpoint — highest abuse risk).
+        $rate_key = 'bpu_cvanalyze_rl_' . $user_id;
+        if ( get_transient( $rate_key ) ) {
+            return new WP_Error( 'bpu_rate_limit', __( 'Please wait a moment before running another analysis.', 'bpu' ), array( 'status' => 429 ) );
+        }
+
         $body        = $request->get_body_params();
         $target_role = isset( $body['target_role'] )     ? sanitize_text_field( $body['target_role'] )         : '';
         $job_desc    = isset( $body['job_description'] ) ? sanitize_textarea_field( $body['job_description'] ) : '';
@@ -1896,30 +1916,49 @@ class BPU_Headless_Connector {
             return new WP_Error( 'bpu_missing_field', __( 'target_role is required.', 'bpu' ), array( 'status' => 400 ) );
         }
 
+        if ( mb_strlen( $target_role ) > 200 ) {
+            return new WP_Error( 'bpu_field_too_long', __( 'Target role must be 200 characters or fewer.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
         // Determine the PDF to analyze: new upload takes precedence, else stored CV.
-        $files   = $request->get_file_params();
+        $files     = $request->get_file_params();
+        $max_bytes = 10 * 1024 * 1024; // 10 MB
         $base64_pdf = '';
 
         if ( ! empty( $files['cv_file'] ) && $files['cv_file']['error'] === UPLOAD_ERR_OK ) {
-            $file_type = wp_check_filetype( $files['cv_file']['name'] );
-            if ( 'pdf' !== $file_type['ext'] ) {
-                return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+            if ( $files['cv_file']['size'] > $max_bytes ) {
+                return new WP_Error( 'bpu_file_too_large', __( 'CV file must be 10 MB or smaller.', 'bpu' ), array( 'status' => 400 ) );
             }
-            $file_data  = file_get_contents( $files['cv_file']['tmp_name'] );
-            $base64_pdf = base64_encode( $file_data );
+            if ( function_exists( 'finfo_open' ) ) {
+                $finfo = finfo_open( FILEINFO_MIME_TYPE );
+                $mime  = finfo_file( $finfo, $files['cv_file']['tmp_name'] );
+                finfo_close( $finfo );
+                if ( 'application/pdf' !== $mime ) {
+                    return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+                }
+            } else {
+                $file_type = wp_check_filetype( $files['cv_file']['name'] );
+                if ( 'pdf' !== $file_type['ext'] ) {
+                    return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+                }
+            }
+            $base64_pdf = base64_encode( file_get_contents( $files['cv_file']['tmp_name'] ) );
         } else {
             $cv_id = get_user_meta( $user_id, '_bpu_member_cv_id', true );
             if ( $cv_id ) {
                 $cv_path = get_attached_file( $cv_id );
-                if ( $cv_path && file_exists( $cv_path ) ) {
+                if ( $cv_path && file_exists( $cv_path ) && filesize( $cv_path ) <= $max_bytes ) {
                     $base64_pdf = base64_encode( file_get_contents( $cv_path ) );
                 }
             }
         }
 
         if ( empty( $base64_pdf ) ) {
-            return new WP_Error( 'bpu_no_cv', __( 'No CV found. Please upload a PDF.', 'bpu' ), array( 'status' => 400 ) );
+            return new WP_Error( 'bpu_no_cv', __( 'No CV found. Please upload a PDF (max 10 MB).', 'bpu' ), array( 'status' => 400 ) );
         }
+
+        // Lock rate limit only after all validation passes.
+        set_transient( $rate_key, 1, 20 );
 
         $results = $this->analyze_cv_with_gemini( $base64_pdf, $target_role, $job_desc );
         if ( is_wp_error( $results ) ) {
@@ -2088,9 +2127,9 @@ Rules:
                     'parts' => array(
                         array( 'text' => $prompt ),
                         array(
-                            'inlineData' => array(
-                                'mimeType' => 'application/pdf',
-                                'data'     => $base64_pdf,
+                            'inline_data' => array(
+                                'mime_type' => 'application/pdf',
+                                'data'      => $base64_pdf,
                             ),
                         ),
                     ),
@@ -3285,7 +3324,10 @@ Rules:
         }
 
         $cv_id  = get_user_meta( $user_id, '_bpu_member_cv_id', true );
-        $cv_url = $cv_id ? wp_get_attachment_url( $cv_id ) : '';
+        if ( ! $cv_id ) {
+            return new WP_Error( 'bpu_no_cv', __( 'Please upload your CV before requesting a review.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        $cv_url = wp_get_attachment_url( $cv_id );
 
         $post_id = wp_insert_post( array(
             'post_type'   => 'cv_clinic_review',
@@ -3294,6 +3336,7 @@ Rules:
             'post_author' => $user_id,
             'meta_input'  => array(
                 '_bpu_member_id'    => $user_id,
+                '_bpu_candidate_id' => $user_id,
                 '_bpu_member_email' => $user->user_email,
                 '_bpu_cv_url'       => $cv_url,
             ),

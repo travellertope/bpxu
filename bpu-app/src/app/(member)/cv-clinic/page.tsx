@@ -15,5 +15,5 @@ export default async function CVClinicPage() {
     const jwt = cookieStore.get('bpu_session')?.value ?? '';
     const reviews = await BPUApi.getCVClinicReviews(jwt);
 
-    return <CVClinicClient user={session.user!} reviews={reviews} jwt={jwt} />;
+    return <CVClinicClient user={session.user!} reviews={reviews} />;
 }
