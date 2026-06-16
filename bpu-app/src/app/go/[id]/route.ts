@@ -25,12 +25,15 @@ export async function GET(
     const authHeaders: HeadersInit = {};
     if (jwt) authHeaders['Authorization'] = `Bearer ${jwt}`;
 
-    // Track the click and get the apply URL atomically
+    // Track the click — endpoint returns apply_url so no second request needed
     let applyUrl = '';
     try {
         const trackRes = await fetch(
             `${WP_BACKEND_URL}/wp-json/bpu/v1/jobs/${jobId}/click`,
-            { method: 'POST', headers: authHeaders }
+            {
+                method: 'POST',
+                headers: { ...authHeaders, 'Content-Type': 'application/json' },
+            }
         );
         if (trackRes.ok) {
             const data = await trackRes.json();
@@ -38,7 +41,7 @@ export async function GET(
         }
     } catch { /* non-blocking */ }
 
-    // Fallback: fetch the job directly if click endpoint didn't return apply_url
+    // Fallback: fetch the job directly if click endpoint failed or returned no apply_url
     if (!applyUrl) {
         try {
             const jobRes = await fetch(
