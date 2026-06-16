@@ -182,7 +182,8 @@ export default function CVClinicClient({ user, reviews, jwt }: Props) {
             </div>
 
             {/* ── Sub-tab bar ── */}
-            <div className="card" style={{ padding: '6px', display: 'flex', gap: '4px' }}>
+            {/* Scrollable on mobile so 4 tabs don't overflow on small screens */}
+            <div className="card" style={{ padding: '6px', display: 'flex', gap: '4px', overflowX: 'auto', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
                 {(
                     [
                         { id: 'analyse', label: 'AI Analysis',    badge: 'Free' },
@@ -194,8 +195,8 @@ export default function CVClinicClient({ user, reviews, jwt }: Props) {
                     <button
                         key={id}
                         onClick={() => setCvTab(id)}
-                        className={cvTab === id ? 'btn btn-amber btn-sm flex-1' : 'btn btn-ghost btn-sm flex-1'}
-                        style={{ justifyContent: 'center', gap: '6px' }}
+                        className={cvTab === id ? 'btn btn-amber btn-sm' : 'btn btn-ghost btn-sm'}
+                        style={{ justifyContent: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}
                     >
                         {label}
                         {badge && (

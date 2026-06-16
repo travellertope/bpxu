@@ -11143,7 +11143,14 @@ function bpu_schedule_weekly_digest() {
             return new WP_Error( 'bpu_unauthorized', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
         }
 
-        $user_id  = intval( $payload['user_id'] );
+        $user_id = intval( $payload['user_id'] );
+
+        // Per-user rate limit: one generation per 30 seconds.
+        $rate_key = 'bpu_iprep_rl_' . $user_id;
+        if ( get_transient( $rate_key ) ) {
+            return new WP_Error( 'bpu_rate_limit', __( 'Please wait a moment before generating more questions.', 'bpu' ), array( 'status' => 429 ) );
+        }
+
         $body     = $request->get_body_params();
         $job_desc = isset( $body['job_description'] ) ? sanitize_textarea_field( $body['job_description'] ) : '';
 
@@ -11151,29 +11158,55 @@ function bpu_schedule_weekly_digest() {
             return new WP_Error( 'bpu_missing_field', __( 'job_description is required.', 'bpu' ), array( 'status' => 400 ) );
         }
 
+        // Cap job description length to prevent oversized Gemini prompts.
+        if ( mb_strlen( $job_desc ) > 20000 ) {
+            return new WP_Error( 'bpu_field_too_long', __( 'Job description must be 20,000 characters or fewer.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
         // Resolve PDF: uploaded file takes priority, else stored CV.
         $files      = $request->get_file_params();
         $base64_pdf = '';
+        $max_bytes  = 10 * 1024 * 1024; // 10 MB
 
         if ( ! empty( $files['cv_file'] ) && $files['cv_file']['error'] === UPLOAD_ERR_OK ) {
-            $file_type = wp_check_filetype( $files['cv_file']['name'] );
-            if ( 'pdf' !== $file_type['ext'] ) {
-                return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+            // File size check before reading into memory.
+            if ( $files['cv_file']['size'] > $max_bytes ) {
+                return new WP_Error( 'bpu_file_too_large', __( 'CV file must be 10 MB or smaller.', 'bpu' ), array( 'status' => 400 ) );
             }
+
+            // MIME type check on actual file bytes, not just the extension.
+            if ( function_exists( 'finfo_open' ) ) {
+                $finfo = finfo_open( FILEINFO_MIME_TYPE );
+                $mime  = finfo_file( $finfo, $files['cv_file']['tmp_name'] );
+                finfo_close( $finfo );
+                if ( 'application/pdf' !== $mime ) {
+                    return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+                }
+            } else {
+                // Fallback to extension check if finfo unavailable.
+                $file_type = wp_check_filetype( $files['cv_file']['name'] );
+                if ( 'pdf' !== $file_type['ext'] ) {
+                    return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+                }
+            }
+
             $base64_pdf = base64_encode( file_get_contents( $files['cv_file']['tmp_name'] ) );
         } else {
             $cv_id = get_user_meta( $user_id, '_bpu_member_cv_id', true );
             if ( $cv_id ) {
                 $cv_path = get_attached_file( $cv_id );
-                if ( $cv_path && file_exists( $cv_path ) ) {
+                if ( $cv_path && file_exists( $cv_path ) && filesize( $cv_path ) <= $max_bytes ) {
                     $base64_pdf = base64_encode( file_get_contents( $cv_path ) );
                 }
             }
         }
 
         if ( empty( $base64_pdf ) ) {
-            return new WP_Error( 'bpu_no_cv', __( 'No CV found. Please upload a PDF.', 'bpu' ), array( 'status' => 400 ) );
+            return new WP_Error( 'bpu_no_cv', __( 'No CV found. Please upload a PDF (max 10 MB).', 'bpu' ), array( 'status' => 400 ) );
         }
+
+        // Lock the rate limit only after all validation passes.
+        set_transient( $rate_key, 1, 30 );
 
         $questions = $this->generate_interview_prep_questions( $base64_pdf, $job_desc );
         if ( is_wp_error( $questions ) ) {
@@ -11264,16 +11297,19 @@ PROMPT;
             return new WP_Error( 'gemini_invalid_json', __( 'Could not parse AI response.', 'bpu' ), array( 'status' => 502 ) );
         }
 
-        // Sanitise and validate each question.
-        $questions = array();
+        // Validate and normalise each question.
+        // AI-generated strings are rendered as React text nodes (XSS-safe by default),
+        // so we trim whitespace rather than stripping punctuation with sanitize_text_field.
+        $questions   = array();
         $valid_types = array( 'star', 'freetext', 'rating' );
         foreach ( $decoded['questions'] as $q ) {
-            if ( empty( $q['question'] ) ) continue;
+            $question_text = trim( (string) ( $q['question'] ?? '' ) );
+            if ( empty( $question_text ) ) continue;
             $questions[] = array(
-                'question' => sanitize_text_field( $q['question'] ),
+                'question' => $question_text,
                 'type'     => in_array( $q['type'] ?? '', $valid_types, true ) ? $q['type'] : 'freetext',
-                'hint'     => sanitize_text_field( $q['hint'] ?? '' ),
-                'aim'      => sanitize_text_field( $q['aim'] ?? '' ),
+                'hint'     => trim( (string) ( $q['hint'] ?? '' ) ),
+                'aim'      => trim( (string) ( $q['aim'] ?? '' ) ),
             );
         }
 
