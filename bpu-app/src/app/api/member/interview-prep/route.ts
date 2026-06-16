@@ -3,8 +3,8 @@ import { cookies } from 'next/headers';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
-// Must exceed PHP's Gemini timeout (90s) to avoid cutting off a valid response.
-const PROXY_TIMEOUT_MS = 100_000;
+// Must exceed PHP's Gemini timeout (120s) to avoid cutting off a valid response.
+const PROXY_TIMEOUT_MS = 130_000;
 
 export async function POST(request: NextRequest) {
     const cookieStore = await cookies();
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     try {
         const formData = await request.formData();
 
-        const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/cv-analyze`, {
+        const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/interview-prep`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${jwt}` },
             body: formData,
@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         const data = await response.json();
 
         if (!response.ok) {
-            return NextResponse.json({ error: data.message || 'Analysis failed.' }, { status: response.status });
+            return NextResponse.json({ error: data.message || 'Failed to generate questions.' }, { status: response.status });
         }
 
         return NextResponse.json(data, { status: 200 });
@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
                 { status: 504 }
             );
         }
-        console.error('CV analyze proxy error:', error);
+        console.error('Interview prep proxy error:', error);
         return NextResponse.json({ error: 'Internal server error.' }, { status: 500 });
     }
 }
