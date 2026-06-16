@@ -96,20 +96,42 @@ function AnalysisHistoryPanel({ entries, onLoad }: AnalysisHistoryPanelProps) {
     );
 }
 
+// ── Tab ↔ slug mapping ────────────────────────────────────────────────────────
+
+type TabId = 'analyse' | 'prep' | 'upload' | 'review';
+
+const TAB_SLUGS: Record<TabId, string> = {
+    analyse: '',
+    prep:    'interview-prep',
+    upload:  'upload',
+    review:  'review',
+};
+
+function tabToUrl(tab: TabId) {
+    const slug = TAB_SLUGS[tab];
+    return slug ? `/cv-clinic/${slug}` : '/cv-clinic';
+}
+
 // ── Main client ───────────────────────────────────────────────────────────────
 
 interface Props {
     user: BPUUser;
     reviews: CVReview[];
+    initialTab: TabId;
     initialAnalyses: AnalysisHistoryEntry[];
     initialPrepSessions: PrepHistoryEntry[];
 }
 
-export default function CVClinicClient({ user, reviews, initialAnalyses, initialPrepSessions }: Props) {
+export default function CVClinicClient({ user, reviews, initialTab, initialAnalyses, initialPrepSessions }: Props) {
     const router = useRouter();
     const isPro = user.is_pro;
 
-    const [cvTab, setCvTab] = useState<'analyse' | 'upload' | 'review' | 'prep'>('analyse');
+    const [cvTab, setCvTab] = useState<TabId>(initialTab);
+
+    const handleTabChange = (tab: TabId) => {
+        setCvTab(tab);
+        window.history.replaceState(null, '', tabToUrl(tab));
+    };
     const [cvUrl, setCvUrl] = useState(user.cv_url || '');
 
     // ── Analysis history ──
@@ -226,7 +248,7 @@ export default function CVClinicClient({ user, reviews, initialAnalyses, initial
         });
         setAnalyzeMsg(null);
         setAnalyzeCvFile(null);
-        setCvTab('analyse');
+        handleTabChange('analyse');
     };
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -352,7 +374,7 @@ export default function CVClinicClient({ user, reviews, initialAnalyses, initial
                     ).map(({ id, label, badge }) => (
                         <button
                             key={id}
-                            onClick={() => setCvTab(id)}
+                            onClick={() => handleTabChange(id)}
                             className={cvTab === id ? 'btn btn-amber btn-sm' : 'btn btn-ghost btn-sm'}
                             style={{ justifyContent: 'center', gap: '6px', flexShrink: 0, whiteSpace: 'nowrap' }}
                         >
