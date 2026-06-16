@@ -11673,6 +11673,20 @@ PROMPT;
 
         return $questions;
     }
+
+} // end class BPU_Headless_Connector
+
+// Initialize the connector.
+new BPU_Headless_Connector();
+
+// Schedule the weekly digest on activation; clear on deactivation.
+register_activation_hook( __FILE__, 'bpu_schedule_weekly_digest' );
+register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
+
+function bpu_schedule_weekly_digest() {
+    if ( ! wp_next_scheduled( 'bpu_weekly_job_digest' ) ) {
+        wp_schedule_event( strtotime( 'next Monday 08:00:00' ), 'weekly', 'bpu_weekly_job_digest' );
+    }
 }
 
 // Initialize the connector
