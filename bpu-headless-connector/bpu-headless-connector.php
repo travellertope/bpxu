@@ -500,7 +500,14 @@ class BPU_Headless_Connector {
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
 
-        // 5. Get Member CV Reviews List
+        // 5. Interview Prep — generate culture-add questions from CV + JD
+        register_rest_route( $this->namespace, '/member/interview-prep', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_member_interview_prep' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // 6. Get Member CV Reviews List
         register_rest_route( $this->namespace, '/member/cv-reviews', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_member_cv_reviews' ),
@@ -11118,6 +11125,163 @@ register_deactivation_hook( __FILE__, 'bpu_unschedule_weekly_digest' );
 function bpu_schedule_weekly_digest() {
     if ( ! wp_next_scheduled( 'bpu_weekly_job_digest' ) ) {
         wp_schedule_event( strtotime( 'next Monday 08:00:00' ), 'weekly', 'bpu_weekly_job_digest' );
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Interview Prep — culture-add question generation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * POST /bpu/v1/member/interview-prep
+     * Accepts job_description (required) + optional cv_file upload.
+     * Falls back to the member's stored CV if no file uploaded.
+     * Returns { questions: [{question, type, hint, aim}] }.
+     */
+    public function handle_member_interview_prep( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Invalid or missing token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id  = intval( $payload['user_id'] );
+        $body     = $request->get_body_params();
+        $job_desc = isset( $body['job_description'] ) ? sanitize_textarea_field( $body['job_description'] ) : '';
+
+        if ( empty( trim( $job_desc ) ) ) {
+            return new WP_Error( 'bpu_missing_field', __( 'job_description is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Resolve PDF: uploaded file takes priority, else stored CV.
+        $files      = $request->get_file_params();
+        $base64_pdf = '';
+
+        if ( ! empty( $files['cv_file'] ) && $files['cv_file']['error'] === UPLOAD_ERR_OK ) {
+            $file_type = wp_check_filetype( $files['cv_file']['name'] );
+            if ( 'pdf' !== $file_type['ext'] ) {
+                return new WP_Error( 'bpu_invalid_file', __( 'Only PDF files are supported.', 'bpu' ), array( 'status' => 400 ) );
+            }
+            $base64_pdf = base64_encode( file_get_contents( $files['cv_file']['tmp_name'] ) );
+        } else {
+            $cv_id = get_user_meta( $user_id, '_bpu_member_cv_id', true );
+            if ( $cv_id ) {
+                $cv_path = get_attached_file( $cv_id );
+                if ( $cv_path && file_exists( $cv_path ) ) {
+                    $base64_pdf = base64_encode( file_get_contents( $cv_path ) );
+                }
+            }
+        }
+
+        if ( empty( $base64_pdf ) ) {
+            return new WP_Error( 'bpu_no_cv', __( 'No CV found. Please upload a PDF.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $questions = $this->generate_interview_prep_questions( $base64_pdf, $job_desc );
+        if ( is_wp_error( $questions ) ) {
+            return $questions;
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'questions' => $questions ), 200 );
+    }
+
+    /**
+     * Call Gemini to generate structured culture-add interview questions.
+     * Returns array of question objects, or WP_Error.
+     */
+    private function generate_interview_prep_questions( $base64_pdf, $job_description ) {
+        $api_key = defined( 'GEMINI_API_KEY' ) ? GEMINI_API_KEY : get_option( 'bpu_gemini_api_key', '' );
+        if ( empty( $api_key ) ) {
+            return new WP_Error( 'gemini_missing_api_key', __( 'Gemini API Key is not configured.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        $system_prompt = <<<'PROMPT'
+You are an expert interviewer and talent acquisition specialist. Analyse the candidate's CV against the job description and generate exactly 8 culture-add interview questions.
+
+Culture-add questions explore what UNIQUE perspectives, experiences, and values the candidate could bring to the team — not whether they match the existing culture.
+
+For each question assign ONE of these types:
+- "star"     → behavioural/experience questions ("Tell me about a time…", "Describe a situation…")
+- "freetext" → values, motivational, or open-ended questions ("What unique perspective…", "Why…", "How do you…")
+- "rating"   → self-assessment or reflection questions ("How would you rate your…", "On a scale of…", "How confident are you…")
+
+Return ONLY valid JSON — no markdown, no code fences, no extra text. Use exactly this schema:
+{
+  "questions": [
+    {
+      "question": "The full interview question text",
+      "type": "star|freetext|rating",
+      "hint": "A brief prompt to help the candidate think about their answer (1–2 sentences)",
+      "aim": "What this question is designed to uncover about the candidate (1 sentence)"
+    }
+  ]
+}
+PROMPT;
+
+        $user_content = sprintf(
+            "## Job Description\n\n%s",
+            $job_description
+        );
+
+        $body = array(
+            'system_instruction' => array(
+                'parts' => array( array( 'text' => $system_prompt ) ),
+            ),
+            'contents' => array(
+                array(
+                    'parts' => array(
+                        array( 'text' => $user_content ),
+                        array(
+                            'inline_data' => array(
+                                'mime_type' => 'application/pdf',
+                                'data'      => $base64_pdf,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            'generationConfig' => array(
+                'temperature'     => 0.7,
+                'maxOutputTokens' => 3000,
+                'responseMimeType' => 'application/json',
+            ),
+        );
+
+        $data = $this->gemini_request( $body, $api_key, 120 );
+        if ( is_wp_error( $data ) ) {
+            return $data;
+        }
+
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
+        if ( empty( $text ) ) {
+            return new WP_Error( 'gemini_empty', __( 'Empty response from AI.', 'bpu' ), array( 'status' => 502 ) );
+        }
+
+        // Strip markdown code fences if Gemini wraps anyway.
+        $text = preg_replace( '/^```(?:json)?\s*/i', '', trim( $text ) );
+        $text = preg_replace( '/\s*```$/', '', $text );
+
+        $decoded = json_decode( $text, true );
+        if ( ! isset( $decoded['questions'] ) || ! is_array( $decoded['questions'] ) ) {
+            return new WP_Error( 'gemini_invalid_json', __( 'Could not parse AI response.', 'bpu' ), array( 'status' => 502 ) );
+        }
+
+        // Sanitise and validate each question.
+        $questions = array();
+        $valid_types = array( 'star', 'freetext', 'rating' );
+        foreach ( $decoded['questions'] as $q ) {
+            if ( empty( $q['question'] ) ) continue;
+            $questions[] = array(
+                'question' => sanitize_text_field( $q['question'] ),
+                'type'     => in_array( $q['type'] ?? '', $valid_types, true ) ? $q['type'] : 'freetext',
+                'hint'     => sanitize_text_field( $q['hint'] ?? '' ),
+                'aim'      => sanitize_text_field( $q['aim'] ?? '' ),
+            );
+        }
+
+        if ( empty( $questions ) ) {
+            return new WP_Error( 'gemini_no_questions', __( 'AI returned no questions.', 'bpu' ), array( 'status' => 502 ) );
+        }
+
+        return $questions;
     }
 }
 

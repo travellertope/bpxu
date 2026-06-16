@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { BPUUser, ACFProfile, WorkExperience, Education, Certification } from '@/lib/auth';
 import { CVReview, BPUApi } from '@/lib/api';
+import InterviewPrepTab from './InterviewPrepTab';
 
 function ProGate({ children, isPro, feature }: { children: React.ReactNode; isPro: boolean; feature: string }) {
     if (isPro) return <>{children}</>;
@@ -34,7 +35,7 @@ export default function CVClinicClient({ user, reviews, jwt }: Props) {
     const isPro = user.is_pro;
 
     // Sub-tab state
-    const [cvTab, setCvTab] = useState<'analyse' | 'upload' | 'review'>('analyse');
+    const [cvTab, setCvTab] = useState<'analyse' | 'upload' | 'review' | 'prep'>('analyse');
 
     // CV URL
     const [cvUrl, setCvUrl] = useState(user.cv_url || '');
@@ -184,7 +185,8 @@ export default function CVClinicClient({ user, reviews, jwt }: Props) {
             <div className="card" style={{ padding: '6px', display: 'flex', gap: '4px' }}>
                 {(
                     [
-                        { id: 'analyse', label: 'AI Analysis', badge: 'Free' },
+                        { id: 'analyse', label: 'AI Analysis',    badge: 'Free' },
+                        { id: 'prep',    label: 'Interview Prep', badge: 'Free' },
                         { id: 'upload',  label: 'Upload & Parse', badge: isPro ? undefined : 'Pro' },
                         { id: 'review',  label: 'Expert Review',  badge: isPro ? undefined : 'Pro' },
                     ] as const
@@ -340,6 +342,11 @@ export default function CVClinicClient({ user, reviews, jwt }: Props) {
                         </div>
                     )}
                 </div>
+            )}
+
+            {/* ── Tab: Interview Prep ── */}
+            {cvTab === 'prep' && (
+                <InterviewPrepTab cvUrl={cvUrl} />
             )}
 
             {/* ── Tab: Upload & Parse ── */}
