@@ -727,7 +727,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                             <span>{j.date_posted}</span>
                           </div>
                           <a
-                            href={`/api/jobs/track-click?jobId=${j.id}&url=${encodeURIComponent(j.apply_url)}`}
+                            href={`/go/${j.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-amber btn-sm mt-auto"
