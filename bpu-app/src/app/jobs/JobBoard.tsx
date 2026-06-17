@@ -83,9 +83,15 @@ function JobCard({ job }: JobCardProps) {
     const logoUrl = job.employer?.logo_url || undefined;
     const excerpt = job.excerpt ?? '';
 
+    const linkHref = isInbound ? `/jobs/${job.id}` : `/go/${job.id}`;
+    const linkProps = isInbound
+        ? {}
+        : { target: '_blank', rel: 'noopener noreferrer' };
+
     return (
         <Link
-            href={`/jobs/${job.id}`}
+            href={linkHref}
+            {...linkProps}
             className="card card-p card-lift block text-text hover:no-underline"
             style={{ textDecoration: 'none' }}
         >

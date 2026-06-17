@@ -1603,7 +1603,8 @@ class BPU_Headless_Connector {
         $ip_addr = $_SERVER['REMOTE_ADDR'];
 
         $post_type = get_post_type( $job_id );
-        if ( 'job_listing' !== $post_type && 'post' !== $post_type ) {
+        $allowed   = array( 'bpu_job', 'job_listing', 'post' );
+        if ( ! in_array( $post_type, $allowed, true ) ) {
             return new WP_Error(
                 'rest_invalid_job_id',
                 __( 'Invalid Job Listing ID.', 'bpu' ),
@@ -1611,14 +1612,21 @@ class BPU_Headless_Connector {
             );
         }
 
+        // Always update the canonical BPU click counter (used by admin reports)
+        if ( 'bpu_job' === $post_type ) {
+            $bpu_clicks = intval( get_post_meta( $job_id, '_bpu_clicks', true ) ?: 0 ) + 1;
+            update_post_meta( $job_id, '_bpu_clicks', $bpu_clicks );
+        }
+
+        // Legacy click counter (used by WJM-era reports)
         $current_clicks = (int) get_post_meta( $job_id, '_click_count', true );
         update_post_meta( $job_id, '_click_count', $current_clicks + 1 );
 
-        $clicks_table = $wpdb->prefix . 'job_manager_clicks'; 
-        $alt_table    = $wpdb->prefix . 'job_clicks';          
-        
+        $clicks_table = $wpdb->prefix . 'job_manager_clicks';
+        $alt_table    = $wpdb->prefix . 'job_clicks';
+
         $inserted = false;
-        
+
         if ( $wpdb->get_var( "SHOW TABLES LIKE '$clicks_table'" ) === $clicks_table ) {
             $wpdb->insert(
                 $clicks_table,
@@ -1645,8 +1653,8 @@ class BPU_Headless_Connector {
         }
 
         return new WP_REST_Response( array(
-            'success'      => true,
-            'job_id'       => $job_id,
+            'success'           => true,
+            'job_id'            => $job_id,
             'total_meta_clicks' => $current_clicks + 1,
             'legacy_db_logged'  => $inserted,
         ), 200 );
