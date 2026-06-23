@@ -45,7 +45,7 @@ export interface EventItem {
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
 /**
- * Headless API integration utility for app.blackprofessionals.uk
+ * Headless API integration utility for web.blackprofessionals.uk
  */
 export class BPUApi {
 
