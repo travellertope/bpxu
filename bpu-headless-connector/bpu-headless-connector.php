@@ -2,8 +2,8 @@
 /**
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
- * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini Pro AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.0.0
+ * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
+ * Version: 2.1.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -21,7 +21,7 @@ class BPU_Headless_Connector {
      * Allowed redirect origins for SSO handoff.
      */
     private $allowed_sso_origins = array(
-        'https://app.blackprofessionals.uk',
+        'https://web.blackprofessionals.uk',
         'https://pairedbybpu.uk',
         'https://www.pairedbybpu.uk',
     );
@@ -96,6 +96,11 @@ class BPU_Headless_Connector {
         add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
         add_action( 'wp_ajax_bpu_employer_link_user',   array( $this, 'ajax_employer_link_user' ) );
         add_action( 'wp_ajax_bpu_employer_unlink_user', array( $this, 'ajax_employer_unlink_user' ) );
+
+        // Job preview button on edit screen
+        add_filter( 'preview_post_link',      array( $this, 'bpu_job_preview_link' ), 10, 2 );
+        add_filter( 'post_row_actions',       array( $this, 'bpu_job_row_view_link' ), 10, 2 );
+        add_action( 'post_submitbox_misc_actions', array( $this, 'bpu_job_preview_button' ) );
     }
 
     /**
@@ -2029,13 +2034,12 @@ class BPU_Headless_Connector {
     }
 
     /**
-     * Call Gemini API with automatic fallback: tries gemini-2.5-flash first, then gemini-2.0-flash.
-     * Returns decoded response array on success, WP_Error on failure.
+     * Shared Gemini API request helper with automatic model fallback.
+     * Tries gemini-2.5-flash first, falls back to gemini-2.0-flash on 429/503.
      */
     private function gemini_request( array $body, string $api_key, int $timeout = 90 ) {
         $models = array( 'gemini-2.5-flash', 'gemini-2.0-flash' );
         $base   = 'https://generativelanguage.googleapis.com/v1beta/models/';
-
         foreach ( $models as $model ) {
             $url      = $base . $model . ':generateContent?key=' . $api_key;
             $response = wp_remote_post( $url, array(
@@ -2043,29 +2047,21 @@ class BPU_Headless_Connector {
                 'body'    => wp_json_encode( $body ),
                 'timeout' => $timeout,
             ) );
-
             if ( is_wp_error( $response ) ) {
                 return new WP_Error( 'gemini_request_failed', $response->get_error_message(), array( 'status' => 502 ) );
             }
-
             $status = wp_remote_retrieve_response_code( $response );
             $raw    = wp_remote_retrieve_body( $response );
-
             if ( 200 === $status ) {
                 return json_decode( $raw, true );
             }
-
-            // 503 = overloaded, 429 = rate limit — try fallback model
             if ( in_array( $status, array( 429, 503 ), true ) ) {
-                continue;
+                continue; // try next model
             }
-
-            // Any other error code is not retryable
             $decoded = json_decode( $raw, true );
             $message = $decoded['error']['message'] ?? "Gemini returned status {$status}";
             return new WP_Error( 'gemini_api_error', $message, array( 'status' => 502 ) );
         }
-
         return new WP_Error(
             'gemini_unavailable',
             __( 'The AI service is currently experiencing high demand. Please try again in a few minutes.', 'bpu' ),
@@ -2140,8 +2136,7 @@ Return only the JSON object, no markdown.',
     }
 
     /**
-     * Parse base64 PDF CV via Google Gemini Multimodal API.
-     * Tries gemini-2.5-flash then falls back to gemini-2.0-flash on 429/503.
+     * Parse base64 PDF CV directly via Gemini multimodal API.
      */
     private function parse_cv_with_gemini( $base64_pdf ) {
         $api_key = defined( 'GEMINI_API_KEY' ) ? GEMINI_API_KEY : get_option( 'bpu_gemini_api_key', '' );
@@ -2187,15 +2182,17 @@ Rules:
                     'parts' => array(
                         array( 'text' => $prompt ),
                         array(
-                            'inline_data' => array(
-                                'mime_type' => 'application/pdf',
-                                'data'      => $base64_pdf,
+                            'inlineData' => array(
+                                'mimeType' => 'application/pdf',
+                                'data'     => $base64_pdf,
                             ),
                         ),
                     ),
                 ),
             ),
-            'generationConfig' => array( 'responseMimeType' => 'application/json' ),
+            'generationConfig' => array(
+                'responseMimeType' => 'application/json',
+            ),
         );
 
         $data = $this->gemini_request( $body, $api_key, 60 );
@@ -2392,7 +2389,7 @@ Rules:
             $message .= __( 'Good news! A BPU career professional has manually reviewed your CV and posted detailed critiques and strategy suggestions to help you stand out.', 'bpu' ) . "\r\n\r\n";
             $message .= sprintf( __( 'Review Title: %s', 'bpu' ), $post->post_title ) . "\r\n";
             $message .= __( 'Log in to your member portal to view the full details of your review:', 'bpu' ) . "\r\n";
-            $message .= 'https://app.blackprofessionals.uk/dashboard/cv-clinic' . "\r\n\r\n";
+            $message .= 'https://web.blackprofessionals.uk/dashboard/cv-clinic' . "\r\n\r\n";
             $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
             $message .= __( 'The BPU CV Clinic Team', 'bpu' );
 
@@ -2442,7 +2439,7 @@ Rules:
             $message .= sprintf( __( 'Location: %s', 'bpu' ), $location ) . "\r\n";
             $message .= sprintf( __( 'Match:    %d%%', 'bpu' ), $score ) . "\r\n\r\n";
             $message .= __( 'View and apply in your member portal:', 'bpu' ) . "\r\n";
-            $message .= 'https://app.blackprofessionals.uk' . "\r\n\r\n";
+            $message .= 'https://web.blackprofessionals.uk' . "\r\n\r\n";
             $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
             $message .= __( 'The BPU Team', 'bpu' );
 
@@ -2632,7 +2629,7 @@ Rules:
         $message .= '• ' . __( 'Complete your profile so we can match you with the right jobs and mentors', 'bpu' ) . "\r\n";
         $message .= '• ' . __( 'Upload your CV to our AI-powered CV Clinic for personalised feedback', 'bpu' ) . "\r\n";
         $message .= '• ' . __( 'Browse PAIRED — our free 1-on-1 mentorship platform', 'bpu' ) . "\r\n\r\n";
-        $message .= __( 'Your member portal:', 'bpu' ) . ' https://app.blackprofessionals.uk' . "\r\n";
+        $message .= __( 'Your member portal:', 'bpu' ) . ' https://web.blackprofessionals.uk' . "\r\n";
         $message .= __( 'Find a mentor:', 'bpu' ) . ' https://pairedbybpu.uk/mentors' . "\r\n\r\n";
         $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
         $message .= __( 'The BPU Team', 'bpu' );
@@ -2738,7 +2735,7 @@ Rules:
             // Append token to the redirect URL.
             // wp_redirect() is intentional — wp_safe_redirect() only allows
             // redirects to the WordPress host and would block the SSO callback
-            // on app.blackprofessionals.uk / pairedbybpu.uk. The target has
+            // on web.blackprofessionals.uk / pairedbybpu.uk. The target has
             // already been validated against $this->allowed_sso_origins above.
             $target_url = add_query_arg( 'token', $token, $redirect_to );
             wp_redirect( $target_url );
@@ -3571,7 +3568,7 @@ Rules:
                 $message .= sprintf( "%d. %s — %s (%d%% match)\r\n", $i + 1, $j['title'], $j['company'], $j['score'] );
             }
             $message .= "\r\n" . __( 'View all in your member portal:', 'bpu' ) . "\r\n";
-            $message .= "https://app.blackprofessionals.uk\r\n\r\n";
+            $message .= "https://web.blackprofessionals.uk\r\n\r\n";
             $message .= __( 'To unsubscribe, visit My Profile › Email Preferences.', 'bpu' ) . "\r\n";
             $message .= __( 'The BPU Team', 'bpu' );
 
@@ -5582,7 +5579,7 @@ Rules:
         $origin = isset( $_SERVER['HTTP_ORIGIN'] ) ? $_SERVER['HTTP_ORIGIN'] : '';
 
         $allowed_origins = array(
-            'https://app.blackprofessionals.uk',
+            'https://web.blackprofessionals.uk',
             'https://pairedbybpu.uk',
         );
 
@@ -5859,6 +5856,39 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'supports'           => array( 'title', 'editor', 'custom-fields', 'author', 'slug' ),
             'show_in_rest'       => true,
         ) );
+    }
+
+    // ── Job preview helpers ───────────────────────────────────────
+
+    private function bpu_job_frontend_url( $post_id ) {
+        return 'https://web.blackprofessionals.uk/jobs/' . intval( $post_id );
+    }
+
+    public function bpu_job_preview_link( $link, $post ) {
+        if ( 'bpu_job' !== get_post_type( $post ) ) {
+            return $link;
+        }
+        return $this->bpu_job_frontend_url( $post->ID );
+    }
+
+    public function bpu_job_row_view_link( $actions, $post ) {
+        if ( 'bpu_job' !== $post->post_type ) {
+            return $actions;
+        }
+        $url = $this->bpu_job_frontend_url( $post->ID );
+        $actions['view'] = '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">View on site</a>';
+        return $actions;
+    }
+
+    public function bpu_job_preview_button( $post ) {
+        if ( 'bpu_job' !== $post->post_type ) {
+            return;
+        }
+        $url = $this->bpu_job_frontend_url( $post->ID );
+        echo '<div class="misc-pub-section">';
+        echo '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener" class="button button-secondary" style="width:100%;text-align:center;margin-top:4px;">';
+        echo '&#128065; Preview on BPU Portal</a>';
+        echo '</div>';
     }
 
     public function register_job_application_post_type() {
@@ -6573,8 +6603,7 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'id'                  => $post->ID,
             'title'               => $post->post_title,
             'slug'                => $post->post_name,
-            'description'         => $post->post_content,
-            'excerpt'             => $this->make_excerpt( $post->post_content, $employer ),
+            'description'         => wpautop( $post->post_content ),
             'company'             => $company_name,
             'location'            => (string) $get( '_bpu_location' ),
             'employment_type'     => (string) $get( '_bpu_employment_type' ),
@@ -7169,7 +7198,7 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             wp_mail(
                 $employer->user_email,
                 sprintf( 'New application: %s', $job_title ),
-                sprintf( "Hello,\n\nA new application has been received for %s from %s (%s).\n\nLog in to your employer dashboard to review it.\n\nhttps://app.blackprofessionals.uk/employer/jobs/%d\n\nBPU Team", $job_title, $user->display_name, $user->user_email, $job_id ),
+                sprintf( "Hello,\n\nA new application has been received for %s from %s (%s).\n\nLog in to your employer dashboard to review it.\n\nhttps://web.blackprofessionals.uk/employer/jobs/%d\n\nBPU Team", $job_title, $user->display_name, $user->user_email, $job_id ),
                 array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
             );
         }
