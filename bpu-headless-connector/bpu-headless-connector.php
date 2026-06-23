@@ -101,6 +101,13 @@ class BPU_Headless_Connector {
         add_filter( 'preview_post_link',      array( $this, 'bpu_job_preview_link' ), 10, 2 );
         add_filter( 'post_row_actions',       array( $this, 'bpu_job_row_view_link' ), 10, 2 );
         add_action( 'post_submitbox_misc_actions', array( $this, 'bpu_job_preview_button' ) );
+
+        // Employer taxonomy — logo + profile fields on Add / Edit screens
+        add_action( 'bpu_employer_add_form_fields',  array( $this, 'employer_term_add_fields' ) );
+        add_action( 'bpu_employer_edit_form_fields', array( $this, 'employer_term_edit_fields' ), 10, 2 );
+        add_action( 'created_bpu_employer',          array( $this, 'employer_term_save_fields' ) );
+        add_action( 'edited_bpu_employer',           array( $this, 'employer_term_save_fields' ) );
+        add_action( 'admin_enqueue_scripts',         array( $this, 'employer_term_enqueue_media' ) );
     }
 
     /**
@@ -5946,6 +5953,148 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
             'show_admin_column' => true,
             'rewrite'           => false,
         ) );
+    }
+
+    // ── Employer taxonomy term meta fields ───────────────────────
+
+    public function employer_term_enqueue_media( $hook ) {
+        // Only load on taxonomy screens for bpu_employer
+        if ( ! in_array( $hook, array( 'edit-tags.php', 'term.php' ), true ) ) {
+            return;
+        }
+        if ( ( $_GET['taxonomy'] ?? '' ) !== 'bpu_employer' ) {
+            return;
+        }
+        wp_enqueue_media();
+        wp_add_inline_script( 'jquery', '
+jQuery(function($){
+    $(document).on("click", ".bpu-upload-logo-btn", function(e){
+        e.preventDefault();
+        var btn = $(this);
+        var frame = wp.media({ title: "Select Employer Logo", button: { text: "Use this logo" }, multiple: false });
+        frame.on("select", function(){
+            var att = frame.state().get("selection").first().toJSON();
+            btn.siblings(".bpu-logo-url-input").val(att.url);
+            btn.siblings(".bpu-logo-preview").attr("src", att.url).show();
+            btn.siblings(".bpu-remove-logo-btn").show();
+        });
+        frame.open();
+    });
+    $(document).on("click", ".bpu-remove-logo-btn", function(e){
+        e.preventDefault();
+        $(this).siblings(".bpu-logo-url-input").val("");
+        $(this).siblings(".bpu-logo-preview").hide().attr("src","");
+        $(this).hide();
+    });
+});
+' );
+    }
+
+    private function employer_logo_field_html( $logo_url = '' ) {
+        $preview_style = $logo_url ? '' : ' style="display:none"';
+        ob_start(); ?>
+        <div class="bpu-logo-wrap" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+            <img class="bpu-logo-preview" src="<?php echo esc_url( $logo_url ); ?>"
+                 alt="Logo preview"
+                 style="max-height:60px;max-width:160px;border:1px solid #ddd;border-radius:4px;padding:4px;background:#fff;<?php echo $logo_url ? '' : 'display:none;'; ?>" />
+            <input type="hidden" name="bpu_employer_logo_url" class="bpu-logo-url-input" value="<?php echo esc_url( $logo_url ); ?>" />
+            <button type="button" class="button bpu-upload-logo-btn">
+                <?php echo $logo_url ? 'Change logo' : 'Upload logo'; ?>
+            </button>
+            <button type="button" class="button bpu-remove-logo-btn"<?php echo $logo_url ? '' : ' style="display:none"'; ?>>Remove</button>
+        </div>
+        <?php return ob_get_clean();
+    }
+
+    public function employer_term_add_fields() {
+        wp_nonce_field( 'bpu_employer_term_meta', 'bpu_employer_term_nonce' );
+        ?>
+        <div class="form-field">
+            <label><?php _e( 'Logo', 'bpu' ); ?></label>
+            <?php echo $this->employer_logo_field_html(); ?>
+            <p class="description"><?php _e( 'Upload or select the employer logo from the media library.', 'bpu' ); ?></p>
+        </div>
+        <div class="form-field">
+            <label for="bpu_employer_tagline"><?php _e( 'Tagline', 'bpu' ); ?></label>
+            <input type="text" id="bpu_employer_tagline" name="bpu_employer_tagline" value="" />
+        </div>
+        <div class="form-field">
+            <label for="bpu_employer_website"><?php _e( 'Website URL', 'bpu' ); ?></label>
+            <input type="url" id="bpu_employer_website" name="bpu_employer_website" value="" />
+        </div>
+        <div class="form-field">
+            <label for="bpu_employer_twitter"><?php _e( 'Twitter / X handle', 'bpu' ); ?></label>
+            <input type="text" id="bpu_employer_twitter" name="bpu_employer_twitter" value="" placeholder="@handle" />
+        </div>
+        <div class="form-field">
+            <label for="bpu_employer_description"><?php _e( 'About the company', 'bpu' ); ?></label>
+            <textarea id="bpu_employer_description" name="bpu_employer_description" rows="5" style="width:100%"></textarea>
+        </div>
+        <?php
+    }
+
+    public function employer_term_edit_fields( $term ) {
+        wp_nonce_field( 'bpu_employer_term_meta', 'bpu_employer_term_nonce' );
+        $logo        = get_term_meta( $term->term_id, 'logo_url',    true );
+        $tagline     = get_term_meta( $term->term_id, 'tagline',     true );
+        $website     = get_term_meta( $term->term_id, 'website',     true );
+        $twitter     = get_term_meta( $term->term_id, 'twitter',     true );
+        $description = get_term_meta( $term->term_id, 'description', true );
+        ?>
+        <tr class="form-field">
+            <th><label><?php _e( 'Logo', 'bpu' ); ?></label></th>
+            <td>
+                <?php echo $this->employer_logo_field_html( $logo ); ?>
+                <p class="description"><?php _e( 'Upload or select the employer logo from the media library.', 'bpu' ); ?></p>
+            </td>
+        </tr>
+        <tr class="form-field">
+            <th><label for="bpu_employer_tagline"><?php _e( 'Tagline', 'bpu' ); ?></label></th>
+            <td><input type="text" id="bpu_employer_tagline" name="bpu_employer_tagline" value="<?php echo esc_attr( $tagline ); ?>" /></td>
+        </tr>
+        <tr class="form-field">
+            <th><label for="bpu_employer_website"><?php _e( 'Website URL', 'bpu' ); ?></label></th>
+            <td><input type="url" id="bpu_employer_website" name="bpu_employer_website" value="<?php echo esc_url( $website ); ?>" /></td>
+        </tr>
+        <tr class="form-field">
+            <th><label for="bpu_employer_twitter"><?php _e( 'Twitter / X handle', 'bpu' ); ?></label></th>
+            <td><input type="text" id="bpu_employer_twitter" name="bpu_employer_twitter" value="<?php echo esc_attr( $twitter ); ?>" placeholder="@handle" /></td>
+        </tr>
+        <tr class="form-field">
+            <th><label for="bpu_employer_description"><?php _e( 'About the company', 'bpu' ); ?></label></th>
+            <td><textarea id="bpu_employer_description" name="bpu_employer_description" rows="5" style="width:100%"><?php echo esc_textarea( $description ); ?></textarea></td>
+        </tr>
+        <?php
+    }
+
+    public function employer_term_save_fields( $term_id ) {
+        if ( ! isset( $_POST['bpu_employer_term_nonce'] ) ||
+             ! wp_verify_nonce( $_POST['bpu_employer_term_nonce'], 'bpu_employer_term_meta' ) ) {
+            return;
+        }
+        if ( ! current_user_can( 'manage_categories' ) ) {
+            return;
+        }
+
+        $fields = array(
+            'logo_url'    => 'sanitize_url',
+            'tagline'     => 'sanitize_text_field',
+            'website'     => 'sanitize_url',
+            'twitter'     => 'sanitize_text_field',
+            'description' => 'wp_kses_post',
+        );
+        $post_keys = array(
+            'logo_url'    => 'bpu_employer_logo_url',
+            'tagline'     => 'bpu_employer_tagline',
+            'website'     => 'bpu_employer_website',
+            'twitter'     => 'bpu_employer_twitter',
+            'description' => 'bpu_employer_description',
+        );
+
+        foreach ( $fields as $meta_key => $sanitizer ) {
+            $raw = $_POST[ $post_keys[ $meta_key ] ] ?? '';
+            update_term_meta( $term_id, $meta_key, call_user_func( $sanitizer, $raw ) );
+        }
     }
 
     // ── Employer ↔ User link admin page ──────────────────────────
