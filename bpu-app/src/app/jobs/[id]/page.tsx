@@ -7,9 +7,12 @@ import ApplyWizardTrigger from './ApplyWizardTrigger';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
-async function fetchJob(id: string, skipImpression = false): Promise<Job | null> {
+async function fetchJob(id: string, skipImpression = false, previewKey?: string): Promise<Job | null> {
     try {
-        const qs = skipImpression ? '?skip_impression=1' : '';
+        const params = new URLSearchParams();
+        if (skipImpression) params.set('skip_impression', '1');
+        if (previewKey) params.set('preview_key', previewKey);
+        const qs = params.size ? `?${params}` : '';
         const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs/${id}${qs}`, {
             cache: 'no-store',
         });
@@ -113,9 +116,10 @@ function ApplyCard({ job, isInbound, session, employer, salary }: {
     );
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+export async function generateMetadata({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ preview_key?: string }> }) {
     const { id } = await params;
-    const job = await fetchJob(id, true);
+    const { preview_key } = await searchParams;
+    const job = await fetchJob(id, true, preview_key);
     if (!job) return { title: 'Job not found | BPU Portal' };
     return {
         title: `${job.title} at ${job.company} | BPU Jobs`,
@@ -123,9 +127,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
     };
 }
 
-export default async function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function JobDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ preview_key?: string }> }) {
     const { id } = await params;
-    const [session, job] = await Promise.all([getBPUSession(), fetchJob(id)]);
+    const { preview_key } = await searchParams;
+    const [session, job] = await Promise.all([getBPUSession(), fetchJob(id, false, preview_key)]);
 
     if (!job) notFound();
 

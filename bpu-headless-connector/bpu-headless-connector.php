@@ -5860,23 +5860,33 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
 
     // ── Job preview helpers ───────────────────────────────────────
 
-    private function bpu_job_frontend_url( $post_id ) {
-        return 'https://web.blackprofessionals.uk/jobs/' . intval( $post_id );
+    private function generate_job_preview_key( $post_id ) {
+        $secret = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        return hash_hmac( 'sha256', 'job_preview_' . intval( $post_id ), $secret );
+    }
+
+    private function bpu_job_frontend_url( $post_id, $with_preview = false ) {
+        $url = 'https://web.blackprofessionals.uk/jobs/' . intval( $post_id );
+        if ( $with_preview ) {
+            $url .= '?preview_key=' . $this->generate_job_preview_key( $post_id );
+        }
+        return $url;
     }
 
     public function bpu_job_preview_link( $link, $post ) {
         if ( 'bpu_job' !== get_post_type( $post ) ) {
             return $link;
         }
-        return $this->bpu_job_frontend_url( $post->ID );
+        return $this->bpu_job_frontend_url( $post->ID, true );
     }
 
     public function bpu_job_row_view_link( $actions, $post ) {
         if ( 'bpu_job' !== $post->post_type ) {
             return $actions;
         }
-        $url = $this->bpu_job_frontend_url( $post->ID );
-        $actions['view'] = '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">View on site</a>';
+        $published = $post->post_status === 'publish';
+        $url = $this->bpu_job_frontend_url( $post->ID, ! $published );
+        $actions['view'] = '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener">' . ( $published ? 'View on site' : 'Preview on site' ) . '</a>';
         return $actions;
     }
 
@@ -5884,7 +5894,7 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         if ( 'bpu_job' !== $post->post_type ) {
             return;
         }
-        $url = $this->bpu_job_frontend_url( $post->ID );
+        $url = $this->bpu_job_frontend_url( $post->ID, true );
         echo '<div class="misc-pub-section">';
         echo '<a href="' . esc_url( $url ) . '" target="_blank" rel="noopener" class="button button-secondary" style="width:100%;text-align:center;margin-top:4px;">';
         echo '&#128065; Preview on BPU Portal</a>';
@@ -6687,7 +6697,18 @@ define( 'BPU_JWT_SECRET', 'your-strong-random-secret-here' );</pre>
         $job_id = intval( $request->get_param( 'id' ) );
         $post   = get_post( $job_id );
 
-        if ( ! $post || $post->post_type !== 'bpu_job' || $post->post_status !== 'publish' ) {
+        if ( ! $post || $post->post_type !== 'bpu_job' ) {
+            return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        // Allow previewing unpublished jobs with a valid signed preview key
+        $preview_key = (string) $request->get_param( 'preview_key' );
+        $is_preview  = $preview_key && hash_equals(
+            $this->generate_job_preview_key( $job_id ),
+            $preview_key
+        );
+
+        if ( ! $is_preview && $post->post_status !== 'publish' ) {
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
