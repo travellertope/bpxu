@@ -47,17 +47,28 @@ export default async function JobsPage() {
             <main className="flex-1">
                 {/* Hero */}
                 <section
-                    className="py-14 text-center"
+                    className="py-20 text-center"
                     style={{
-                        background: 'linear-gradient(135deg, var(--brand-bg) 0%, var(--surface) 100%)',
+                        position: 'relative',
+                        overflow: 'hidden',
                         borderBottom: '1px solid var(--border)',
                     }}
                 >
-                    <div className="wrap">
-                        <h1 className="text-4xl font-extrabold tracking-tight mb-3">
+                    {/* Background image */}
+                    <div style={{
+                        position: 'absolute', inset: 0,
+                        backgroundImage: 'url(https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1600&q=80)',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center 30%',
+                    }} />
+                    {/* Dark overlay */}
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,10,20,0.62)' }} />
+
+                    <div className="wrap" style={{ position: 'relative', zIndex: 1 }}>
+                        <h1 className="text-4xl font-extrabold tracking-tight mb-4" style={{ color: '#fff' }}>
                             Find your next opportunity
                         </h1>
-                        <p className="text-text-2 text-lg max-w-2xl mx-auto">
+                        <p className="text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.82)' }}>
                             Hundreds of jobs from organisations that prioritise diversity, equity, and inclusion, ensuring you have access to opportunities that value your unique skills and experiences. From technology and finance to arts and beyond, you can find opportunities in various industries.
                         </p>
                     </div>

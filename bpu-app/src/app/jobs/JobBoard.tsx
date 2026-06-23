@@ -64,14 +64,34 @@ function CompanyAvatar({ name, logoUrl }: { name: string; logoUrl?: string }) {
     );
 }
 
+const EMP_TYPE_BADGE: Record<string, string> = {
+    'full-time':  'badge-blue',
+    'part-time':  'badge-purple',
+    'contract':   'badge-teal',
+    'freelance':  'badge-orange',
+    'internship': 'badge-green',
+};
+function empTypeBadge(type: string): string {
+    const t = type.toLowerCase();
+    const key = Object.keys(EMP_TYPE_BADGE).find(k => t.includes(k));
+    return key ? EMP_TYPE_BADGE[key] : 'badge-gray';
+}
+
 function JobCard({ job }: JobCardProps) {
     const salary = formatSalary(job.salary_min, job.salary_max);
     const isInbound = job.job_type === 'inbound';
     const logoUrl = job.employer?.logo_url || undefined;
+    const excerpt = job.excerpt ?? '';
+
+    const linkHref = isInbound ? `/jobs/${job.id}` : `/go/${job.id}`;
+    const linkProps = isInbound
+        ? {}
+        : { target: '_blank', rel: 'noopener noreferrer' };
 
     return (
         <Link
-            href={`/jobs/${job.id}`}
+            href={linkHref}
+            {...linkProps}
             className="card card-p card-lift block text-text hover:no-underline"
             style={{ textDecoration: 'none' }}
         >
@@ -88,8 +108,8 @@ function JobCard({ job }: JobCardProps) {
                         )}
                     </div>
                     <p className="text-sm text-text-2 mt-0.5 truncate">{job.company}</p>
-                    {job.employer?.tagline && (
-                        <p className="text-xs text-text-3 mt-0.5 truncate">{job.employer.tagline}</p>
+                    {excerpt && (
+                        <p className="text-xs text-text-2 mt-1 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{excerpt}</p>
                     )}
                 </div>
             </div>
@@ -100,8 +120,7 @@ function JobCard({ job }: JobCardProps) {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                     {job.remote ? 'Remote' : job.location}
                 </span>
-                <span className="flex items-center gap-1">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                <span className={`badge ${empTypeBadge(job.employment_type)}`} style={{ fontSize: '11px', padding: '2px 8px' }}>
                     {job.employment_type}
                 </span>
                 {salary && (

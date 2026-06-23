@@ -1,4 +1,8 @@
 import { Suspense } from 'react';
+import { cookies } from 'next/headers';
+import { decodeHtml } from '@/lib/utils';
+import { getBPUSession } from '@/lib/auth';
+import FavouriteButton from '../FavouriteButton';
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -11,6 +15,10 @@ interface MentorSummary {
     skills_separate: string;
     user_bio: string;
     industryfield_of_expertise: string;
+    company: string;
+    current_role: string;
+    average_rating: number;
+    review_count: number;
 }
 
 function mentorColor(id: number): string {
@@ -32,14 +40,24 @@ const INDUSTRIES = [
     'Trades & Services', 'Other',
 ];
 
+function isGravatar(url: string): boolean {
+    if (!url) return true;
+    if (!url.includes('gravatar.com')) return false;
+    return url.includes('d=blank') || url.includes('d=mm') || url.includes('d=mystery');
+}
+
 async function MentorGrid({
     search,
     industry,
     page,
+    favouritedIds,
+    isAuthenticated,
 }: {
     search: string;
     industry: string;
     page: number;
+    favouritedIds: Set<number>;
+    isAuthenticated: boolean;
 }) {
     const url = new URL(`${WP_BACKEND_URL}/wp-json/bpu/v1/mentors`);
     url.searchParams.set('per_page', '12');
@@ -95,49 +113,99 @@ async function MentorGrid({
                 {mentors.map(m => {
                     const skills = (m.skills_separate || '')
                         .split(',')
-                        .map(s => s.trim())
+                        .map(s => decodeHtml(s.trim()))
                         .filter(Boolean)
                         .slice(0, 3);
                     const color = mentorColor(m.id);
+                    const hasPhoto = m.avatar_url && !isGravatar(m.avatar_url);
+                    const subtitle = decodeHtml(m.current_role || m.industryfield_of_expertise || m.industry || 'Professional');
+                    const companyLine = m.company ? `at ${decodeHtml(m.company)}` : '';
+                    const industry = decodeHtml(m.industry);
+
                     return (
-                        <div key={m.id} className="card card-p card-lift flex flex-col gap-4">
-                            <div className="flex items-center gap-4">
-                                <div
-                                    className="avatar avatar-md text-white shrink-0"
-                                    style={{ background: color }}
-                                >
-                                    {m.display_name[0]}
-                                </div>
-                                <div className="min-w-0">
-                                    <p className="font-bold truncate">{m.display_name}</p>
-                                    <p className="text-sm text-text-2 truncate">
-                                        {m.industryfield_of_expertise || m.industry || 'Professional'}
-                                    </p>
-                                    {(m.industry || m.years_of_experience) && (
-                                        <p className="text-xs text-text-3 mt-0.5">
-                                            {[m.industry, m.years_of_experience && `${m.years_of_experience} yrs`]
-                                                .filter(Boolean)
-                                                .join(' · ')}
-                                        </p>
+                        <a
+                            key={m.id}
+                            href={`/paired/mentors/${m.id}`}
+                            className="card card-lift flex flex-col"
+                            style={{ textDecoration: 'none', color: 'inherit' }}
+                        >
+                            <div style={{ padding: '24px 24px 0' }} className="flex items-start gap-4">
+                                {hasPhoto ? (
+                                    <img
+                                        src={m.avatar_url}
+                                        alt={m.display_name}
+                                        className="shrink-0 rounded-full object-cover"
+                                        style={{ width: 56, height: 56 }}
+                                    />
+                                ) : (
+                                    <div
+                                        className="avatar avatar-md text-white shrink-0"
+                                        style={{ background: color }}
+                                    >
+                                        {m.display_name[0]}
+                                    </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                    <p className="font-bold truncate leading-tight">{m.display_name}</p>
+                                    <p className="text-sm text-text-2 truncate mt-0.5">{subtitle}</p>
+                                    {companyLine && (
+                                        <p className="text-xs text-text-3 truncate mt-0.5">{companyLine}</p>
                                     )}
                                 </div>
+                                {isAuthenticated && (
+                                    <div className="shrink-0">
+                                        <FavouriteButton
+                                            mentorId={m.id}
+                                            initialFavourited={favouritedIds.has(m.id)}
+                                            size={18}
+                                        />
+                                    </div>
+                                )}
                             </div>
 
-                            {skills.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5">
-                                    {skills.map(s => (
-                                        <span key={s} className="badge badge-purple text-xs">{s}</span>
-                                    ))}
-                                </div>
-                            )}
+                            <div style={{ padding: '16px 24px' }} className="flex-1 flex flex-col gap-3">
+                                {(m.industry || m.years_of_experience) && (
+                                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-3">
+                                        {industry && (
+                                            <span className="flex items-center gap-1">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                                                {industry}
+                                            </span>
+                                        )}
+                                        {m.years_of_experience && (
+                                            <span className="flex items-center gap-1">
+                                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                                                {m.years_of_experience} yrs
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
 
-                            <a
-                                href={`/paired/mentors/${m.id}`}
-                                className="btn btn-outline btn-sm mt-auto"
-                            >
-                                View profile →
-                            </a>
-                        </div>
+                                {skills.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {skills.map(s => (
+                                            <span key={s} className="badge badge-purple text-xs">{s}</span>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {m.average_rating > 0 && (
+                                    <div className="flex items-center gap-1 text-xs">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="#f59e0b" stroke="#f59e0b" strokeWidth="2">
+                                            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                                        </svg>
+                                        <span className="font-semibold" style={{ color: '#f59e0b' }}>{m.average_rating.toFixed(1)}</span>
+                                        <span className="text-text-3">({m.review_count})</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div style={{ padding: '0 24px 24px' }}>
+                                <span className="btn btn-outline btn-sm w-full justify-center">
+                                    View profile →
+                                </span>
+                            </div>
+                        </a>
                     );
                 })}
             </div>
@@ -167,6 +235,50 @@ async function MentorGrid({
     );
 }
 
+async function MentorGridWithFavourites({
+    search,
+    industry,
+    page,
+}: {
+    search: string;
+    industry: string;
+    page: number;
+}) {
+    const session = await getBPUSession();
+    const isAuthenticated = session.authenticated;
+
+    let favouritedIds = new Set<number>();
+    if (isAuthenticated) {
+        try {
+            const cookieStore = await cookies();
+            const jwt = cookieStore.get('bpu_session')?.value || '';
+            if (jwt) {
+                const WP = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+                const favRes = await fetch(`${WP}/wp-json/bpu/v1/paired/favourites`, {
+                    headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+                });
+                if (favRes.ok) {
+                    const favData = await favRes.json();
+                    const favourites: Array<{ mentor_id: number }> = favData.favourites || [];
+                    favouritedIds = new Set(favourites.map(f => f.mentor_id));
+                }
+            }
+        } catch {
+            // Favourites unavailable
+        }
+    }
+
+    return (
+        <MentorGrid
+            search={search}
+            industry={industry}
+            page={page}
+            favouritedIds={favouritedIds}
+            isAuthenticated={isAuthenticated}
+        />
+    );
+}
+
 export default async function MentorDirectory({
     searchParams,
 }: {
@@ -178,7 +290,7 @@ export default async function MentorDirectory({
     const page = Math.max(1, parseInt(params.page || '1', 10));
 
     return (
-        <div className="wrap py-12 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+        <div className="wrap py-8 fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
 
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 <h1 className="text-4xl font-extrabold tracking-tight">Browse mentors</h1>
@@ -187,32 +299,64 @@ export default async function MentorDirectory({
                 </p>
             </div>
 
+            {/* Search & filter bar */}
             <form
                 method="GET"
-                style={{ maxWidth: '640px', marginLeft: 'auto', marginRight: 'auto', width: '100%' }}
+                className="card"
+                style={{ padding: '20px 24px', maxWidth: '800px', marginLeft: 'auto', marginRight: 'auto', width: '100%' }}
             >
-                <div className="flex flex-col sm:flex-row gap-3">
-                    <input
-                        type="text"
-                        name="search"
-                        defaultValue={search}
-                        placeholder="Search by name, role or skill…"
-                        className="field-input flex-1"
-                    />
-                    <select name="industry" defaultValue={industry} className="field-input sm:w-48">
+                <div className="flex flex-col sm:flex-row gap-3 items-stretch">
+                    <div className="flex-1 relative">
+                        <svg
+                            width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-3"
+                            style={{ pointerEvents: 'none' }}
+                        >
+                            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        <input
+                            type="text"
+                            name="search"
+                            defaultValue={search}
+                            placeholder="Search by name, role or skill…"
+                            className="field-input w-full"
+                            style={{ paddingLeft: '36px' }}
+                        />
+                    </div>
+                    <select
+                        name="industry"
+                        defaultValue={industry}
+                        className="field-input"
+                        style={{ minWidth: '220px' }}
+                    >
                         <option value="">All industries</option>
                         {INDUSTRIES.map(i => (
                             <option key={i} value={i}>{i}</option>
                         ))}
                     </select>
-                    <button type="submit" className="btn btn-purple">Search</button>
+                    <button type="submit" className="btn btn-purple" style={{ whiteSpace: 'nowrap' }}>
+                        Search
+                    </button>
                 </div>
+                {(search || industry) && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-text-3">
+                        <span>Filtering by:</span>
+                        {search && (
+                            <span className="badge badge-purple">&quot;{search}&quot;</span>
+                        )}
+                        {industry && (
+                            <span className="badge badge-purple">{industry}</span>
+                        )}
+                        <a href="/paired/mentors" className="text-brand hover:underline ml-1">Clear all</a>
+                    </div>
+                )}
             </form>
 
             <Suspense fallback={
                 <div className="text-center text-sm text-text-2 py-12">Loading mentors…</div>
             }>
-                <MentorGrid search={search} industry={industry} page={page} />
+                <MentorGridWithFavourites search={search} industry={industry} page={page} />
             </Suspense>
 
         </div>

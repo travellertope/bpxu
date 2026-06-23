@@ -40,6 +40,7 @@ interface Props {
 export default function ClientDashboard({ user, initialJobs, initialCourses, initialReviews, initialEvents, jwt }: Props) {
   const isPro = user.is_pro;
   const [tab, setTab] = useState<Tab>('overview');
+  const [cvTab, setCvTab] = useState<'analyse' | 'upload' | 'review'>('analyse');
   const [profile, setProfile] = useState<ACFProfile>(user.profile);
   const [cvUrl, setCvUrl] = useState(user.cv_url || '');
   const [jobs] = useState<JobListing[]>(initialJobs);
@@ -132,15 +133,43 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Upload failed.');
       setCvUrl(data.cv_url);
+
+      // Re-fetch the full profile from WP to get all ACF-saved fields
+      const profileRes = await fetch('/api/member/profile', { cache: 'no-store' });
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        if (profileData.profile) {
+          setProfile(profileData.profile);
+          setEditForm(profileData.profile);
+        }
+        if (profileData.experiences?.length)    setExperiences(profileData.experiences);
+        if (profileData.educations?.length)     setEducations(profileData.educations);
+        if (profileData.certifications?.length) setCertifications(profileData.certifications);
+        if (profileData.languages)              setCvLanguages(profileData.languages);
+        if (profileData.cv_parsed_at)           setCvParsedAt(profileData.cv_parsed_at);
+      } else {
+        // Fallback: merge only non-empty parsed fields into form state
+        const parsed = data.parsed_data || {};
+        const nonEmpty = Object.fromEntries(
+          Object.entries(parsed).filter(([, v]) => v !== '' && v !== null && v !== undefined && !Array.isArray(v))
+        );
+        setProfile(prev => ({ ...prev, ...nonEmpty }));
+        setEditForm(prev => ({ ...prev, ...nonEmpty }));
+        if (parsed.work_experiences?.length)  setExperiences(parsed.work_experiences);
+        if (parsed.education_history?.length) setEducations(parsed.education_history);
+        if (parsed.certifications?.length)    setCertifications(parsed.certifications);
+        if (parsed.languages)                 setCvLanguages(parsed.languages);
+        setCvParsedAt(new Date().toLocaleString());
+      }
       const parsed = data.parsed_data || {};
-      setProfile(prev => ({ ...prev, ...parsed }));
-      setEditForm(prev => ({ ...prev, ...parsed }));
-      if (parsed.work_experiences?.length)  setExperiences(parsed.work_experiences);
-      if (parsed.education_history?.length) setEducations(parsed.education_history);
-      if (parsed.certifications?.length)    setCertifications(parsed.certifications);
-      if (parsed.languages)                 setCvLanguages(parsed.languages);
-      setCvParsedAt(new Date().toLocaleString());
-      setUploadMsg({ type: 'ok', text: 'CV uploaded — your profile has been updated automatically.' });
+      const parts: string[] = [];
+      if (parsed.first_name || parsed.last_name) parts.push('name');
+      if (parsed.work_experiences?.length) parts.push(`${parsed.work_experiences.length} job${parsed.work_experiences.length !== 1 ? 's' : ''}`);
+      if (parsed.education_history?.length) parts.push(`${parsed.education_history.length} education entr${parsed.education_history.length !== 1 ? 'ies' : 'y'}`);
+      if (parsed.skills_separate) parts.push('skills');
+      if (parsed.user_bio) parts.push('bio');
+      const summary = parts.length ? ` Extracted: ${parts.join(', ')}.` : ' No data could be extracted — check the PDF is readable.';
+      setUploadMsg({ type: 'ok', text: `CV uploaded — your profile has been updated automatically.${summary}` });
     } catch (err: unknown) {
       setUploadMsg({ type: 'err', text: err instanceof Error ? err.message : 'Upload error.' });
     } finally {
@@ -285,15 +314,41 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4">
-              {[
-                { val: jobs.length,    label: 'Job matches'  },
-                { val: courses.length, label: 'Courses'      },
-                { val: reviews.length, label: 'CV reviews'   },
-              ].map(s => (
-                <div key={s.label} className="card card-p text-center">
+              {(() => {
+                const inProgress = courses.filter(c => c.status === 'In Progress').length;
+                const completed  = courses.filter(c => c.status === 'Completed').length;
+                const upcomingEvents = events.filter(ev => ev.start_date && new Date(ev.start_date) >= new Date()).length;
+                return [
+                  {
+                    val:   courses.length,
+                    label: courses.length === 0 ? 'Enrolled courses' : inProgress > 0 ? `${inProgress} in progress` : completed > 0 ? `${completed} completed` : 'Enrolled',
+                    sub:   'Courses',
+                    tab:   'courses' as Tab,
+                  },
+                  {
+                    val:   upcomingEvents,
+                    label: upcomingEvents === 1 ? 'Upcoming event' : 'Upcoming events',
+                    sub:   'Events',
+                    tab:   'events' as Tab,
+                  },
+                  {
+                    val:   reviews.length,
+                    label: reviews.length === 1 ? 'Review received' : 'Reviews received',
+                    sub:   'CV Clinic',
+                    tab:   'cv' as Tab,
+                  },
+                ];
+              })().map(s => (
+                <button
+                  key={s.sub}
+                  onClick={() => setTab(s.tab)}
+                  className="card card-p text-center hover:border-brand transition-colors cursor-pointer"
+                  style={{ background: 'none', width: '100%' }}
+                >
                   <div className="stat-val">{s.val}</div>
                   <div className="stat-label">{s.label}</div>
-                </div>
+                  <div className="text-xs text-text-3 mt-1">{s.sub}</div>
+                </button>
               ))}
             </div>
 
@@ -325,7 +380,14 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
               <div className="card card-p space-y-4">
                 <p className="section-title">CV Clinic</p>
                 {cvUrl
-                  ? <div className="alert alert-green text-sm">CV on file — <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Download</a></div>
+                  ? <div className="alert alert-green text-sm flex items-center justify-between gap-3">
+                      <span>CV on file</span>
+                      <div className="flex items-center gap-2">
+                        <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="underline font-semibold">Download</a>
+                        <span className="text-text-3">·</span>
+                        <button onClick={() => { setTab('cv'); setCvTab('upload'); }} className="underline font-semibold">Replace</button>
+                      </div>
+                    </div>
                   : <div className="alert alert-amber text-sm">No CV uploaded yet. Upload a PDF to auto-fill your profile.</div>
                 }
                 <button onClick={() => setTab('cv')} className="btn btn-outline btn-sm">
@@ -344,245 +406,295 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
           <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
               <h2 className="text-xl font-bold">CV Clinic</h2>
-              <p className="section-sub">Get instant AI feedback on your CV, upload it to auto-fill your profile, or request a professional written review.</p>
+              <p className="section-sub">Three ways to get the most out of your CV — pick the tool that fits your need.</p>
             </div>
 
-            {/* ── CV Analyzer — free for all logged-in users ── */}
-            <div className="card card-p space-y-5">
-              <div>
-                <p className="section-title">Instant CV Analysis</p>
-                <p className="text-sm text-text-2">Get instant AI feedback on how well your CV matches a role. Free for all members.</p>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="field-label">Target role <span className="text-red-400">*</span></label>
-                  <input
-                    className="field-input"
-                    placeholder="e.g. Senior Software Engineer"
-                    value={analyzeRole}
-                    onChange={e => setAnalyzeRole(e.target.value)}
-                    disabled={analyzing}
-                  />
-                </div>
-                <div>
-                  <label className="field-label">Job description <span className="text-text-3 font-normal">(optional — paste the JD for a more accurate score)</span></label>
-                  <textarea
-                    className="field-input field-textarea"
-                    placeholder="Paste the job description here…"
-                    rows={4}
-                    value={analyzeJD}
-                    onChange={e => setAnalyzeJD(e.target.value)}
-                    disabled={analyzing}
-                  />
-                </div>
-                {cvUrl
-                  ? <p className="text-xs text-text-2">Using your saved CV. <label htmlFor="analyze-cv-file" className="underline cursor-pointer">Use a different file</label>
-                      {analyzeCvFile && <span className="ml-2 text-brand">✓ {analyzeCvFile.name}</span>}
-                      <input id="analyze-cv-file" type="file" accept=".pdf" className="sr-only" onChange={e => setAnalyzeCvFile(e.target.files?.[0] ?? null)} />
-                    </p>
-                  : <div>
-                      <label className="field-label">CV (PDF) <span className="text-red-400">*</span></label>
-                      <label htmlFor="analyze-cv-file" className="block card p-4 text-center text-sm text-text-2 cursor-pointer" style={{ borderStyle: 'dashed' }}>
-                        {analyzeCvFile ? <span className="text-brand font-medium">✓ {analyzeCvFile.name}</span> : 'Click to upload PDF'}
-                      </label>
-                      <input id="analyze-cv-file" type="file" accept=".pdf" className="sr-only" onChange={e => setAnalyzeCvFile(e.target.files?.[0] ?? null)} />
-                    </div>
-                }
-                {analyzeMsg && (
-                  <div className={`alert ${analyzeMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
-                    {analyzeMsg.text}
-                  </div>
-                )}
+            {/* ── Sub-tab bar ── */}
+            <div className="card" style={{ padding: '6px', display: 'flex', gap: '4px' }}>
+              {(
+                [
+                  { id: 'analyse', label: 'AI Analysis', badge: 'Free' },
+                  { id: 'upload',  label: 'Upload & Parse', badge: isPro ? undefined : 'Pro' },
+                  { id: 'review',  label: 'Expert Review',  badge: isPro ? undefined : 'Pro' },
+                ] as const
+              ).map(({ id, label, badge }) => (
                 <button
-                  onClick={handleCVAnalyze}
-                  disabled={analyzing}
-                  className="btn btn-amber"
+                  key={id}
+                  onClick={() => setCvTab(id)}
+                  className={cvTab === id ? 'btn btn-amber btn-sm flex-1' : 'btn btn-ghost btn-sm flex-1'}
+                  style={{ justifyContent: 'center', gap: '6px' }}
                 >
-                  {analyzing ? 'Analysing…' : 'Analyse my CV'}
+                  {label}
+                  {badge && (
+                    <span className={`badge ${badge === 'Free' ? 'badge-green' : 'badge-amber'}`} style={{ fontSize: '10px', padding: '1px 5px' }}>
+                      {badge}
+                    </span>
+                  )}
                 </button>
-              </div>
+              ))}
+            </div>
 
-              {analyzing && (
-                <div className="space-y-2 text-center py-4">
-                  <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                    <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '60%' }} />
-                  </div>
-                  <p className="text-sm text-text-2">Our system is reviewing your CV…</p>
+            {/* ── Tab: AI Analysis ── */}
+            {cvTab === 'analyse' && (
+              <div className="card card-p space-y-5">
+                <div>
+                  <p className="section-title">Instant AI Analysis</p>
+                  <p className="text-sm text-text-2">
+                    Paste a job description and upload your CV — our AI scores how well you match the role and highlights
+                    specific strengths and gaps. <strong>Free for all members.</strong> No CV saved to your profile.
+                  </p>
                 </div>
-              )}
 
-              {analyzeResult && (
-                <div className="space-y-4 pt-2 border-t border-border">
-                  {/* Score */}
-                  <div className="flex items-center gap-5">
-                    <div
-                      className="shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-2xl font-extrabold"
-                      style={{
-                        background: analyzeResult.score >= 70 ? 'var(--green-bg)' : analyzeResult.score >= 45 ? '#fef9c3' : '#fee2e2',
-                        color: analyzeResult.score >= 70 ? 'var(--green)' : analyzeResult.score >= 45 ? '#a16207' : '#b91c1c',
-                      }}
-                    >
-                      {analyzeResult.score}
-                    </div>
-                    <div>
-                      <p className="font-bold">Match Score</p>
-                      <p className="text-sm text-text-2">
-                        {analyzeResult.score >= 70 ? 'Strong match for this role.' : analyzeResult.score >= 45 ? 'Moderate match — some gaps to address.' : 'Low match — significant improvements recommended.'}
-                      </p>
-                    </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="field-label">Target role <span className="text-red-400">*</span></label>
+                    <input
+                      className="field-input"
+                      placeholder="e.g. Senior Software Engineer"
+                      value={analyzeRole}
+                      onChange={e => setAnalyzeRole(e.target.value)}
+                      disabled={analyzing}
+                    />
                   </div>
-
-                  {/* Strengths */}
-                  {analyzeResult.strengths.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--green)' }}>Strengths</p>
-                      <ul className="space-y-1">
-                        {analyzeResult.strengths.map((s, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <span style={{ color: 'var(--green)' }} className="mt-0.5 shrink-0">✓</span> {s}
-                          </li>
-                        ))}
-                      </ul>
+                  <div>
+                    <label className="field-label">Job description <span className="text-text-3 font-normal">(optional — paste the JD for a more accurate score)</span></label>
+                    <textarea
+                      className="field-input field-textarea"
+                      placeholder="Paste the job description here…"
+                      rows={4}
+                      value={analyzeJD}
+                      onChange={e => setAnalyzeJD(e.target.value)}
+                      disabled={analyzing}
+                    />
+                  </div>
+                  {cvUrl
+                    ? <p className="text-xs text-text-2">Using your saved CV. <label htmlFor="analyze-cv-file" className="underline cursor-pointer">Use a different file</label>
+                        {analyzeCvFile && <span className="ml-2 text-brand">✓ {analyzeCvFile.name}</span>}
+                        <input id="analyze-cv-file" type="file" accept=".pdf" className="sr-only" onChange={e => setAnalyzeCvFile(e.target.files?.[0] ?? null)} />
+                      </p>
+                    : <div>
+                        <label className="field-label">CV (PDF) <span className="text-red-400">*</span></label>
+                        <label htmlFor="analyze-cv-file" className="block card p-4 text-center text-sm text-text-2 cursor-pointer" style={{ borderStyle: 'dashed' }}>
+                          {analyzeCvFile ? <span className="text-brand font-medium">✓ {analyzeCvFile.name}</span> : 'Click to upload PDF'}
+                        </label>
+                        <input id="analyze-cv-file" type="file" accept=".pdf" className="sr-only" onChange={e => setAnalyzeCvFile(e.target.files?.[0] ?? null)} />
+                      </div>
+                  }
+                  {analyzeMsg && (
+                    <div className={`alert ${analyzeMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                      {analyzeMsg.text}
                     </div>
                   )}
-
-                  {/* Weaknesses */}
-                  {analyzeResult.weaknesses.length > 0 && (
-                    <div className="space-y-2">
-                      <p className="text-xs font-bold uppercase tracking-wide text-red-500">Areas to improve</p>
-                      <ul className="space-y-1">
-                        {analyzeResult.weaknesses.map((w, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm">
-                            <span className="text-red-400 mt-0.5 shrink-0">✗</span> {w}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  {/* Recommendation */}
-                  {analyzeResult.recommendation && (
-                    <div className="card card-p space-y-1" style={{ background: 'var(--bg-2)' }}>
-                      <p className="text-xs font-bold uppercase tracking-wide text-text-3">Top recommendation</p>
-                      <p className="text-sm leading-relaxed">{analyzeResult.recommendation}</p>
-                    </div>
-                  )}
-
                   <button
-                    onClick={() => { setAnalyzeResult(null); setAnalyzeRole(''); setAnalyzeJD(''); setAnalyzeCvFile(null); }}
-                    className="btn btn-ghost btn-sm"
+                    onClick={handleCVAnalyze}
+                    disabled={analyzing}
+                    className="btn btn-amber"
                   >
-                    Analyse again
+                    {analyzing ? 'Analysing…' : 'Analyse my CV'}
                   </button>
                 </div>
-              )}
-            </div>
 
-            <div className="divider" />
+                {analyzing && (
+                  <div className="space-y-2 text-center py-4">
+                    <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                      <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '60%' }} />
+                    </div>
+                    <p className="text-sm text-text-2">Our system is reviewing your CV…</p>
+                  </div>
+                )}
 
-            <ProGate isPro={isPro} feature="CV upload &amp; AI parsing">
-              {/* Current CV */}
-              {cvUrl && (
-                <div className="alert alert-green flex items-center justify-between gap-4">
-                  <span className="text-sm">CV on file</span>
-                  <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
-                    Download
-                  </a>
-                </div>
-              )}
+                {analyzeResult && (
+                  <div className="space-y-4 pt-2 border-t border-border">
+                    {/* Score */}
+                    <div className="flex items-center gap-5">
+                      <div
+                        className="shrink-0 w-20 h-20 rounded-full flex items-center justify-center text-2xl font-extrabold"
+                        style={{
+                          background: analyzeResult.score >= 70 ? 'var(--green-bg)' : analyzeResult.score >= 45 ? '#fef9c3' : '#fee2e2',
+                          color: analyzeResult.score >= 70 ? 'var(--green)' : analyzeResult.score >= 45 ? '#a16207' : '#b91c1c',
+                        }}
+                      >
+                        {analyzeResult.score}
+                      </div>
+                      <div>
+                        <p className="font-bold">Match Score</p>
+                        <p className="text-sm text-text-2">
+                          {analyzeResult.score >= 70 ? 'Strong match for this role.' : analyzeResult.score >= 45 ? 'Moderate match — some gaps to address.' : 'Low match — significant improvements recommended.'}
+                        </p>
+                      </div>
+                    </div>
 
-              {/* Upload area */}
-              <div className="card" style={{ borderStyle: 'dashed' }}>
-                <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
-                  <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
-                  <p className="text-base font-semibold">
-                    {uploading ? 'Reading your CV…' : 'Click to upload your CV'}
-                  </p>
-                  <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
-                  <input
-                    id="cv-file"
-                    type="file"
-                    accept=".pdf"
-                    className="sr-only"
-                    onChange={handleCVUpload}
-                    disabled={uploading}
-                  />
-                </label>
-              </div>
+                    {/* Strengths */}
+                    {analyzeResult.strengths.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--green)' }}>Strengths</p>
+                        <ul className="space-y-1">
+                          {analyzeResult.strengths.map((s, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span style={{ color: 'var(--green)' }} className="mt-0.5 shrink-0">✓</span> {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-              {uploading && (
-                <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
-                  <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '70%' }} />
-                </div>
-              )}
+                    {/* Weaknesses */}
+                    {analyzeResult.weaknesses.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-xs font-bold uppercase tracking-wide text-red-500">Areas to improve</p>
+                        <ul className="space-y-1">
+                          {analyzeResult.weaknesses.map((w, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm">
+                              <span className="text-red-400 mt-0.5 shrink-0">✗</span> {w}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
 
-              {uploadMsg && (
-                <div className={`alert ${uploadMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
-                  {uploadMsg.text}
-                </div>
-              )}
-            </ProGate>
+                    {/* Recommendation */}
+                    {analyzeResult.recommendation && (
+                      <div className="card card-p space-y-1" style={{ background: 'var(--bg-2)' }}>
+                        <p className="text-xs font-bold uppercase tracking-wide text-text-3">Top recommendation</p>
+                        <p className="text-sm leading-relaxed">{analyzeResult.recommendation}</p>
+                      </div>
+                    )}
 
-            {/* Manual reviews */}
-            <div className="divider" />
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="section-title">Professional reviews</p>
-                {!isPro && <span className="badge badge-amber">Pro feature</span>}
-              </div>
-
-              {isPro ? (
-                <>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm text-text-2">Request a written critique from a BPU recruiter.</p>
                     <button
-                      onClick={handleRequestReview}
-                      disabled={requestingReview}
-                      className="btn btn-amber btn-sm shrink-0"
+                      onClick={() => { setAnalyzeResult(null); setAnalyzeRole(''); setAnalyzeJD(''); setAnalyzeCvFile(null); }}
+                      className="btn btn-ghost btn-sm"
                     >
-                      {requestingReview ? 'Submitting…' : 'Request review'}
+                      Analyse again
                     </button>
                   </div>
-                  {reviewRequestMsg && (
-                    <div className={`alert ${reviewRequestMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
-                      {reviewRequestMsg.text}
+                )}
+              </div>
+            )}
+
+            {/* ── Tab: Upload & Parse ── */}
+            {cvTab === 'upload' && (
+              <div className="space-y-4">
+                <div className="card card-p space-y-1">
+                  <p className="section-title">Upload &amp; Auto-fill Profile</p>
+                  <p className="text-sm text-text-2">
+                    Upload your CV and our AI will read it and automatically populate your BPU profile — work history,
+                    education, certifications, and more. Your CV is also stored so recruiters can view it. <strong>Pro members only.</strong>
+                  </p>
+                </div>
+
+                <ProGate isPro={isPro} feature="CV upload &amp; AI parsing">
+                  {/* Current CV */}
+                  {cvUrl && (
+                    <div className="alert alert-green flex items-center justify-between gap-4">
+                      <span className="text-sm font-medium">CV on file</span>
+                      <div className="flex items-center gap-2">
+                        <a href={cvUrl} target="_blank" rel="noopener noreferrer" className="btn btn-outline btn-sm">
+                          Download
+                        </a>
+                        <label htmlFor="cv-file" className="btn btn-outline btn-sm" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                          Replace
+                        </label>
+                      </div>
                     </div>
                   )}
-                  {reviews.length === 0
-                    ? <div className="empty">No reviews yet.</div>
-                    : reviews.map(r => (
-                      <div key={r.id} className="card overflow-hidden">
-                        <button
-                          className="w-full flex items-center justify-between px-5 py-4 text-left text-sm font-semibold hover:bg-bg transition-colors"
-                          onClick={() => setOpenReview(openReview === r.id ? null : r.id)}
-                        >
-                          <span className="flex items-center gap-3">
-                            {r.title}
-                            {r.score && <span className="badge badge-green">Score: {r.score}/100</span>}
-                          </span>
-                          <span className="text-text-3">{openReview === r.id ? '▲' : '▼'}</span>
-                        </button>
-                        {openReview === r.id && (
-                          <div className="px-5 pb-5 pt-2 border-t border-border text-sm space-y-3">
-                            <p className="whitespace-pre-line leading-relaxed text-text-2">{r.critique}</p>
-                            <div className="flex justify-between text-xs text-text-3 pt-2 border-t border-border">
-                              <span>Reviewer: {r.reviewer}</span>
-                              <span>{new Date(r.date).toLocaleDateString('en-GB')}</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))
-                  }
-                </>
-              ) : (
-                <div className="card card-p text-center py-8 space-y-3">
-                  <p className="text-sm text-text-2">Get written feedback from a BPU recruiter with a Pro membership.</p>
-                  <a href="/upgrade" className="btn btn-amber btn-sm inline-flex mx-auto">Upgrade to Pro →</a>
+
+                  {/* Upload area */}
+                  <div className="card" style={{ borderStyle: 'dashed' }}>
+                    <label htmlFor="cv-file" className="block p-12 text-center cursor-pointer space-y-3" style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                      <div className="text-4xl">{uploading ? '⏳' : '📄'}</div>
+                      <p className="text-base font-semibold">
+                        {uploading ? 'Reading your CV…' : cvUrl ? 'Click to replace your CV' : 'Click to upload your CV'}
+                      </p>
+                      <p className="text-sm text-text-2">PDF only · Max 10 MB</p>
+                      <input
+                        id="cv-file"
+                        type="file"
+                        accept=".pdf"
+                        className="sr-only"
+                        onChange={handleCVUpload}
+                        disabled={uploading}
+                      />
+                    </label>
+                  </div>
+
+                  {uploading && (
+                    <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                      <div className="h-full bg-brand rounded-full animate-pulse" style={{ width: '70%' }} />
+                    </div>
+                  )}
+
+                  {uploadMsg && (
+                    <div className={`alert ${uploadMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                      {uploadMsg.text}
+                    </div>
+                  )}
+                </ProGate>
+              </div>
+            )}
+
+            {/* ── Tab: Expert Review ── */}
+            {cvTab === 'review' && (
+              <div className="space-y-4">
+                <div className="card card-p space-y-1">
+                  <p className="section-title">Expert Review by a BPU Recruiter</p>
+                  <p className="text-sm text-text-2">
+                    A real BPU recruiter reads your CV and writes a personalised, actionable critique — covering
+                    structure, language, keywords, and presentation. Typically returned within 3–5 business days. <strong>Pro members only.</strong>
+                  </p>
                 </div>
-              )}
-            </div>
+
+                {isPro ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-text-2">Submit your CV for a written critique.</p>
+                      <button
+                        onClick={handleRequestReview}
+                        disabled={requestingReview}
+                        className="btn btn-amber btn-sm shrink-0"
+                      >
+                        {requestingReview ? 'Submitting…' : 'Request review'}
+                      </button>
+                    </div>
+                    {reviewRequestMsg && (
+                      <div className={`alert ${reviewRequestMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                        {reviewRequestMsg.text}
+                      </div>
+                    )}
+                    {reviews.length === 0
+                      ? <div className="empty">No reviews yet.</div>
+                      : reviews.map(r => (
+                        <div key={r.id} className="card overflow-hidden">
+                          <button
+                            className="w-full flex items-center justify-between px-5 py-4 text-left text-sm font-semibold hover:bg-bg transition-colors"
+                            onClick={() => setOpenReview(openReview === r.id ? null : r.id)}
+                          >
+                            <span className="flex items-center gap-3">
+                              {r.title}
+                              {r.score && <span className="badge badge-green">Score: {r.score}/100</span>}
+                            </span>
+                            <span className="text-text-3">{openReview === r.id ? '▲' : '▼'}</span>
+                          </button>
+                          {openReview === r.id && (
+                            <div className="px-5 pb-5 pt-2 border-t border-border text-sm space-y-3">
+                              <p className="whitespace-pre-line leading-relaxed text-text-2">{r.critique}</p>
+                              <div className="flex justify-between text-xs text-text-3 pt-2 border-t border-border">
+                                <span>Reviewer: {r.reviewer}</span>
+                                <span>{new Date(r.date).toLocaleDateString('en-GB')}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    }
+                  </div>
+                ) : (
+                  <div className="card card-p text-center py-8 space-y-3">
+                    <p className="text-sm text-text-2">Get written feedback from a BPU recruiter with a Pro membership.</p>
+                    <a href="/upgrade" className="btn btn-amber btn-sm inline-flex mx-auto">Upgrade to Pro →</a>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -615,7 +727,7 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                             <span>{j.date_posted}</span>
                           </div>
                           <a
-                            href={`/api/jobs/track-click?jobId=${j.id}&url=${encodeURIComponent(j.apply_url)}`}
+                            href={`/go/${j.id}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-amber btn-sm mt-auto"
@@ -635,33 +747,67 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
         {/* ════ COURSES ═════════════════════════════════════ */}
         {tab === 'courses' && (
           <div className="space-y-4 fade-up">
-            <div>
-              <h2 className="text-xl font-bold">Accredited courses</h2>
-              <p className="section-sub">Progress is tracked in Tutor LMS.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">My Courses</h2>
+                <p className="section-sub">Courses you&apos;re enrolled in through BPU.</p>
+              </div>
+              <a href="/courses" className="btn btn-outline btn-sm shrink-0">Browse all courses →</a>
             </div>
 
             {courses.length === 0
-              ? <div className="empty">No courses available right now.</div>
+              ? (
+                <div className="card card-p text-center py-12 space-y-4">
+                  <p className="text-3xl">🎓</p>
+                  <div>
+                    <p className="font-semibold">No enrolled courses yet</p>
+                    <p className="text-sm text-text-2 mt-1">Browse BPU&apos;s accredited courses and enrol to see them here.</p>
+                  </div>
+                  <a href="/courses" className="btn btn-amber btn-sm inline-flex mx-auto">Browse courses →</a>
+                </div>
+              )
               : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {courses.map(c => (
-                    <div key={c.id} className="card card-p card-lift flex flex-col gap-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">{c.category}</span>
-                        <span className={`badge ${c.status === 'In Progress' ? 'badge-amber' : 'badge-gray'}`}>
-                          {c.status}
-                        </span>
+                <div className="space-y-3">
+                  {courses.map(c => {
+                    const statusColor = c.status === 'Completed' ? 'badge-green' : c.status === 'In Progress' ? 'badge-amber' : 'badge-gray';
+                    return (
+                      <div key={c.id} className="card card-p flex gap-4 items-start">
+                        {c.image && (
+                          <img
+                            src={c.image}
+                            alt={c.title}
+                            className="rounded-lg object-cover shrink-0"
+                            style={{ width: '72px', height: '72px' }}
+                          />
+                        )}
+                        <div className="flex-1 min-w-0 space-y-1.5">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-xs font-semibold text-text-3 uppercase tracking-wide">{c.category}</span>
+                            <span className={`badge ${statusColor} ml-auto`}>{c.status}</span>
+                          </div>
+                          <p className="font-semibold text-sm leading-snug">{c.title}</p>
+                          <p className="text-xs text-text-3">by {c.provider}{c.duration ? ` · ${c.duration}` : ''}</p>
+                          {typeof c.progress === 'number' && c.progress > 0 && c.status !== 'Completed' && (
+                            <div className="space-y-1">
+                              <div className="h-1.5 w-full bg-border rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{ width: `${c.progress}%`, background: 'var(--brand)' }}
+                                />
+                              </div>
+                              <p className="text-xs text-text-3">{c.progress}% complete</p>
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleCourseOpen(c)}
+                          className="btn btn-ghost btn-sm shrink-0"
+                        >
+                          {c.status === 'Completed' ? 'Review →' : 'Continue →'}
+                        </button>
                       </div>
-                      <p className="font-semibold text-sm leading-snug">{c.title}</p>
-                      <p className="text-xs text-text-2">by {c.provider}</p>
-                      <button
-                        onClick={() => handleCourseOpen(c)}
-                        className="btn btn-outline btn-sm mt-auto"
-                      >
-                        Start learning →
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )
             }
@@ -671,19 +817,27 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
         {/* ════ EVENTS ══════════════════════════════════════ */}
         {tab === 'events' && (
           <div className="space-y-4 fade-up">
-            <div>
-              <h2 className="text-xl font-bold">Upcoming events</h2>
-              <p className="section-sub">BPU networking events, workshops, and community meetups.</p>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold">My Events</h2>
+                <p className="section-sub">Events you&apos;ve registered for through BPU.</p>
+              </div>
+              <a href="/events" className="btn btn-outline btn-sm shrink-0">Browse all events →</a>
             </div>
 
             {events.length === 0
               ? (
-                <div className="empty">
-                  No upcoming events right now — check back soon.
+                <div className="card card-p text-center py-12 space-y-4">
+                  <p className="text-3xl">🗓️</p>
+                  <div>
+                    <p className="font-semibold">No registered events yet</p>
+                    <p className="text-sm text-text-2 mt-1">Browse upcoming BPU events and register to see them here.</p>
+                  </div>
+                  <a href="/events" className="btn btn-amber btn-sm inline-flex mx-auto">Browse events →</a>
                 </div>
               )
               : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div className="space-y-3">
                   {events.map(ev => {
                     const start = ev.start_date
                       ? new Date(ev.start_date).toLocaleDateString('en-GB', {
@@ -695,45 +849,44 @@ export default function ClientDashboard({ user, initialJobs, initialCourses, ini
                           hour: '2-digit', minute: '2-digit',
                         })
                       : '';
+                    const isPast = ev.start_date ? new Date(ev.start_date) < new Date() : false;
                     return (
-                      <div key={ev.id} className="card card-p card-lift flex flex-col gap-3">
+                      <div
+                        key={ev.id}
+                        className="card card-p flex gap-4 items-start"
+                        style={{ opacity: isPast ? 0.6 : 1 }}
+                      >
                         {ev.image && (
                           <img
                             src={ev.image}
                             alt={ev.title}
-                            className="w-full rounded-lg object-cover"
-                            style={{ height: '140px' }}
+                            className="rounded-lg object-cover shrink-0"
+                            style={{ width: '72px', height: '72px' }}
                           />
                         )}
-                        <div className="flex items-start justify-between gap-2">
-                          <span className="badge badge-purple text-xs">
-                            {ev.is_virtual ? 'Online' : 'In Person'}
-                          </span>
-                          <span className="text-xs font-semibold text-brand">
-                            {ev.cost === 'Free' || !ev.cost ? 'Free' : ev.cost}
-                          </span>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="badge badge-purple text-xs">
+                              {ev.is_virtual ? 'Online' : 'In Person'}
+                            </span>
+                            {isPast && <span className="badge badge-gray text-xs">Past</span>}
+                            <span className="text-xs font-semibold text-brand ml-auto">
+                              {ev.cost === 'Free' || !ev.cost ? 'Free' : ev.cost}
+                            </span>
+                          </div>
+                          <p className="font-semibold text-sm leading-snug">{ev.title}</p>
+                          {start && (
+                            <p className="text-xs text-text-2">{start}{time ? ` · ${time}` : ''}</p>
+                          )}
+                          {ev.venue && <p className="text-xs text-text-3 truncate">{ev.venue}</p>}
                         </div>
-                        <p className="font-semibold text-sm leading-snug">{ev.title}</p>
-                        {start && (
-                          <p className="text-xs text-text-2">
-                            {start}{time ? ` · ${time}` : ''}
-                          </p>
-                        )}
-                        {ev.venue && (
-                          <p className="text-xs text-text-3 truncate">{ev.venue}</p>
-                        )}
-                        {ev.description && (
-                          <p className="text-xs text-text-2 leading-relaxed line-clamp-2">
-                            {ev.description}
-                          </p>
-                        )}
                         <a
                           href={ev.register_url || ev.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="btn btn-amber btn-sm mt-auto"
+                          className="btn btn-ghost btn-sm shrink-0"
                         >
-                          Register →
+                          View →
                         </a>
                       </div>
                     );
