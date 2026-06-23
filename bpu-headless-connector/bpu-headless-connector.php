@@ -2,7 +2,7 @@
 /**
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
- * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Claude AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
+ * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
  * Version: 2.1.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
@@ -910,105 +910,99 @@ class BPU_Headless_Connector {
     }
 
     /**
-     * Shared Claude (Anthropic) API request helper.
-     * Sends a multimodal message with an inline PDF document and returns the text response.
+     * Shared Gemini API request helper with automatic model fallback.
+     * Tries gemini-2.5-flash first, falls back to gemini-2.0-flash on 429/503.
      */
-    private function claude_request( string $system_prompt, string $user_prompt, string $base64_pdf, int $max_tokens = 4096, int $timeout = 90 ) {
-        $api_key = defined( 'ANTHROPIC_API_KEY' ) ? ANTHROPIC_API_KEY : get_option( 'bpu_anthropic_api_key', '' );
-
-        if ( empty( $api_key ) ) {
-            return new WP_Error( 'claude_missing_api_key', __( 'Anthropic API key is not configured.', 'bpu' ), array( 'status' => 500 ) );
-        }
-
-        $body = array(
-            'model'      => 'claude-haiku-4-5-20251001',
-            'max_tokens' => $max_tokens,
-            'system'     => $system_prompt,
-            'messages'   => array(
-                array(
-                    'role'    => 'user',
-                    'content' => array(
-                        array(
-                            'type'   => 'document',
-                            'source' => array(
-                                'type'       => 'base64',
-                                'media_type' => 'application/pdf',
-                                'data'       => $base64_pdf,
-                            ),
-                        ),
-                        array(
-                            'type' => 'text',
-                            'text' => $user_prompt,
-                        ),
-                    ),
-                ),
-            ),
-        );
-
-        $response = wp_remote_post( 'https://api.anthropic.com/v1/messages', array(
-            'headers' => array(
-                'Content-Type'      => 'application/json',
-                'x-api-key'         => $api_key,
-                'anthropic-version' => '2023-06-01',
-            ),
-            'body'    => wp_json_encode( $body ),
-            'timeout' => $timeout,
-        ) );
-
-        if ( is_wp_error( $response ) ) {
-            return new WP_Error( 'claude_request_failed', $response->get_error_message(), array( 'status' => 502 ) );
-        }
-
-        $status = wp_remote_retrieve_response_code( $response );
-        $raw    = wp_remote_retrieve_body( $response );
-
-        if ( 200 !== $status ) {
+    private function gemini_request( array $body, string $api_key, int $timeout = 90 ) {
+        $models = array( 'gemini-2.5-flash', 'gemini-2.0-flash' );
+        $base   = 'https://generativelanguage.googleapis.com/v1beta/models/';
+        foreach ( $models as $model ) {
+            $url      = $base . $model . ':generateContent?key=' . $api_key;
+            $response = wp_remote_post( $url, array(
+                'headers' => array( 'Content-Type' => 'application/json' ),
+                'body'    => wp_json_encode( $body ),
+                'timeout' => $timeout,
+            ) );
+            if ( is_wp_error( $response ) ) {
+                return new WP_Error( 'gemini_request_failed', $response->get_error_message(), array( 'status' => 502 ) );
+            }
+            $status = wp_remote_retrieve_response_code( $response );
+            $raw    = wp_remote_retrieve_body( $response );
+            if ( 200 === $status ) {
+                return json_decode( $raw, true );
+            }
+            if ( in_array( $status, array( 429, 503 ), true ) ) {
+                continue; // try next model
+            }
             $decoded = json_decode( $raw, true );
-            $message = $decoded['error']['message'] ?? "Claude API returned status {$status}";
-            return new WP_Error( 'claude_api_error', $message, array( 'status' => 502 ) );
+            $message = $decoded['error']['message'] ?? "Gemini returned status {$status}";
+            return new WP_Error( 'gemini_api_error', $message, array( 'status' => 502 ) );
         }
-
-        $data = json_decode( $raw, true );
-        $text = $data['content'][0]['text'] ?? '';
-
-        if ( empty( $text ) ) {
-            return new WP_Error( 'claude_empty', __( 'Empty response from AI.', 'bpu' ), array( 'status' => 502 ) );
-        }
-
-        return $text;
+        return new WP_Error(
+            'gemini_unavailable',
+            __( 'The AI service is currently experiencing high demand. Please try again in a few minutes.', 'bpu' ),
+            array( 'status' => 503 )
+        );
     }
 
     /**
-     * ATS-style CV analysis via Claude (returns score, strengths, weaknesses, recommendation).
+     * ATS-style CV analysis via Gemini (returns score, strengths, weaknesses, recommendation).
      */
     private function analyze_cv_with_gemini( $base64_pdf, $target_role, $job_description = '' ) {
-        $system = 'You are an expert ATS system and Senior HR Recruiter. You evaluate CVs critically and constructively. Always respond with a single valid JSON object only — no markdown, no explanation.';
+        $api_key = defined( 'GEMINI_API_KEY' ) ? GEMINI_API_KEY : get_option( 'bpu_gemini_api_key', '' );
 
-        $user = sprintf(
-            'Review the attached CV for the role of "%s".%s
+        if ( empty( $api_key ) ) {
+            return new WP_Error( 'gemini_missing_api_key', __( 'Gemini API Key is not configured.', 'bpu' ), array( 'status' => 500 ) );
+        }
 
-Return a JSON object with exactly these keys:
+        $prompt = sprintf(
+            'You are an expert ATS system and Senior HR Recruiter. Review the candidate\'s CV for the role of "%s".%s
+
+Provide a critical and constructive evaluation. Return a single valid JSON object with these exact keys:
 - score: integer 0-100 representing how well the CV matches the target role
 - strengths: array of 3-4 strings describing key strengths of this CV for the role
 - weaknesses: array of 3-4 strings describing gaps or improvements needed
-- recommendation: single string with the most important action the candidate should take',
+- recommendation: single string with the most important action the candidate should take
+
+Return only the JSON object, no markdown.',
             esc_attr( $target_role ),
             $job_description ? "\n\nJob Description:\n" . mb_substr( $job_description, 0, 5000 ) : ''
         );
 
-        $text = $this->claude_request( $system, $user, $base64_pdf, 1024, 90 );
+        $body = array(
+            'contents' => array(
+                array(
+                    'parts' => array(
+                        array( 'text' => $prompt ),
+                        array(
+                            'inline_data' => array(
+                                'mime_type' => 'application/pdf',
+                                'data'      => $base64_pdf,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            'generationConfig' => array(
+                'responseMimeType' => 'application/json',
+            ),
+        );
 
-        if ( is_wp_error( $text ) ) {
-            return $text;
+        $data = $this->gemini_request( $body, $api_key, 90 );
+
+        if ( is_wp_error( $data ) ) {
+            return $data;
         }
 
-        // Strip any accidental markdown fences
-        $clean = preg_replace( '/^```(?:json)?\s*/i', '', trim( $text ) );
-        $clean = preg_replace( '/\s*```$/', '', $clean );
+        $text = $data['candidates'][0]['content']['parts'][0]['text'] ?? '';
 
-        $result = json_decode( trim( $clean ), true );
+        if ( empty( $text ) ) {
+            return new WP_Error( 'gemini_empty', __( 'Empty response from AI.', 'bpu' ), array( 'status' => 502 ) );
+        }
+
+        $result = json_decode( trim( $text ), true );
         if ( ! $result || ! isset( $result['score'] ) ) {
-            return new WP_Error( 'claude_invalid_json', __( 'Could not parse AI response.', 'bpu' ), array( 'status' => 502 ) );
+            return new WP_Error( 'gemini_invalid_json', __( 'Could not parse AI response.', 'bpu' ), array( 'status' => 502 ) );
         }
 
         return array(
@@ -1020,12 +1014,20 @@ Return a JSON object with exactly these keys:
     }
 
     /**
-     * Parse base64 PDF CV via Claude (Anthropic) multimodal API.
+     * Parse base64 PDF CV directly via Gemini multimodal API.
      */
     private function parse_cv_with_gemini( $base64_pdf ) {
-        $system = 'You are a professional CV parser. Extract structured information from the attached PDF CV and return it as a single valid JSON object. Output ONLY raw JSON — no markdown, no backticks, no explanation.';
+        $api_key = defined( 'GEMINI_API_KEY' ) ? GEMINI_API_KEY : get_option( 'bpu_gemini_api_key', '' );
 
-        $user = 'Extract all information from this CV and return a JSON object with the following keys.
+        if ( empty( $api_key ) ) {
+            return new WP_Error(
+                'gemini_missing_api_key',
+                __( 'Gemini API Key is not configured on the WordPress host.', 'bpu' ),
+                array( 'status' => 500 )
+            );
+        }
+
+        $prompt = 'You are a professional CV parser. Extract all information from this PDF CV and return a single valid JSON object with the following keys.
 
 Flat profile fields (strings):
 - first_name
@@ -1041,28 +1043,59 @@ Flat profile fields (strings):
 - residence: city and country of the candidate if present (e.g. "Edinburgh, UK")
 - linkedin_profile: LinkedIn URL if present, else empty string
 
-Structured arrays (include ALL entries found):
-- work_experiences: array of objects with keys: title, company, start_date (e.g. "Jan 2020"), end_date (e.g. "Mar 2023" or "" if current), is_current (true/false), description (one sentence summary)
-- education_history: array of objects with keys: institution, degree, field_of_study, start_year (4-digit string), end_year (4-digit string or "" if ongoing)
-- certifications: array of objects with keys: name, issuer, year (4-digit string or "")
-- languages: array of language name strings
+Structured arrays (output as JSON arrays — include ALL entries found):
+- work_experiences: array of objects, each with keys: title (job title), company, start_date (e.g. "Jan 2020"), end_date (e.g. "Mar 2023" or "" if current), is_current (true/false), description (one sentence summary of role)
+- education_history: array of objects, each with keys: institution, degree, field_of_study, start_year (4-digit string), end_year (4-digit string or "" if ongoing)
+- certifications: array of objects, each with keys: name, issuer, year (4-digit string or "")
+- languages: array of language name strings (e.g. ["English", "French"])
 
-If a field cannot be determined, use "" or [] as appropriate. Never invent information not in the CV.';
+Rules:
+- Output ONLY the raw JSON object. No markdown, no backticks, no explanation.
+- If a field cannot be determined, use an empty string "" or empty array [] as appropriate.
+- Never invent information not present in the CV.';
 
-        $text = $this->claude_request( $system, $user, $base64_pdf, 4096, 60 );
+        $body = array(
+            'contents' => array(
+                array(
+                    'parts' => array(
+                        array( 'text' => $prompt ),
+                        array(
+                            'inlineData' => array(
+                                'mimeType' => 'application/pdf',
+                                'data'     => $base64_pdf,
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            'generationConfig' => array(
+                'responseMimeType' => 'application/json',
+            ),
+        );
 
-        if ( is_wp_error( $text ) ) {
-            return $text;
+        $data = $this->gemini_request( $body, $api_key, 60 );
+
+        if ( is_wp_error( $data ) ) {
+            return $data;
         }
 
-        // Strip any accidental markdown fences
-        $clean = preg_replace( '/^```(?:json)?\s*/i', '', trim( $text ) );
-        $clean = preg_replace( '/\s*```$/', '', $clean );
+        if ( ! isset( $data['candidates'][0]['content']['parts'][0]['text'] ) ) {
+            return new WP_Error(
+                'gemini_invalid_response',
+                __( 'Invalid response format returned by AI engine.', 'bpu' ),
+                array( 'status' => 500 )
+            );
+        }
 
-        $parsed_data = json_decode( trim( $clean ), true );
+        $raw_json_text = $data['candidates'][0]['content']['parts'][0]['text'];
+        $parsed_data   = json_decode( trim( $raw_json_text ), true );
 
         if ( empty( $parsed_data ) ) {
-            return new WP_Error( 'claude_json_parse_error', __( 'Failed to decode structured CV JSON from AI.', 'bpu' ), array( 'status' => 500 ) );
+            return new WP_Error(
+                'gemini_json_parse_error',
+                __( 'Failed to decode structured resume JSON.', 'bpu' ),
+                array( 'status' => 500 )
+            );
         }
 
         return $parsed_data;
