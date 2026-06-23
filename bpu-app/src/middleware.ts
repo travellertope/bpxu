@@ -5,6 +5,12 @@ export function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const hostname = req.headers.get('host') || '';
 
+  // Permanently redirect the old app. subdomain to web.
+  if (hostname.startsWith('app.blackprofessionals.uk')) {
+    const destination = `https://web.blackprofessionals.uk${url.pathname}${url.search}`;
+    return NextResponse.redirect(destination, { status: 301 });
+  }
+
   if (hostname.includes('pairedbybpu.uk')) {
     if (
       !url.pathname.startsWith('/paired') &&
