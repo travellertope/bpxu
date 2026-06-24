@@ -89,29 +89,6 @@ function ApplyCard({ job, isInbound, session, employer, salary }: {
                 </>
             )}
 
-            <div className="divider" />
-
-            <div className="space-y-1.5">
-                <p className="text-xs text-text-3">
-                    <strong className="text-text-2">Company:</strong>{' '}
-                    {employer?.website
-                        ? <a href={employer.website} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">{job.company}</a>
-                        : job.company
-                    }
-                </p>
-                <p className="text-xs text-text-3"><strong className="text-text-2">Type:</strong> {job.employment_type}</p>
-                <p className="text-xs text-text-3"><strong className="text-text-2">Industry:</strong> {job.industry}</p>
-                {salary && <p className="text-xs text-text-3"><strong className="text-text-2">Salary:</strong> {salary}</p>}
-                {job.remote && <p className="text-xs text-text-3"><strong className="text-text-2">Location:</strong> Remote</p>}
-                {employer?.twitter && (
-                    <p className="text-xs text-text-3">
-                        <strong className="text-text-2">Twitter/X:</strong>{' '}
-                        <a href={`https://x.com/${employer.twitter.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">
-                            @{employer.twitter.replace(/^@/, '')}
-                        </a>
-                    </p>
-                )}
-            </div>
         </div>
     );
 }
@@ -269,6 +246,15 @@ export default async function JobDetailPage({ params, searchParams }: { params: 
                             </div>
                         )}
 
+                        {!hasDescription && (
+                            <div className="card card-p text-sm text-text-3 italic">
+                                No additional details provided for this role.
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Right: About company (if any) + Apply card */}
+                    <div className="lg:w-80 shrink-0 w-full space-y-6">
                         {hasAboutSection && (
                             <div className="card card-p">
                                 <div className="flex items-center gap-3 mb-4">
@@ -302,17 +288,7 @@ export default async function JobDetailPage({ params, searchParams }: { params: 
                                 )}
                             </div>
                         )}
-
-                        {!hasDescription && !hasAboutSection && (
-                            <div className="card card-p text-sm text-text-3 italic">
-                                No additional details provided for this role.
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right: Apply card — sticks to top */}
-                    <div className="lg:w-80 shrink-0 w-full">
-                        <div className="sticky top-20">
+                        <div>
                             <ApplyCard
                                 job={job}
                                 isInbound={isInbound}
