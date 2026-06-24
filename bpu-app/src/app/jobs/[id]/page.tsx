@@ -86,29 +86,6 @@ function ApplyCard({ job, isInbound, session, employer, salary }: {
                 </>
             )}
 
-            <div className="divider" />
-
-            <div className="space-y-1.5">
-                <p className="text-xs text-text-3">
-                    <strong className="text-text-2">Company:</strong>{' '}
-                    {employer?.website
-                        ? <a href={employer.website} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">{job.company}</a>
-                        : job.company
-                    }
-                </p>
-                <p className="text-xs text-text-3"><strong className="text-text-2">Type:</strong> {job.employment_type}</p>
-                <p className="text-xs text-text-3"><strong className="text-text-2">Industry:</strong> {job.industry}</p>
-                {salary && <p className="text-xs text-text-3"><strong className="text-text-2">Salary:</strong> {salary}</p>}
-                {job.remote && <p className="text-xs text-text-3"><strong className="text-text-2">Location:</strong> Remote</p>}
-                {employer?.twitter && (
-                    <p className="text-xs text-text-3">
-                        <strong className="text-text-2">Twitter/X:</strong>{' '}
-                        <a href={`https://x.com/${employer.twitter.replace(/^@/, '')}`} target="_blank" rel="noopener noreferrer" className="hover:underline text-brand">
-                            @{employer.twitter.replace(/^@/, '')}
-                        </a>
-                    </p>
-                )}
-            </div>
         </div>
     );
 }
