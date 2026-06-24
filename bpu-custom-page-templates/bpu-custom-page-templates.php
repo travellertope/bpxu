@@ -21,6 +21,7 @@ class BPU_Page_Templates_Plugin {
 
         // Hook into ACF init to register local fields
         add_action( 'acf/init', array( $this, 'register_acf_fields' ) );
+
     }
 
     // Register the templates in the WP dropdown
@@ -381,7 +382,7 @@ class BPU_Page_Templates_Plugin {
           @keyframes modal-in { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
           .engage-modal-header { background: var(--navy); color: #fff; padding: 2rem 2rem 1.5rem; border-radius: 12px 12px 0 0; }
           .engage-modal-header .eyebrow { color: var(--red); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.5rem; }
-          .engage-modal-header h3 { font-size: 1.5rem; font-weight: 900; margin: 0; }
+          .engage-modal-header h3 { font-size: 1.5rem; font-weight: 900; margin: 0; color: #fff; }
           .engage-modal-header p { color: rgba(255,255,255,0.75); font-size: 0.9rem; margin: 0.5rem 0 0; }
           .engage-modal-close { position: absolute; top: 1.2rem; right: 1.2rem; background: rgba(255,255,255,0.15); border: none; color: #fff; width: 32px; height: 32px; border-radius: 50%; font-size: 1.1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .2s; }
           .engage-modal-close:hover { background: rgba(255,255,255,0.3); }
@@ -590,7 +591,7 @@ class BPU_Page_Templates_Plugin {
               <div class="engage-modal">
                 <div class="engage-modal-header">
                   <div class="eyebrow">Policy Engagement</div>
-                  <h3 id="engage-modal-title">Engage with Us on Policy</h3>
+                  <h3 id="engage-modal-title">Engage with BPU on Policy</h3>
                   <p>Share your interest or enquiry and a member of the BPU team will be in touch.</p>
                   <button class="engage-modal-close" id="bpu-engage-close" aria-label="Close">&times;</button>
                 </div>
