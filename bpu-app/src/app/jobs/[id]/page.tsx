@@ -306,7 +306,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ id: 
                                 )}
                             </div>
                         )}
-                        <div className="sticky top-20">
+                        <div>
                             <ApplyCard
                                 job={job}
                                 isInbound={isInbound}
