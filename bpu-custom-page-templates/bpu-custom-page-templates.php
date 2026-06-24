@@ -21,6 +21,19 @@ class BPU_Page_Templates_Plugin {
 
         // Hook into ACF init to register local fields
         add_action( 'acf/init', array( $this, 'register_acf_fields' ) );
+
+        // Force favicon from blackprofessionals.uk across all BPU subdomains/sites
+        add_action( 'wp_head', array( $this, 'force_bpu_favicon' ), 1 );
+        remove_action( 'wp_head', 'wp_site_icon', 99 );
+    }
+
+    // Override favicon with the canonical blackprofessionals.uk one
+    public function force_bpu_favicon() {
+        ?>
+        <link rel="icon" type="image/x-icon" href="https://blackprofessionals.uk/favicon.ico">
+        <link rel="shortcut icon" type="image/x-icon" href="https://blackprofessionals.uk/favicon.ico">
+        <link rel="apple-touch-icon" href="https://blackprofessionals.uk/apple-touch-icon.png">
+        <?php
     }
 
     // Register the templates in the WP dropdown
