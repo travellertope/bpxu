@@ -9,10 +9,11 @@ export const metadata: Metadata = {
   description: "Exclusive member portal for UK-based Black professionals. Access personalised job recommendations, AI CV Clinic, accredited courses, and PAIRED mentorship.",
   icons: {
     icon: [
-      { url: "https://blackprofessionals.uk/favicon.ico", type: "image/x-icon" },
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
     ],
-    shortcut: "https://blackprofessionals.uk/favicon.ico",
-    apple: "https://blackprofessionals.uk/apple-touch-icon.png",
+    shortcut: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
   },
 };
 
