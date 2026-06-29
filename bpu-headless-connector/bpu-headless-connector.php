@@ -7449,7 +7449,18 @@ jQuery(function($){
             'order'          => 'DESC',
         );
         if ( ! $is_admin ) {
-            $args['author'] = $user_id;
+            $employer_term_id = intval( get_user_meta( $user_id, '_bpu_employer_term_id', true ) );
+            if ( $employer_term_id ) {
+                $args['tax_query'] = array(
+                    array(
+                        'taxonomy' => 'bpu_employer',
+                        'field'    => 'term_id',
+                        'terms'    => $employer_term_id,
+                    ),
+                );
+            } else {
+                $args['author'] = $user_id;
+            }
         }
 
         $posts = get_posts( $args );
