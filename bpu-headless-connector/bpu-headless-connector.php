@@ -1561,6 +1561,25 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_search_users' ),
             'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
         ) );
+
+        // Admin: Members management
+        register_rest_route( $this->namespace, '/admin/members', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_members' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/members/(?P<id>\d+)/grant-pro', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_grant_pro' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/members/(?P<id>\d+)/revoke-pro', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_revoke_pro' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
     }
 
     /**
@@ -11531,6 +11550,98 @@ jQuery(function($){
         }
 
         return new WP_REST_Response( array( 'users' => $result ), 200 );
+    }
+
+    /**
+     * GET /admin/members — list members (subscribers/bpu_pro) with search and pagination.
+     */
+    public function admin_list_members( WP_REST_Request $request ) {
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = max( 1, min( 50, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $filter   = sanitize_text_field( $request->get_param( 'filter' ) ?: 'all' ); // 'all' | 'pro' | 'free'
+
+        $args = array(
+            'role__in' => array( 'subscriber', 'bpu_pro' ),
+            'number'   => $per_page,
+            'offset'   => ( $page - 1 ) * $per_page,
+            'orderby'  => 'registered',
+            'order'    => 'DESC',
+            'count_total' => true,
+        );
+
+        if ( $filter === 'pro' ) {
+            $args['role__in'] = array( 'bpu_pro' );
+        } elseif ( $filter === 'free' ) {
+            $args['role__in'] = array( 'subscriber' );
+        }
+
+        if ( $search ) {
+            $args['search']         = '*' . $search . '*';
+            $args['search_columns'] = array( 'display_name', 'user_email' );
+        }
+
+        $query = new WP_User_Query( $args );
+        $users = $query->get_results();
+        $total = $query->get_total();
+
+        $result = array();
+        foreach ( $users as $u ) {
+            $roles  = (array) $u->roles;
+            $is_pro = in_array( 'bpu_pro', $roles, true );
+            $result[] = array(
+                'id'           => $u->ID,
+                'display_name' => $u->display_name,
+                'email'        => $u->user_email,
+                'avatar_url'   => get_avatar_url( $u->ID, array( 'size' => 48 ) ),
+                'is_pro'       => $is_pro,
+                'registered'   => $u->user_registered,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'members' => $result,
+            'total'   => intval( $total ),
+            'page'    => $page,
+            'per_page' => $per_page,
+        ), 200 );
+    }
+
+    /**
+     * POST /admin/members/{id}/grant-pro — add bpu_pro role to a user.
+     */
+    public function admin_grant_pro( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'id' ) );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $user->add_role( 'bpu_pro' );
+
+        return new WP_REST_Response( array( 'success' => true, 'is_pro' => true ), 200 );
+    }
+
+    /**
+     * POST /admin/members/{id}/revoke-pro — remove bpu_pro role from a user.
+     */
+    public function admin_revoke_pro( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'id' ) );
+        $user    = get_userdata( $user_id );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_not_found', __( 'User not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $user->remove_role( 'bpu_pro' );
+
+        // Ensure they keep at least subscriber so they can still log in
+        if ( empty( $user->roles ) ) {
+            $user->add_role( 'subscriber' );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'is_pro' => false ), 200 );
     }
 
     /**
