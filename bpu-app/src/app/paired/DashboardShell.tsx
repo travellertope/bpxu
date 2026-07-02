@@ -161,6 +161,14 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 </div>
                             )}
 
+                            {/* ── Members ── */}
+                            {hasRole('administrator', 'bpu_editor') && (
+                                <div className="dash-nav-section">
+                                    <div className="dash-nav-label">Members</div>
+                                    <NavLink href="/admin/members" icon="profile" label="Members" active={isActive('/admin/members')} onClick={close} />
+                                </div>
+                            )}
+
                             {/* ── Platform ── */}
                             {hasRole('administrator') && (
                                 <div className="dash-nav-section">
