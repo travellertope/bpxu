@@ -91,22 +91,24 @@ export default function MembersAdmin() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <button
                     onClick={() => handleFilter('all')}
-                    className={`card card-p text-center transition-all ${filter === 'all' ? 'ring-2' : ''}`}
-                    style={filter === 'all' ? { ringColor: 'var(--purple)' } : {}}
+                    className="card card-p text-center transition-all"
+                    style={filter === 'all' ? { outline: '2px solid var(--purple)' } : {}}
                 >
                     <p className="text-xs text-text-3 mb-1">All Members</p>
                     <p className="text-2xl font-bold">{filter === 'all' ? total : '—'}</p>
                 </button>
                 <button
                     onClick={() => handleFilter('pro')}
-                    className={`card card-p text-center transition-all ${filter === 'pro' ? 'ring-2' : ''}`}
+                    className="card card-p text-center transition-all"
+                    style={filter === 'pro' ? { outline: '2px solid var(--purple)' } : {}}
                 >
                     <p className="text-xs text-text-3 mb-1">Pro Members</p>
                     <p className="text-2xl font-bold" style={{ color: 'var(--purple)' }}>{filter === 'pro' ? total : '—'}</p>
                 </button>
                 <button
                     onClick={() => handleFilter('free')}
-                    className={`card card-p text-center transition-all ${filter === 'free' ? 'ring-2' : ''}`}
+                    className="card card-p text-center transition-all"
+                    style={filter === 'free' ? { outline: '2px solid var(--purple)' } : {}}
                 >
                     <p className="text-xs text-text-3 mb-1">Free Members</p>
                     <p className="text-2xl font-bold">{filter === 'free' ? total : '—'}</p>
