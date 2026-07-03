@@ -4,14 +4,12 @@ import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { Employer } from '@/app/jobs/types';
 
-const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
-
 interface Props {
     initialProfile: Employer | null;
     jwt: string;
 }
 
-export default function EmployerProfileForm({ initialProfile, jwt }: Props) {
+export default function EmployerProfileForm({ initialProfile }: Props) {
     const [profile, setProfile] = useState<Partial<Employer>>(initialProfile ?? {});
     const [saving, setSaving] = useState(false);
     const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -30,12 +28,9 @@ export default function EmployerProfileForm({ initialProfile, jwt }: Props) {
         setError('');
         setSaved(false);
         try {
-            const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/employer/profile`, {
+            const res = await fetch('/api/employer/profile', {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${jwt}`,
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     name:        profile.name        ?? '',
                     tagline:     profile.tagline      ?? '',
@@ -67,9 +62,8 @@ export default function EmployerProfileForm({ initialProfile, jwt }: Props) {
         try {
             const form = new FormData();
             form.append('logo', file);
-            const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/employer/logo`, {
+            const res = await fetch('/api/employer/logo', {
                 method: 'POST',
-                headers: { Authorization: `Bearer ${jwt}` },
                 body: form,
             });
             const data = await res.json();
