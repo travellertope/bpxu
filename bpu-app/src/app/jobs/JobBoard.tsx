@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Job } from './types';
 
-const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 const PER_PAGE = 20;
 
 function formatSalary(min?: number, max?: number): string | null {
@@ -198,7 +197,7 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
         if (typeFilter !== 'all') params.set('job_type', typeFilter);
         if (remoteOnly) params.set('remote', '1');
         if (empTypes.length === 1) params.set('employment_type', empTypes[0]);
-        return `${WP_BACKEND_URL}/wp-json/bpu/v1/jobs?${params}`;
+        return `/api/jobs?${params}`;
     }, [search, industry, typeFilter, remoteOnly, empTypes]);
 
     // Refetch from page 1 whenever filters change (debounced for search)
