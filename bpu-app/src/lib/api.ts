@@ -279,15 +279,12 @@ export class BPUApi {
     /**
      * Track Course Progress / Learn More Clicks in Tutor LMS
      */
-    static async trackCourseProgress(courseId: number, wpCookieHeader: string): Promise<boolean> {
+    static async trackCourseProgress(courseId: number, _wpCookieHeader: string): Promise<boolean> {
         try {
-            const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/courses/progress`, {
+            const response = await fetch('/api/member/course-progress', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Cookie': wpCookieHeader
-                },
-                body: JSON.stringify({ course_id: courseId })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ course_id: courseId }),
             });
             return response.ok;
         } catch (error) {
