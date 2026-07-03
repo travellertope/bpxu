@@ -29,8 +29,9 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        if (data.jwt) {
-            cookieStore.set('bpu_session', data.jwt, {
+        const jwtValue = data.token || data.jwt;
+        if (jwtValue) {
+            cookieStore.set('bpu_session', jwtValue, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === 'production',
                 sameSite: 'lax',
