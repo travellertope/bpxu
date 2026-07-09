@@ -104,7 +104,7 @@ export async function getBPUSession(): Promise<SessionResult> {
 
     try {
         if (!JWT_SECRET) {
-            console.error('BPU_JWT_SECRET environment variable is not set.');
+            console.error('[BPU auth] BPU_JWT_SECRET env var is not set — all sessions will fail verification. Set it in Vercel to the same value as BPU_JWT_SECRET in wp-config.php.');
             return { authenticated: false, user: null };
         }
 
@@ -167,7 +167,8 @@ export async function getBPUSession(): Promise<SessionResult> {
             user,
         };
     } catch (error) {
-        console.error('JWT Session Verification Error:', error);
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error('[BPU auth] JWT verification failed:', msg);
         return { authenticated: false, user: null };
     }
 }
