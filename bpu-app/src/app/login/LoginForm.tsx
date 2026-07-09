@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 declare global {
     interface Window {
@@ -21,7 +21,6 @@ const STATS = [
 ];
 
 export default function LoginForm({ isPaired }: { isPaired?: boolean }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const returnTo  = searchParams.get('returnTo') || '/';
   const loggedOut = searchParams.get('logged_out') === '1';
@@ -66,7 +65,10 @@ export default function LoginForm({ isPaired }: { isPaired?: boolean }) {
         setLoading(false);
         return;
       }
-      router.push(returnTo);
+      // Hard navigation so the browser sends the new httpOnly cookie
+      // in a fresh request — router.push() uses cached server renders
+      // that don't yet see the session cookie.
+      window.location.href = returnTo;
     } catch {
       setError('Something went wrong. Please try again.');
       setLoading(false);
