@@ -212,7 +212,7 @@ function bpu_ie_register_acf_fields() {
         'title'  => 'Our Team Page Content',
         'fields' => array(
             array( 'key' => 'field_bpuie_team_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'team_hero_eyebrow', 'type' => 'text', 'default_value' => 'Our Team' ),
-            array( 'key' => 'field_bpuie_team_heading', 'label' => 'Heading', 'name' => 'team_hero_heading', 'type' => 'text', 'default_value' => 'Meet the people behind BPU Ireland' ),
+            array( 'key' => 'field_bpuie_team_heading', 'label' => 'Heading', 'name' => 'team_hero_heading', 'type' => 'text', 'default_value' => 'Board Members' ),
             array( 'key' => 'field_bpuie_team_subtext', 'label' => 'Subtext', 'name' => 'team_hero_subtext', 'type' => 'textarea', 'rows' => 2 ),
             array(
                 'key' => 'field_bpuie_team_members', 'label' => 'Team Members', 'name' => 'team_members', 'type' => 'repeater', 'layout' => 'block', 'button_label' => 'Add Team Member',
@@ -221,6 +221,16 @@ function bpu_ie_register_acf_fields() {
                     array( 'key' => 'field_bpuie_tm_name', 'label' => 'Name', 'name' => 'name', 'type' => 'text' ),
                     array( 'key' => 'field_bpuie_tm_role', 'label' => 'Role', 'name' => 'role', 'type' => 'text' ),
                     array( 'key' => 'field_bpuie_tm_bio', 'label' => 'Short Bio', 'name' => 'bio', 'type' => 'textarea', 'rows' => 2 ),
+                ),
+                'default_value' => array(
+                    array( 'name' => 'Enoch Adeyemi', 'role' => 'Chairperson' ),
+                    array( 'name' => 'Dorris Kirui', 'role' => 'Deputy Chairperson' ),
+                    array( 'name' => 'DeLeon Rich', 'role' => 'Finance' ),
+                    array( 'name' => 'Sharon Robinette', 'role' => 'Legal Affairs' ),
+                    array( 'name' => 'Rukayyat Kolawole', 'role' => 'Partnerships & Cooperations' ),
+                    array( 'name' => 'Sven Stromann', 'role' => 'Partnerships & Cooperations' ),
+                    array( 'name' => 'Asmaa Hechenberger', 'role' => 'Press & Public Relations' ),
+                    array( 'name' => 'Esther Bornefeld', 'role' => 'Operations & Programs' ),
                 ),
             ),
         ),

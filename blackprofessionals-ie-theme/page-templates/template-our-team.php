@@ -12,7 +12,7 @@ $post_id = get_the_ID();
 
 bpu_ie_hero(
     bpu_ie_field( 'team_hero_eyebrow', $post_id, 'Our Team' ),
-    bpu_ie_field( 'team_hero_heading', $post_id, 'Meet the people behind Black Professionals Ireland' ),
+    bpu_ie_field( 'team_hero_heading', $post_id, 'Board Members' ),
     bpu_ie_field( 'team_hero_subtext', $post_id )
 );
 
@@ -32,7 +32,9 @@ $members = bpu_ie_field( 'team_members', $post_id );
                         <?php endif; ?>
                         <p class="team-name"><?php echo esc_html( $member['name'] ?? '' ); ?></p>
                         <p class="team-role"><?php echo esc_html( $member['role'] ?? '' ); ?></p>
-                        <p class="team-bio"><?php echo esc_html( $member['bio'] ?? '' ); ?></p>
+                        <?php if ( ! empty( $member['bio'] ) ) : ?>
+                            <p class="team-bio"><?php echo esc_html( $member['bio'] ); ?></p>
+                        <?php endif; ?>
                     </div>
                 <?php endforeach; ?>
             </div>
