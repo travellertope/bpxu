@@ -30,25 +30,31 @@ A custom WordPress theme for **blackprofessionals.eu** (the Black Professionals 
 5. **Fill in Theme Settings** (its own admin menu item once ACF is active): legal entity name, address, contact email/phone, social links, and (under the *Forms* tab) your Privacy Statement page link and hCaptcha keys. These feed the site footer, the Imprint page, and the membership form automatically.
 6. **Add events** under the new *Events* menu item in wp-admin (each event has a date, time, location, and registration link).
 7. **Upload a logo** in Appearance → Customize → Site Identity.
-8. **Review membership applications** under the new *Membership Applications* menu item in wp-admin — each submission from the Membership page's "Become a member" form is stored there (private, admin-only) along with any uploaded CV.
+8. **Review applications** under the new *Membership Applications* and *Ambassador Applications* menu items in wp-admin — each submission is stored there (private, admin-only) along with any uploaded CV.
 
-### About the membership form
+### About the forms
 
-The Membership page template renders a full application form (name, contact details, immigration/demographic questions, CV upload, volunteering interest, and a required consent checkbox) matching the live blackprofessionals.eu member sign-up form. A few notes:
+- **Membership** page: a full application form (name, contact details, immigration/demographic questions, CV upload, volunteering interest, required consent checkbox) matching the live blackprofessionals.eu member sign-up form.
+- **Partnership** page: a short "Explore Partnership" enquiry form (organisation, contact, job title, email, message) — this one has no sensitive data, so it's simply emailed to the Theme Settings contact address, nothing is stored in the database.
+- **Ambassadorship** page: a "Become an Ambassador" application form (contact details, nearest city, ethnicity, current status, CV/cover letter upload), reusing the same choice lists as the membership form.
 
-- **hCaptcha is optional.** Leave the site/secret key fields in Theme Settings blank and the form works without a captcha; fill both in and the widget + server-side verification switch on automatically.
-- **Dropdown option lists** (industry, nearest city, ethnicity, etc.) are defined in `inc/membership-form.php` → `bpu_ie_membership_form_choices()`. Edit that array directly to add/remove/rename options.
-- **Sensitive data**: this form collects special-category personal data (ethnicity, sexuality, immigration status). It's stored only in the private *Membership Applications* post type (never emailed in plaintext) — but retention/access policy is still up to the org to define under GDPR; this theme doesn't auto-delete old applications.
-- The consent checkbox links to whatever URL is set in Theme Settings → Forms → *Privacy Statement & Consent Page* (falling back to the site's built-in Privacy Policy page if set).
+A few notes that apply across the membership and ambassador forms:
+
+- **hCaptcha is optional** (membership form only). Leave the site/secret key fields in Theme Settings blank and the form works without a captcha; fill both in and the widget + server-side verification switch on automatically.
+- **Dropdown option lists** (industry, nearest city, ethnicity, current status, etc.) are all defined in one place: `inc/membership-form.php` → `bpu_ie_membership_form_choices()`. Edit that array directly to add/remove/rename options — the ambassador form reuses it too.
+- **Sensitive data**: the membership and ambassador forms collect special-category personal data (ethnicity, sexuality, immigration status). It's stored only in their respective private post types (never emailed in plaintext) — but retention/access policy is still up to the org to define under GDPR; this theme doesn't auto-delete old applications.
+- The membership form's consent checkbox links to whatever URL is set in Theme Settings → Forms → *Privacy Statement & Consent Page* (falling back to the site's built-in Privacy Policy page if set).
 
 ## Structure
 
 - `style.css` — theme header + all site styling (brand tokens at the top).
 - `functions.php` — theme setup, menu registration, asset enqueue.
 - `inc/acf-fields.php` — all editable field definitions, organised by page.
-- `inc/custom-post-types.php` — the Events post type and the private Membership Applications post type.
+- `inc/custom-post-types.php` — the Events post type and the private Membership/Ambassador Applications post types.
 - `inc/contact-form.php` — native contact form handler (no form-plugin dependency).
-- `inc/membership-form.php` — the "Become a Member" application form, choice lists, submission handler, and CV upload handling.
+- `inc/membership-form.php` — the "Become a Member" application form, shared choice lists, submission handler, and CV upload handling.
+- `inc/partnership-form.php` — the "Explore Partnership" enquiry form.
+- `inc/ambassador-form.php` — the "Become an Ambassador" application form.
 - `inc/template-tags.php` — shared helpers (hero, tier grid, CTA band, social icons).
 - `page-templates/` — one file per custom page template.
 

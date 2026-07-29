@@ -395,9 +395,9 @@ textarea.form-control { min-height: 140px; resize: vertical; }
 .form-notice.error { background: var(--red-light); color: var(--red); border: 1px solid rgba(204,0,0,0.3); }
 
 /* Membership application form */
-.membership-form-wrap { max-width: 720px; margin: 0 auto; }
-.membership-form-wrap .section-title { text-align: left; margin-bottom: 2rem; }
-.membership-form { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 2rem; }
+.app-form-wrap { max-width: 720px; margin: 0 auto; }
+.app-form-wrap .section-title { text-align: left; margin-bottom: 2rem; }
+.app-form { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 2rem; }
 .radio-group { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; }
 .radio-option { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; color: var(--text-2); font-weight: 500; cursor: pointer; }
 .radio-option input { accent-color: var(--navy); }

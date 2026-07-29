@@ -136,12 +136,12 @@ function bpu_ie_render_membership_form() {
         $privacy_url = get_privacy_policy_url();
     }
     ?>
-    <div class="membership-form-wrap">
+    <div class="app-form-wrap">
         <h2 class="section-title">Become a <?php echo esc_html( get_bloginfo( 'name' ) ); ?> member</h2>
 
         <?php bpu_ie_membership_form_notice(); ?>
 
-        <form method="post" action="" enctype="multipart/form-data" class="membership-form">
+        <form method="post" action="" enctype="multipart/form-data" class="app-form">
             <?php wp_nonce_field( 'bpu_ie_membership_form', 'bpu_ma_nonce' ); ?>
             <input type="text" name="bpu_ma_website" class="form-honeypot" tabindex="-1" autocomplete="off" value="">
 

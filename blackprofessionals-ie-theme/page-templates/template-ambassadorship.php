@@ -23,6 +23,12 @@ bpu_ie_hero(
     </div>
 </section>
 
+<section class="section section-alt">
+    <div class="container">
+        <?php bpu_ie_render_ambassador_form(); ?>
+    </div>
+</section>
+
 <?php
 bpu_ie_cta_band(
     bpu_ie_field( 'ambassadorship_cta_heading', $post_id, 'Ready to take the next step?' ),

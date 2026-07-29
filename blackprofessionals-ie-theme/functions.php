@@ -50,6 +50,8 @@ require BPU_IE_DIR . '/inc/acf-fields.php';
 require BPU_IE_DIR . '/inc/template-tags.php';
 require BPU_IE_DIR . '/inc/contact-form.php';
 require BPU_IE_DIR . '/inc/membership-form.php';
+require BPU_IE_DIR . '/inc/partnership-form.php';
+require BPU_IE_DIR . '/inc/ambassador-form.php';
 
 /**
  * Admin notice if ACF isn't active — most editable content on this theme's

@@ -62,3 +62,33 @@ function bpu_ie_register_membership_application_cpt() {
     ) );
 }
 add_action( 'init', 'bpu_ie_register_membership_application_cpt' );
+
+/**
+ * Ambassador Application CPT — stores submissions from the "Become an
+ * Ambassador" form on the Ambassadorship page. Same visibility/capability
+ * rules as Membership Applications, since it also collects ethnicity.
+ */
+function bpu_ie_register_ambassador_application_cpt() {
+    register_post_type( 'bpu_ambassador_app', array(
+        'labels' => array(
+            'name'          => __( 'Ambassador Applications', 'bpu-ireland' ),
+            'singular_name' => __( 'Ambassador Application', 'bpu-ireland' ),
+            'all_items'     => __( 'Ambassador Applications', 'bpu-ireland' ),
+            'menu_name'     => __( 'Ambassador Applications', 'bpu-ireland' ),
+            'view_item'     => __( 'View Application', 'bpu-ireland' ),
+        ),
+        'public'          => false,
+        'show_ui'         => true,
+        'show_in_menu'    => true,
+        'show_in_rest'    => false,
+        'has_archive'     => false,
+        'menu_icon'       => 'dashicons-star-filled',
+        'capability_type' => 'page',
+        'capabilities'    => array(
+            'create_posts' => 'do_not_allow',
+        ),
+        'map_meta_cap' => true,
+        'supports'     => array( 'title' ),
+    ) );
+}
+add_action( 'init', 'bpu_ie_register_ambassador_application_cpt' );
