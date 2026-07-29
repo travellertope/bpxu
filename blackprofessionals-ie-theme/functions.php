@@ -17,9 +17,12 @@ define( 'BPU_IE_URI', get_template_directory_uri() );
 function bpu_ie_setup() {
     add_theme_support( 'title-tag' );
     add_theme_support( 'post-thumbnails' );
+    // 'flex-height'/'flex-width' let the Customizer's built-in crop tool
+    // resize/crop any uploaded image rather than rejecting non-matching
+    // dimensions; the width/height below just set the suggested/default size.
     add_theme_support( 'custom-logo', array(
-        'height'      => 60,
-        'width'       => 200,
+        'height'      => 80,
+        'width'       => 280,
         'flex-height' => true,
         'flex-width'  => true,
     ) );
@@ -48,6 +51,8 @@ add_action( 'wp_enqueue_scripts', 'bpu_ie_assets' );
 require BPU_IE_DIR . '/inc/custom-post-types.php';
 require BPU_IE_DIR . '/inc/acf-fields.php';
 require BPU_IE_DIR . '/inc/template-tags.php';
+require BPU_IE_DIR . '/inc/smtp.php';
+require BPU_IE_DIR . '/inc/captcha.php';
 require BPU_IE_DIR . '/inc/contact-form.php';
 require BPU_IE_DIR . '/inc/membership-form.php';
 require BPU_IE_DIR . '/inc/partnership-form.php';

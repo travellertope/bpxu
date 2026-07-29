@@ -47,6 +47,8 @@ function bpu_ie_render_ambassador_form() {
                 <input type="file" id="bpu_af_cv" name="bpu_af_cv" accept=".pdf,.doc,.docx">
             </div>
 
+            <?php bpu_ie_render_captcha(); ?>
+
             <button type="submit" name="bpu_af_submit" value="1" class="form-submit btn-red"><?php esc_html_e( 'Submit', 'bpu-ireland' ); ?></button>
         </form>
     </div>
@@ -59,9 +61,11 @@ function bpu_ie_ambassador_form_notice() {
     }
     $status = sanitize_key( $_GET['bpu_af'] );
     if ( 'success' === $status ) {
-        echo '<div class="form-notice success">Thanks for applying to become an ambassador — we\'ll be in touch soon.</div>';
+        echo '<div class="form-notice success">' . esc_html( bpu_ie_option( 'ambassador_success_message', "Thanks for applying to become an ambassador — we'll be in touch soon." ) ) . '</div>';
     } elseif ( 'error' === $status ) {
-        echo '<div class="form-notice error">Something went wrong submitting your application. Please check the required fields and try again.</div>';
+        echo '<div class="form-notice error">' . esc_html( bpu_ie_option( 'ambassador_error_message', 'Something went wrong submitting your application. Please check the required fields and try again.' ) ) . '</div>';
+    } elseif ( 'captcha' === $status ) {
+        echo '<div class="form-notice error">' . esc_html( bpu_ie_option( 'ambassador_captcha_error_message', "We couldn't verify you're human — please try the captcha again." ) ) . '</div>';
     }
 }
 
@@ -82,6 +86,11 @@ function bpu_ie_handle_ambassador_submission() {
 
     if ( ! empty( $_POST['bpu_af_website'] ) ) {
         wp_safe_redirect( add_query_arg( 'bpu_af', 'success', $redirect_url ) );
+        exit;
+    }
+
+    if ( ! bpu_ie_verify_captcha() ) {
+        wp_safe_redirect( add_query_arg( 'bpu_af', 'captcha', $redirect_url ) );
         exit;
     }
 
@@ -134,14 +143,13 @@ function bpu_ie_handle_ambassador_submission() {
         }
     }
 
-    $to      = bpu_ie_option( 'contact_email', get_option( 'admin_email' ) );
     $subject = sprintf( '[Ambassador Application] %s %s', $first_name, $last_name );
     $body    = "A new ambassador application was submitted on " . get_bloginfo( 'name' ) . ".\n\n"
         . "Name: {$first_name} {$last_name}\n"
         . "Email: {$email}\n\n"
         . "Review the full application in wp-admin:\n"
         . admin_url( 'post.php?post=' . $application_id . '&action=edit' ) . "\n";
-    wp_mail( $to, $subject, $body );
+    wp_mail( bpu_ie_notification_recipients(), $subject, $body );
 
     wp_safe_redirect( add_query_arg( 'bpu_af', 'success', $redirect_url ) );
     exit;

@@ -128,7 +128,6 @@ function bpu_ie_render_radio_group( $name, $label, $choices, $required = false )
  */
 function bpu_ie_render_membership_form() {
     $choices  = bpu_ie_membership_form_choices();
-    $site_key = bpu_ie_option( 'hcaptcha_site_key' );
     $org_name = bpu_ie_option( 'org_legal_name', 'Black Professionals Ireland' );
 
     $privacy_url = bpu_ie_option( 'privacy_policy_link' );
@@ -203,11 +202,7 @@ function bpu_ie_render_membership_form() {
 
             <?php bpu_ie_render_select( 'volunteer_area', "{$org_name} is a community so we need volunteers to really drive lasting change. If you would like to be a volunteer, select an area you can help with", $choices['volunteer_area'] ); ?>
 
-            <?php if ( $site_key ) : ?>
-                <div class="form-group">
-                    <div class="h-captcha" data-sitekey="<?php echo esc_attr( $site_key ); ?>"></div>
-                </div>
-            <?php endif; ?>
+            <?php bpu_ie_render_captcha(); ?>
 
             <div class="form-group form-consent">
                 <label>
@@ -226,9 +221,6 @@ function bpu_ie_render_membership_form() {
         </form>
     </div>
     <?php
-    if ( $site_key ) {
-        wp_enqueue_script( 'bpu-ie-hcaptcha', 'https://js.hcaptcha.com/1/api.js', array(), null, true );
-    }
 }
 
 function bpu_ie_membership_form_notice() {
@@ -237,36 +229,12 @@ function bpu_ie_membership_form_notice() {
     }
     $status = sanitize_key( $_GET['bpu_ma'] );
     if ( 'success' === $status ) {
-        echo '<div class="form-notice success">Thank you for applying — we\'ll be in touch soon.</div>';
+        echo '<div class="form-notice success">' . esc_html( bpu_ie_option( 'membership_success_message', "Thank you for applying — we'll be in touch soon." ) ) . '</div>';
     } elseif ( 'error' === $status ) {
-        echo '<div class="form-notice error">Something went wrong submitting your application. Please check the required fields and try again.</div>';
+        echo '<div class="form-notice error">' . esc_html( bpu_ie_option( 'membership_error_message', 'Something went wrong submitting your application. Please check the required fields and try again.' ) ) . '</div>';
     } elseif ( 'captcha' === $status ) {
-        echo '<div class="form-notice error">We couldn\'t verify you\'re human — please try the captcha again.</div>';
+        echo '<div class="form-notice error">' . esc_html( bpu_ie_option( 'membership_captcha_error_message', "We couldn't verify you're human — please try the captcha again." ) ) . '</div>';
     }
-}
-
-/**
- * Verifies an hCaptcha response server-side. Returns true when hCaptcha
- * isn't configured, so the form keeps working before keys are added.
- */
-function bpu_ie_verify_hcaptcha() {
-    $secret = bpu_ie_option( 'hcaptcha_secret_key' );
-    if ( ! $secret ) {
-        return true;
-    }
-    $token = isset( $_POST['h-captcha-response'] ) ? sanitize_text_field( wp_unslash( $_POST['h-captcha-response'] ) ) : '';
-    if ( ! $token ) {
-        return false;
-    }
-    $response = wp_remote_post( 'https://hcaptcha.com/siteverify', array(
-        'timeout' => 10,
-        'body'    => array( 'secret' => $secret, 'response' => $token ),
-    ) );
-    if ( is_wp_error( $response ) ) {
-        return false;
-    }
-    $body = json_decode( wp_remote_retrieve_body( $response ), true );
-    return ! empty( $body['success'] );
 }
 
 function bpu_ie_handle_membership_submission() {
@@ -290,7 +258,7 @@ function bpu_ie_handle_membership_submission() {
         exit;
     }
 
-    if ( ! bpu_ie_verify_hcaptcha() ) {
+    if ( ! bpu_ie_verify_captcha() ) {
         wp_safe_redirect( add_query_arg( 'bpu_ma', 'captcha', $redirect_url ) );
         exit;
     }
@@ -355,14 +323,13 @@ function bpu_ie_handle_membership_submission() {
     }
 
     // Notify admins without dumping sensitive demographic answers into email.
-    $to      = bpu_ie_option( 'contact_email', get_option( 'admin_email' ) );
     $subject = sprintf( '[Membership Application] %s %s', $first_name, $last_name );
     $body    = "A new membership application was submitted on " . get_bloginfo( 'name' ) . ".\n\n"
         . "Name: {$first_name} {$last_name}\n"
         . "Email: {$email}\n\n"
         . "Review the full application in wp-admin:\n"
         . admin_url( 'post.php?post=' . $application_id . '&action=edit' ) . "\n";
-    wp_mail( $to, $subject, $body );
+    wp_mail( bpu_ie_notification_recipients(), $subject, $body );
 
     wp_safe_redirect( add_query_arg( 'bpu_ma', 'success', $redirect_url ) );
     exit;

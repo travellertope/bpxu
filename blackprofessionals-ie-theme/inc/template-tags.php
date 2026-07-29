@@ -31,6 +31,18 @@ function bpu_ie_option( $selector, $default = '' ) {
 }
 
 /**
+ * Where "new submission" emails go, for every form. Uses the dedicated
+ * Notification Email if set, otherwise falls back to the public Contact
+ * Email, otherwise the site admin email. Supports a comma-separated list
+ * of addresses.
+ */
+function bpu_ie_notification_recipients() {
+    $value  = bpu_ie_option( 'notification_email', bpu_ie_option( 'contact_email', get_option( 'admin_email' ) ) );
+    $emails = array_filter( array_map( 'trim', explode( ',', $value ) ) );
+    return $emails ? $emails : array( get_option( 'admin_email' ) );
+}
+
+/**
  * Renders a standard page hero (eyebrow + heading + optional subtext).
  */
 function bpu_ie_hero( $eyebrow = '', $heading = '', $subtext = '' ) {

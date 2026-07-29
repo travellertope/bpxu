@@ -37,18 +37,57 @@ function bpu_ie_register_acf_fields() {
         'key'    => 'group_bpu_ie_theme_settings',
         'title'  => 'Site-Wide Settings',
         'fields' => array(
+            array( 'key' => 'field_bpuie_tab_general', 'label' => 'General', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_org_legal_name', 'label' => 'Legal Entity Name', 'name' => 'org_legal_name', 'type' => 'text', 'instructions' => 'Shown in the site footer and on the Imprint page.', 'default_value' => 'Black Professionals Europe e. V.' ),
-            array( 'key' => 'field_bpuie_contact_email', 'label' => 'Contact Email', 'name' => 'contact_email', 'type' => 'email', 'default_value' => 'blackprofessionalseurope@gmail.com' ),
+            array( 'key' => 'field_bpuie_contact_email', 'label' => 'Contact Email', 'name' => 'contact_email', 'type' => 'email', 'instructions' => 'Shown publicly on the Contact/Imprint pages and used as the fallback notification address.', 'default_value' => 'blackprofessionalseurope@gmail.com' ),
             array( 'key' => 'field_bpuie_contact_phone', 'label' => 'Contact Phone', 'name' => 'contact_phone', 'type' => 'text' ),
             array( 'key' => 'field_bpuie_contact_address', 'label' => 'Address', 'name' => 'contact_address', 'type' => 'textarea', 'rows' => 2, 'default_value' => "Am Fährweg 114\n41468 Neuss" ),
             array( 'key' => 'field_bpuie_social_facebook', 'label' => 'Facebook URL', 'name' => 'social_facebook', 'type' => 'url' ),
             array( 'key' => 'field_bpuie_social_instagram', 'label' => 'Instagram URL', 'name' => 'social_instagram', 'type' => 'url', 'default_value' => 'https://www.instagram.com/blackprofessionalseurope/' ),
             array( 'key' => 'field_bpuie_social_linkedin', 'label' => 'LinkedIn URL', 'name' => 'social_linkedin', 'type' => 'url', 'default_value' => 'https://www.linkedin.com/company/94292023' ),
             array( 'key' => 'field_bpuie_social_twitter', 'label' => 'X / Twitter URL', 'name' => 'social_twitter', 'type' => 'url' ),
-            array( 'key' => 'field_bpuie_tab_forms', 'label' => 'Forms', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_privacy_link', 'label' => 'Privacy Statement & Consent Page', 'name' => 'privacy_policy_link', 'type' => 'url', 'instructions' => 'Linked from the membership form\'s consent checkbox. Falls back to the site\'s Privacy Policy page (Settings → Privacy) if left blank.' ),
-            array( 'key' => 'field_bpuie_hcaptcha_site_key', 'label' => 'hCaptcha Site Key', 'name' => 'hcaptcha_site_key', 'type' => 'text', 'instructions' => 'Leave both hCaptcha fields blank to skip the captcha entirely.' ),
-            array( 'key' => 'field_bpuie_hcaptcha_secret_key', 'label' => 'hCaptcha Secret Key', 'name' => 'hcaptcha_secret_key', 'type' => 'text' ),
+
+            array( 'key' => 'field_bpuie_tab_notifications', 'label' => 'Notifications', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_notification_email', 'label' => 'Notification Email', 'name' => 'notification_email', 'type' => 'email', 'instructions' => 'Where "new submission" alerts are sent for every form. Leave blank to use the Contact Email above instead. Use a comma-separated list to notify more than one inbox.' ),
+
+            array( 'key' => 'field_bpuie_tab_captcha', 'label' => 'Captcha', 'type' => 'tab', 'placement' => 'top' ),
+            array(
+                'key' => 'field_bpuie_captcha_provider', 'label' => 'Captcha Provider', 'name' => 'captcha_provider', 'type' => 'select',
+                'instructions' => 'Applied to all four forms (Contact, Membership, Partnership, Ambassadorship). Choose None to skip captcha entirely.',
+                'choices' => array( 'none' => 'None', 'hcaptcha' => 'hCaptcha', 'recaptcha' => 'Google reCAPTCHA v2' ),
+                'default_value' => 'none', 'allow_null' => 0, 'ui' => 1,
+            ),
+            array( 'key' => 'field_bpuie_hcaptcha_site_key', 'label' => 'hCaptcha Site Key', 'name' => 'hcaptcha_site_key', 'type' => 'text',
+                'conditional_logic' => array( array( array( 'field' => 'field_bpuie_captcha_provider', 'operator' => '==', 'value' => 'hcaptcha' ) ) ) ),
+            array( 'key' => 'field_bpuie_hcaptcha_secret_key', 'label' => 'hCaptcha Secret Key', 'name' => 'hcaptcha_secret_key', 'type' => 'text',
+                'conditional_logic' => array( array( array( 'field' => 'field_bpuie_captcha_provider', 'operator' => '==', 'value' => 'hcaptcha' ) ) ) ),
+            array( 'key' => 'field_bpuie_recaptcha_site_key', 'label' => 'reCAPTCHA Site Key', 'name' => 'recaptcha_site_key', 'type' => 'text',
+                'conditional_logic' => array( array( array( 'field' => 'field_bpuie_captcha_provider', 'operator' => '==', 'value' => 'recaptcha' ) ) ) ),
+            array( 'key' => 'field_bpuie_recaptcha_secret_key', 'label' => 'reCAPTCHA Secret Key', 'name' => 'recaptcha_secret_key', 'type' => 'text',
+                'conditional_logic' => array( array( array( 'field' => 'field_bpuie_captcha_provider', 'operator' => '==', 'value' => 'recaptcha' ) ) ) ),
+
+            array( 'key' => 'field_bpuie_tab_smtp', 'label' => 'SMTP', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_smtp_enabled', 'label' => 'Send mail via SMTP', 'name' => 'smtp_enabled', 'type' => 'true_false', 'ui' => 1, 'instructions' => 'Off by default: the server\'s normal mail() function is used. Turn on once you have SMTP credentials (e.g. from your email provider).' ),
+            array( 'key' => 'field_bpuie_smtp_host', 'label' => 'SMTP Host', 'name' => 'smtp_host', 'type' => 'text', 'placeholder' => 'smtp.example.com', 'conditional_logic' => array( array( array( 'field' => 'field_bpuie_smtp_enabled', 'operator' => '==', 'value' => '1' ) ) ) ),
+            array( 'key' => 'field_bpuie_smtp_port', 'label' => 'SMTP Port', 'name' => 'smtp_port', 'type' => 'number', 'default_value' => 587, 'conditional_logic' => array( array( array( 'field' => 'field_bpuie_smtp_enabled', 'operator' => '==', 'value' => '1' ) ) ) ),
+            array( 'key' => 'field_bpuie_smtp_encryption', 'label' => 'Encryption', 'name' => 'smtp_encryption', 'type' => 'select', 'choices' => array( 'tls' => 'TLS', 'ssl' => 'SSL', 'none' => 'None' ), 'default_value' => 'tls', 'allow_null' => 0, 'ui' => 1, 'conditional_logic' => array( array( array( 'field' => 'field_bpuie_smtp_enabled', 'operator' => '==', 'value' => '1' ) ) ) ),
+            array( 'key' => 'field_bpuie_smtp_username', 'label' => 'SMTP Username', 'name' => 'smtp_username', 'type' => 'text', 'conditional_logic' => array( array( array( 'field' => 'field_bpuie_smtp_enabled', 'operator' => '==', 'value' => '1' ) ) ) ),
+            array( 'key' => 'field_bpuie_smtp_password', 'label' => 'SMTP Password', 'name' => 'smtp_password', 'type' => 'password', 'conditional_logic' => array( array( array( 'field' => 'field_bpuie_smtp_enabled', 'operator' => '==', 'value' => '1' ) ) ) ),
+            array( 'key' => 'field_bpuie_smtp_from_email', 'label' => 'From Email', 'name' => 'smtp_from_email', 'type' => 'email', 'instructions' => 'Also used to set the "From" address on outgoing mail even if SMTP is off.' ),
+            array( 'key' => 'field_bpuie_smtp_from_name', 'label' => 'From Name', 'name' => 'smtp_from_name', 'type' => 'text' ),
+
+            array( 'key' => 'field_bpuie_tab_messages', 'label' => 'Form Messages', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_msg_contact_success', 'label' => 'Contact — Success Message', 'name' => 'contact_success_message', 'type' => 'text', 'default_value' => 'Thanks for reaching out — we\'ll be in touch soon.' ),
+            array( 'key' => 'field_bpuie_msg_contact_error', 'label' => 'Contact — Error Message', 'name' => 'contact_error_message', 'type' => 'text', 'default_value' => 'Something went wrong sending your message. Please check the form and try again.' ),
+            array( 'key' => 'field_bpuie_msg_partnership_success', 'label' => 'Partnership — Success Message', 'name' => 'partnership_success_message', 'type' => 'text', 'default_value' => 'Thanks — our team will be in touch to schedule a call.' ),
+            array( 'key' => 'field_bpuie_msg_partnership_error', 'label' => 'Partnership — Error Message', 'name' => 'partnership_error_message', 'type' => 'text', 'default_value' => 'Something went wrong submitting the form. Please check the required fields and try again.' ),
+            array( 'key' => 'field_bpuie_msg_membership_success', 'label' => 'Membership — Success Message', 'name' => 'membership_success_message', 'type' => 'text', 'default_value' => 'Thank you for applying — we\'ll be in touch soon.' ),
+            array( 'key' => 'field_bpuie_msg_membership_error', 'label' => 'Membership — Error Message', 'name' => 'membership_error_message', 'type' => 'text', 'default_value' => 'Something went wrong submitting your application. Please check the required fields and try again.' ),
+            array( 'key' => 'field_bpuie_msg_membership_captcha_error', 'label' => 'Membership — Captcha Error Message', 'name' => 'membership_captcha_error_message', 'type' => 'text', 'default_value' => 'We couldn\'t verify you\'re human — please try the captcha again.' ),
+            array( 'key' => 'field_bpuie_msg_ambassador_success', 'label' => 'Ambassadorship — Success Message', 'name' => 'ambassador_success_message', 'type' => 'text', 'default_value' => 'Thanks for applying to become an ambassador — we\'ll be in touch soon.' ),
+            array( 'key' => 'field_bpuie_msg_ambassador_error', 'label' => 'Ambassadorship — Error Message', 'name' => 'ambassador_error_message', 'type' => 'text', 'default_value' => 'Something went wrong submitting your application. Please check the required fields and try again.' ),
+            array( 'key' => 'field_bpuie_msg_ambassador_captcha_error', 'label' => 'Ambassadorship — Captcha Error Message', 'name' => 'ambassador_captcha_error_message', 'type' => 'text', 'default_value' => 'We couldn\'t verify you\'re human — please try the captcha again.' ),
         ),
         'location' => array( array( array( 'param' => 'options_page', 'operator' => '==', 'value' => 'bpu-ie-theme-settings' ) ) ),
     ) );
@@ -129,11 +168,11 @@ function bpu_ie_register_acf_fields() {
     ) );
 
     /* ==========================================================
-     * ABOUT
+     * ABOUT (simple hub page — see the About Hub group further below)
      * ========================================================== */
     acf_add_local_field_group( array(
-        'key'    => 'group_bpu_ie_about',
-        'title'  => 'About Page Content',
+        'key'    => 'group_bpu_ie_our_story',
+        'title'  => 'Our Story Page Content',
         'fields' => array(
             array( 'key' => 'field_bpuie_about_tab_intro', 'label' => 'Intro', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_about_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'about_hero_eyebrow', 'type' => 'text', 'default_value' => 'About Us' ),
@@ -178,30 +217,23 @@ function bpu_ie_register_acf_fields() {
             ),
             array( 'key' => 'field_bpuie_about_image_3', 'label' => 'Image', 'name' => 'about_image_3', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
         ),
-        'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-about.php' ) ) ),
+        'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-our-story.php' ) ) ),
     ) );
 
     /* ==========================================================
-     * OUR STORY
+     * ABOUT HUB — the actual "About" landing page. Kept intentionally
+     * minimal since it just introduces and links to its children
+     * (Our Story, Our Team), which is done automatically in the
+     * template via get_pages( child_of => ... ).
      * ========================================================== */
     acf_add_local_field_group( array(
-        'key'    => 'group_bpu_ie_our_story',
-        'title'  => 'Our Story Page Content',
+        'key'    => 'group_bpu_ie_about_hub',
+        'title'  => 'About Page Content',
         'fields' => array(
-            array( 'key' => 'field_bpuie_story_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'story_hero_eyebrow', 'type' => 'text', 'default_value' => 'Our Story' ),
-            array( 'key' => 'field_bpuie_story_heading', 'label' => 'Heading', 'name' => 'story_hero_heading', 'type' => 'text', 'default_value' => 'How BPU Ireland came to be' ),
-            array( 'key' => 'field_bpuie_story_subtext', 'label' => 'Subtext', 'name' => 'story_hero_subtext', 'type' => 'textarea', 'rows' => 2 ),
-            array( 'key' => 'field_bpuie_story_quote', 'label' => 'Pull Quote', 'name' => 'story_quote', 'type' => 'text' ),
-            array(
-                'key' => 'field_bpuie_story_timeline', 'label' => 'Timeline', 'name' => 'story_timeline', 'type' => 'repeater', 'layout' => 'block', 'button_label' => 'Add Milestone',
-                'sub_fields' => array(
-                    array( 'key' => 'field_bpuie_tl_year', 'label' => 'Year', 'name' => 'year', 'type' => 'text' ),
-                    array( 'key' => 'field_bpuie_tl_title', 'label' => 'Title', 'name' => 'title', 'type' => 'text' ),
-                    array( 'key' => 'field_bpuie_tl_desc', 'label' => 'Description', 'name' => 'description', 'type' => 'textarea', 'rows' => 2 ),
-                ),
-            ),
+            array( 'key' => 'field_bpuie_about_hub_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'about_hub_eyebrow', 'type' => 'text', 'default_value' => 'About' ),
+            array( 'key' => 'field_bpuie_about_hub_intro', 'label' => 'Intro Text', 'name' => 'about_hub_intro', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Learn more about our mission, our journey, and the team driving Black Professionals Ireland forward.' ),
         ),
-        'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-our-story.php' ) ) ),
+        'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-about.php' ) ) ),
     ) );
 
     /* ==========================================================

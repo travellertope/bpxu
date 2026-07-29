@@ -58,31 +58,9 @@ $image    = bpu_ie_field( 'contact_image', $post_id );
 <section class="section section-alt">
     <div class="container">
         <div class="contact-layout" style="grid-template-columns: 1fr; max-width: 620px;">
-            <div class="contact-form">
+            <div>
                 <h3 style="margin-bottom:1rem;"><?php esc_html_e( 'Or send us a message', 'bpu-ireland' ); ?></h3>
-                <?php bpu_ie_contact_notice(); ?>
-                <form method="post" action="">
-                    <?php wp_nonce_field( 'bpu_ie_contact_form', 'bpu_ie_contact_nonce' ); ?>
-                    <input type="text" name="bpu_ie_website" class="form-honeypot" tabindex="-1" autocomplete="off" value="">
-
-                    <div class="form-group">
-                        <label for="bpu_ie_name"><?php esc_html_e( 'Name', 'bpu-ireland' ); ?></label>
-                        <input type="text" class="form-control" id="bpu_ie_name" name="bpu_ie_name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="bpu_ie_email"><?php esc_html_e( 'Email', 'bpu-ireland' ); ?></label>
-                        <input type="email" class="form-control" id="bpu_ie_email" name="bpu_ie_email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="bpu_ie_subject"><?php esc_html_e( 'Subject', 'bpu-ireland' ); ?></label>
-                        <input type="text" class="form-control" id="bpu_ie_subject" name="bpu_ie_subject">
-                    </div>
-                    <div class="form-group">
-                        <label for="bpu_ie_message"><?php esc_html_e( 'Message', 'bpu-ireland' ); ?></label>
-                        <textarea class="form-control" id="bpu_ie_message" name="bpu_ie_message" required></textarea>
-                    </div>
-                    <button type="submit" name="bpu_ie_contact_submit" value="1" class="form-submit"><?php esc_html_e( 'Send Message', 'bpu-ireland' ); ?></button>
-                </form>
+                <?php bpu_ie_render_contact_form(); ?>
             </div>
         </div>
     </div>
