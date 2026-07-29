@@ -135,18 +135,48 @@ function bpu_ie_register_acf_fields() {
         'key'    => 'group_bpu_ie_about',
         'title'  => 'About Page Content',
         'fields' => array(
+            array( 'key' => 'field_bpuie_about_tab_intro', 'label' => 'Intro', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_about_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'about_hero_eyebrow', 'type' => 'text', 'default_value' => 'About Us' ),
-            array( 'key' => 'field_bpuie_about_heading', 'label' => 'Heading', 'name' => 'about_hero_heading', 'type' => 'text', 'default_value' => 'Building community and opportunity for Black professionals in Ireland' ),
-            array( 'key' => 'field_bpuie_about_intro', 'label' => 'Intro Text', 'name' => 'about_intro_text', 'type' => 'textarea', 'rows' => 3 ),
-            array( 'key' => 'field_bpuie_about_mission_heading', 'label' => 'Mission Heading', 'name' => 'about_mission_heading', 'type' => 'text', 'default_value' => 'Our Mission' ),
-            array( 'key' => 'field_bpuie_about_mission_text', 'label' => 'Mission Text', 'name' => 'about_mission_text', 'type' => 'textarea', 'rows' => 3 ),
+            array( 'key' => 'field_bpuie_about_intro', 'label' => 'Intro Text', 'name' => 'about_intro_text', 'type' => 'textarea', 'rows' => 3, 'default_value' => 'Black Professionals Europe is an organisation committed to empowering and supporting Black professionals to grow their careers, helping Black students start their careers, and supporting Europe-based organisations to access Black talent.' ),
+
+            array( 'key' => 'field_bpuie_about_tab_purpose', 'label' => 'Purpose & Vision', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_purpose_heading', 'label' => 'Purpose Heading', 'name' => 'purpose_heading', 'type' => 'text', 'default_value' => 'Purpose' ),
+            array( 'key' => 'field_bpuie_purpose_text', 'label' => 'Purpose Text', 'name' => 'purpose_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Our mission is to work with corporate partners to create an inclusive, equitable, and thriving professional landscape for Black professionals, and we are here to share our vision and seek your support.' ),
+            array( 'key' => 'field_bpuie_vision_heading', 'label' => 'Vision Heading', 'name' => 'vision_heading', 'type' => 'text', 'default_value' => 'Vision' ),
+            array( 'key' => 'field_bpuie_vision_text', 'label' => 'Vision Text', 'name' => 'vision_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Our vision is a Europe where Black professionals are not only well-represented but thrive, contributing their diverse talents to drive innovation and prosperity.' ),
+            array( 'key' => 'field_bpuie_about_image_1', 'label' => 'Image', 'name' => 'about_image_1', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
+
+            array( 'key' => 'field_bpuie_about_tab_why', 'label' => 'Why & How', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_why_how_heading', 'label' => 'Section Heading', 'name' => 'why_how_heading', 'type' => 'text', 'default_value' => 'Why and How?' ),
+            array( 'key' => 'field_bpuie_problem_heading', 'label' => 'Problem Heading', 'name' => 'problem_heading', 'type' => 'text', 'default_value' => 'Problem:' ),
             array(
-                'key' => 'field_bpuie_about_values', 'label' => 'Our Values', 'name' => 'about_values', 'type' => 'repeater', 'layout' => 'block', 'button_label' => 'Add Value',
+                'key' => 'field_bpuie_problem_points', 'label' => 'Problem Points', 'name' => 'problem_points', 'type' => 'repeater', 'layout' => 'table', 'button_label' => 'Add Point',
                 'sub_fields' => array(
-                    array( 'key' => 'field_bpuie_value_title', 'label' => 'Title', 'name' => 'title', 'type' => 'text' ),
-                    array( 'key' => 'field_bpuie_value_desc', 'label' => 'Description', 'name' => 'description', 'type' => 'textarea', 'rows' => 2 ),
+                    array( 'key' => 'field_bpuie_problem_point_text', 'label' => 'Point', 'name' => 'text', 'type' => 'wysiwyg', 'toolbar' => 'basic', 'media_upload' => 0 ),
+                ),
+                'default_value' => array(
+                    array( 'text' => 'Black professionals still face numerous disparities, including limited access to opportunities, unconscious bias, and unequal representation at leadership levels.' ),
+                    array( 'text' => 'This underrepresentation not only hinders diversity but also deprives organisations of innovative perspectives.' ),
                 ),
             ),
+            array( 'key' => 'field_bpuie_solution_heading', 'label' => 'Solution Heading', 'name' => 'solution_heading', 'type' => 'text', 'default_value' => 'Solution:' ),
+            array( 'key' => 'field_bpuie_solution_text', 'label' => 'Solution Text', 'name' => 'solution_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'BPE addresses this problem head-on through a comprehensive range of programs, including mentorship, skills development workshops, career-enhancing networking events, recruiting events, establishing key partnerships, and more.' ),
+            array( 'key' => 'field_bpuie_about_image_2', 'label' => 'Image', 'name' => 'about_image_2', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
+
+            array( 'key' => 'field_bpuie_about_tab_impact', 'label' => 'Impact', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_impact_heading', 'label' => 'Section Heading', 'name' => 'impact_heading', 'type' => 'text', 'default_value' => 'Impact: Driving Positive Change' ),
+            array( 'key' => 'field_bpuie_traction_heading', 'label' => 'Traction Heading', 'name' => 'traction_heading', 'type' => 'text', 'default_value' => 'Traction:' ),
+            array(
+                'key' => 'field_bpuie_traction_points', 'label' => 'Traction Points', 'name' => 'traction_points', 'type' => 'repeater', 'layout' => 'table', 'button_label' => 'Add Point',
+                'sub_fields' => array(
+                    array( 'key' => 'field_bpuie_traction_point_text', 'label' => 'Point', 'name' => 'text', 'type' => 'wysiwyg', 'toolbar' => 'basic', 'media_upload' => 0, 'instructions' => 'Use the link button to link any part of the text, e.g. "Black Professionals finding opportunities".' ),
+                ),
+                'default_value' => array(
+                    array( 'text' => 'Our journey began in Scotland when Enoch founded BPE. To date, BPE has achieved significant milestones, with 900+ members benefiting from various programs and 20+ partners who share our commitment to this vital cause, resulting in Black Professionals finding opportunities.' ),
+                    array( 'text' => 'BPE held a successful launch on 29th July 2023 at the Mannheim Business School. We want to replicate what has been achieved in Scotland across mainland Europe.' ),
+                ),
+            ),
+            array( 'key' => 'field_bpuie_about_image_3', 'label' => 'Image', 'name' => 'about_image_3', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
         ),
         'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-about.php' ) ) ),
     ) );

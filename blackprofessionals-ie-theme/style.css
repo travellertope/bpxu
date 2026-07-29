@@ -439,6 +439,16 @@ input[type="file"] { font-size: 0.9rem; }
 .legal-block .footer-social a { color: var(--navy); border-color: var(--border); }
 .legal-block .footer-social a:hover { background: var(--red); border-color: var(--red); color: #fff; }
 
+/* Generic bullet list (About page: Problem/Traction points) */
+.bullet-list { margin: 1.2rem 0 0; max-width: 780px; }
+.bullet-list li { position: relative; padding-left: 1.6rem; margin-bottom: 0.9rem; color: var(--text-2); }
+.bullet-list li::before { content: '•'; position: absolute; left: 0; top: -0.05em; color: var(--red); font-weight: bold; font-size: 1.2rem; line-height: 1; }
+.bullet-list li p { margin: 0; color: inherit; }
+
+/* Generic content image (About page) */
+.content-image { margin: 2.5rem 0; border-radius: 12px; overflow: hidden; max-width: 900px; }
+.content-image img { width: 100%; display: block; }
+
 /* Home page: Info teasers row */
 .info-teasers { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 2rem; margin-top: 2rem; }
 .info-teaser h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
