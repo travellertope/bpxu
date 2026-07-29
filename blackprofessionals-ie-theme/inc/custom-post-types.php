@@ -31,6 +31,54 @@ function bpu_ie_register_event_cpt() {
 add_action( 'init', 'bpu_ie_register_event_cpt' );
 
 /**
+ * Seeds three real past events from the live blackprofessionals.eu site
+ * (so the Events page isn't empty on first launch). Runs once on theme
+ * activation — guarded by an option flag rather than "no events exist
+ * yet", so deleting these later doesn't cause them to reappear.
+ */
+function bpu_ie_seed_example_events() {
+    if ( get_option( 'bpu_ie_events_seeded' ) ) {
+        return;
+    }
+    update_option( 'bpu_ie_events_seeded', 1 );
+
+    $events = array(
+        array(
+            'title'    => 'HSF D&I Successes, Challenges and the Future – Frankfurt',
+            'date'     => '20240417',
+            'time'     => '8:00am - 5:00pm',
+            'location' => 'Frankfurt, Germany',
+        ),
+        array(
+            'title'    => 'Meet & Network In Paris',
+            'date'     => '20240315',
+            'time'     => '8:00am - 5:00pm',
+            'location' => 'Paris, France',
+        ),
+        array(
+            'title'    => 'Soft Launch Event: Mannheim Germany',
+            'date'     => '20230729',
+            'time'     => '8:00am - 5:00pm',
+            'location' => 'Mannheim, Germany',
+        ),
+    );
+
+    foreach ( $events as $event ) {
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_event',
+            'post_title'  => $event['title'],
+            'post_status' => 'publish',
+        ) );
+        if ( $post_id && ! is_wp_error( $post_id ) ) {
+            update_post_meta( $post_id, 'event_date', $event['date'] );
+            update_post_meta( $post_id, 'event_time', $event['time'] );
+            update_post_meta( $post_id, 'event_location', $event['location'] );
+        }
+    }
+}
+add_action( 'after_switch_theme', 'bpu_ie_seed_example_events' );
+
+/**
  * Membership Application CPT — stores submissions from the "Become a
  * Member" form on the Membership page. Kept out of the public site and
  * out of search; only users who can edit_pages (site editors/admins) can

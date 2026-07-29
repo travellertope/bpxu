@@ -35,7 +35,7 @@ A custom WordPress theme for **blackprofessionals.eu** (the Black Professionals 
    - **Captcha**: pick **None** (default), **hCaptcha**, or **Google reCAPTCHA v2**, then fill in that provider's site/secret keys. Whichever is chosen applies to all four forms at once.
    - **SMTP**: off by default (uses the server's normal mail sending). Turn on and fill in host/port/username/password/encryption to route mail through a real SMTP provider. "From Email"/"From Name" apply either way, so you can fix the sender address even with SMTP off.
    - **Form Messages**: the exact success/error (and captcha-error) wording shown to visitors after submitting each form — edit any of these without touching code.
-6. **Add events** under the new *Events* menu item in wp-admin (each event has a date, time, location, and registration link).
+6. **Add events** under the new *Events* menu item in wp-admin (each event has a date, time, location, and registration link). Three real past events (Frankfurt, Paris, Mannheim) are seeded automatically the first time the theme is activated, so the page isn't empty on launch — safe to edit or delete, they won't reappear.
 7. **Upload a logo** in Appearance → Customize → Site Identity — the crop/resize tool there is built into WordPress core (enabled via this theme's `add_theme_support( 'custom-logo', ... )`), so any uploaded image can be repositioned/cropped before saving.
 8. **Review submissions**: *Membership Applications*, *Ambassador Applications*, and *Form Submissions* (Contact + Partnership) all appear as their own admin-only menu items in wp-admin.
 
