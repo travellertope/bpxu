@@ -8,26 +8,56 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 /**
- * Small wrapper so templates work identically whether or not ACF is active.
+ * Small wrapper so templates work identically whether or not ACF is
+ * active — and, crucially, so a page still shows its intended default
+ * content even before an editor has opened and saved it.
+ *
+ * ACF's own `default_value` setting only pre-fills the admin edit form;
+ * get_field() does NOT return it until the field has actually been
+ * saved once. Every field in this theme is registered with a sensible
+ * default_value, so rather than duplicate that copy again at every
+ * call site, we look it up via get_field_object() as the second
+ * fallback (after any explicit $default the caller passed).
  */
-function bpu_ie_field( $selector, $post_id = false, $default = '' ) {
+function bpu_ie_field( $selector, $post_id = false, $default = null ) {
     if ( function_exists( 'get_field' ) ) {
         $value = get_field( $selector, $post_id );
         if ( ! empty( $value ) ) {
             return $value;
         }
     }
-    return $default;
+    if ( null !== $default ) {
+        return $default;
+    }
+    return bpu_ie_acf_default( $selector, $post_id );
 }
 
-function bpu_ie_option( $selector, $default = '' ) {
+function bpu_ie_option( $selector, $default = null ) {
     if ( function_exists( 'get_field' ) ) {
         $value = get_field( $selector, 'option' );
         if ( ! empty( $value ) ) {
             return $value;
         }
     }
-    return $default;
+    if ( null !== $default ) {
+        return $default;
+    }
+    return bpu_ie_acf_default( $selector, 'option' );
+}
+
+/**
+ * Reads a field's registered default_value straight from its ACF field
+ * definition, without requiring the field to have been saved yet.
+ */
+function bpu_ie_acf_default( $selector, $post_id ) {
+    if ( ! function_exists( 'get_field_object' ) ) {
+        return '';
+    }
+    $field = get_field_object( $selector, $post_id, array( 'load_value' => false ) );
+    if ( $field && isset( $field['default_value'] ) && '' !== $field['default_value'] ) {
+        return $field['default_value'];
+    }
+    return '';
 }
 
 /**
