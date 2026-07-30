@@ -6924,6 +6924,7 @@ jQuery(function($){
             '_bpu_salary_currency' => sanitize_text_field( $body['salary_currency'] ?? 'GBP' ),
             '_bpu_expires_date'    => sanitize_text_field( $body['expires_date'] ?? '' ),
             '_bpu_employer_id'     => $user_id,
+            '_bpu_posted_by_admin' => $is_admin ? 1 : 0,
             '_bpu_impressions'     => 0,
             '_bpu_clicks'          => 0,
             '_bpu_applications_count' => 0,
@@ -7335,10 +7336,15 @@ jQuery(function($){
         $count = intval( get_post_meta( $job_id, '_bpu_applications_count', true ) ?: 0 );
         update_post_meta( $job_id, '_bpu_applications_count', $count + 1 );
 
-        // Notify employer
-        $employer_id = intval( get_post_meta( $job_id, '_bpu_employer_id', true ) );
-        $employer    = get_userdata( $employer_id );
-        if ( $employer ) {
+        // Notify employer — for jobs posted by an administrator, prefer the
+        // configured admin notification address over the poster's own inbox.
+        $employer_id     = intval( get_post_meta( $job_id, '_bpu_employer_id', true ) );
+        $employer        = get_userdata( $employer_id );
+        $posted_by_admin = (bool) get_post_meta( $job_id, '_bpu_posted_by_admin', true );
+        $admin_notify_to = $posted_by_admin ? trim( (string) get_option( '_bpu_job_admin_notification_email', '' ) ) : '';
+        $notify_email    = ( $admin_notify_to && is_email( $admin_notify_to ) ) ? $admin_notify_to : ( $employer ? $employer->user_email : '' );
+
+        if ( $notify_email ) {
             $employer_email = $this->render_email_template( 'job_application_employer', array(
                 'job_title'       => $job_title,
                 'applicant_name'  => $user->display_name,
@@ -7346,7 +7352,7 @@ jQuery(function($){
                 'dashboard_link'  => sprintf( 'https://web.blackprofessionals.uk/employer/jobs/%d', $job_id ),
             ) );
             wp_mail(
-                $employer->user_email,
+                $notify_email,
                 $employer_email['subject'],
                 $employer_email['body'],
                 array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
@@ -10175,10 +10181,11 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success'  => true,
             'settings' => array(
-                'commission_rate'       => (float) get_option( '_paired_platform_commission_rate', 0 ),
-                'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
-                'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
-                'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'commission_rate'              => (float) get_option( '_paired_platform_commission_rate', 0 ),
+                'currency'                     => get_option( '_paired_platform_currency', 'GBP' ),
+                'booking_buffer_hours'         => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
+                'max_bookings_per_day'         => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'job_admin_notification_email' => get_option( '_bpu_job_admin_notification_email', '' ),
             ),
         ), 200 );
     }
@@ -10191,10 +10198,11 @@ jQuery(function($){
         if ( ! is_array( $body ) ) $body = array();
 
         $allowed = array(
-            'commission_rate'      => '_paired_platform_commission_rate',
-            'currency'             => '_paired_platform_currency',
-            'booking_buffer_hours' => '_paired_platform_booking_buffer_hours',
-            'max_bookings_per_day' => '_paired_platform_max_bookings_per_day',
+            'commission_rate'              => '_paired_platform_commission_rate',
+            'currency'                     => '_paired_platform_currency',
+            'booking_buffer_hours'         => '_paired_platform_booking_buffer_hours',
+            'max_bookings_per_day'         => '_paired_platform_max_bookings_per_day',
+            'job_admin_notification_email' => '_bpu_job_admin_notification_email',
         );
 
         foreach ( $allowed as $field => $option_key ) {
@@ -10210,6 +10218,11 @@ jQuery(function($){
                 $value = max( 0, (int) $value );
             } elseif ( $field === 'max_bookings_per_day' ) {
                 $value = max( 1, (int) $value );
+            } elseif ( $field === 'job_admin_notification_email' ) {
+                $value = sanitize_email( $value );
+                if ( '' !== $value && ! is_email( $value ) ) {
+                    return new WP_Error( 'bpu_invalid_email', __( 'Invalid job admin notification email.', 'bpu' ), array( 'status' => 400 ) );
+                }
             }
 
             update_option( $option_key, $value );
@@ -10218,10 +10231,11 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success'  => true,
             'settings' => array(
-                'commission_rate'       => (float) get_option( '_paired_platform_commission_rate', 0 ),
-                'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
-                'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
-                'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'commission_rate'              => (float) get_option( '_paired_platform_commission_rate', 0 ),
+                'currency'                     => get_option( '_paired_platform_currency', 'GBP' ),
+                'booking_buffer_hours'         => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
+                'max_bookings_per_day'         => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'job_admin_notification_email' => get_option( '_bpu_job_admin_notification_email', '' ),
             ),
         ), 200 );
     }
