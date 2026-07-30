@@ -2646,71 +2646,40 @@ Rules:
      * Send a welcome email to a newly registered member.
      */
     private function send_welcome_email( WP_User $user ) {
-        $to      = $user->user_email;
-        $subject = __( 'Welcome to Black Professionals United!', 'bpu' );
+        $tpl = $this->render_email_template( 'welcome', array(
+            'name' => $user->display_name,
+        ) );
 
-        $message  = sprintf( __( 'Hi %s,', 'bpu' ), $user->display_name ) . "\r\n\r\n";
-        $message .= __( 'Welcome to the Black Professionals United community — we are thrilled to have you.', 'bpu' ) . "\r\n\r\n";
-        $message .= __( 'Here is what you can do next:', 'bpu' ) . "\r\n";
-        $message .= '• ' . __( 'Complete your profile so we can match you with the right jobs and mentors', 'bpu' ) . "\r\n";
-        $message .= '• ' . __( 'Upload your CV to our AI-powered CV Clinic for personalised feedback', 'bpu' ) . "\r\n";
-        $message .= '• ' . __( 'Browse PAIRED — our free 1-on-1 mentorship platform', 'bpu' ) . "\r\n\r\n";
-        $message .= __( 'Your member portal:', 'bpu' ) . ' https://web.blackprofessionals.uk' . "\r\n";
-        $message .= __( 'Find a mentor:', 'bpu' ) . ' https://pairedbybpu.uk/mentors' . "\r\n\r\n";
-        $message .= __( 'To your career success,', 'bpu' ) . "\r\n";
-        $message .= __( 'The BPU Team', 'bpu' );
-
-        wp_mail( $to, $subject, $message, array( 'Content-Type: text/plain; charset=UTF-8' ) );
+        wp_mail( $user->user_email, $tpl['subject'], $tpl['body'], array( 'Content-Type: text/plain; charset=UTF-8' ) );
     }
 
     /**
      * Send confirmation email to mentee and notification email to mentor on booking creation.
      */
     private function send_booking_emails( WP_User $mentee, WP_User $mentor, string $date, string $time_slot, string $notes ) {
-        $headers  = array( 'Content-Type: text/plain; charset=UTF-8' );
-        $portal   = 'https://pairedbybpu.uk/dashboard';
+        $headers       = array( 'Content-Type: text/plain; charset=UTF-8' );
         $readable_date = date_i18n( get_option( 'date_format' ), strtotime( $date ) );
         $readable_time = str_replace( '-', ' – ', $time_slot ) . ' GMT';
 
         // 1. Mentee confirmation
-        $mentee_subject = sprintf(
-            __( 'Booking requested with %s — PAIRED by BPU', 'bpu' ),
-            $mentor->display_name
-        );
-        $mentee_msg  = sprintf( __( 'Hi %s,', 'bpu' ), $mentee->display_name ) . "\r\n\r\n";
-        $mentee_msg .= sprintf(
-            __( 'Your session request with %s has been sent. They will confirm shortly.', 'bpu' ),
-            $mentor->display_name
-        ) . "\r\n\r\n";
-        $mentee_msg .= sprintf( __( 'Date:      %s', 'bpu' ), $readable_date ) . "\r\n";
-        $mentee_msg .= sprintf( __( 'Time:      %s', 'bpu' ), $readable_time ) . "\r\n";
-        if ( ! empty( $notes ) ) {
-            $mentee_msg .= sprintf( __( 'Your notes: %s', 'bpu' ), $notes ) . "\r\n";
-        }
-        $mentee_msg .= "\r\n" . __( 'View your sessions:', 'bpu' ) . ' ' . $portal . "\r\n\r\n";
-        $mentee_msg .= __( 'The PAIRED Team', 'bpu' );
-
-        wp_mail( $mentee->user_email, $mentee_subject, $mentee_msg, $headers );
+        $mentee_tpl = $this->render_email_template( 'booking_mentee', array(
+            'name'        => $mentee->display_name,
+            'mentor_name' => $mentor->display_name,
+            'date'        => $readable_date,
+            'time'        => $readable_time,
+            'notes'       => $notes,
+        ) );
+        wp_mail( $mentee->user_email, $mentee_tpl['subject'], $mentee_tpl['body'], $headers );
 
         // 2. Mentor notification
-        $mentor_subject = sprintf(
-            __( 'New session request from %s — PAIRED by BPU', 'bpu' ),
-            $mentee->display_name
-        );
-        $mentor_msg  = sprintf( __( 'Hi %s,', 'bpu' ), $mentor->display_name ) . "\r\n\r\n";
-        $mentor_msg .= sprintf(
-            __( '%s has requested a 1-on-1 session with you.', 'bpu' ),
-            $mentee->display_name
-        ) . "\r\n\r\n";
-        $mentor_msg .= sprintf( __( 'Date:      %s', 'bpu' ), $readable_date ) . "\r\n";
-        $mentor_msg .= sprintf( __( 'Time:      %s', 'bpu' ), $readable_time ) . "\r\n";
-        if ( ! empty( $notes ) ) {
-            $mentor_msg .= sprintf( __( 'Their notes: %s', 'bpu' ), $notes ) . "\r\n";
-        }
-        $mentor_msg .= "\r\n" . __( 'Log in to confirm or reschedule:', 'bpu' ) . ' ' . $portal . "\r\n\r\n";
-        $mentor_msg .= __( 'The PAIRED Team', 'bpu' );
-
-        wp_mail( $mentor->user_email, $mentor_subject, $mentor_msg, $headers );
+        $mentor_tpl = $this->render_email_template( 'booking_mentor', array(
+            'name'        => $mentor->display_name,
+            'mentee_name' => $mentee->display_name,
+            'date'        => $readable_date,
+            'time'        => $readable_time,
+            'notes'       => $notes,
+        ) );
+        wp_mail( $mentor->user_email, $mentor_tpl['subject'], $mentor_tpl['body'], $headers );
     }
 
     /**
@@ -3127,23 +3096,16 @@ Rules:
             $app_url   = defined( 'BPU_APP_URL' ) ? BPU_APP_URL : 'https://app.blackprofessionals.uk';
             $reset_url = $app_url . '/reset-password?token=' . $token;
 
-            $reset_html = $this->build_email_html(
-                'Reset your password',
-                '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">Hi ' . esc_html( $user->display_name ) . ',</p>'
-                . '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#555;">We received a request to reset your password. Click the button below to set a new one. This link expires in 1 hour.</p>'
-                . '<p style="margin:24px 0;text-align:center;">'
-                . '<a href="' . esc_url( $reset_url ) . '" style="display:inline-block;padding:12px 32px;background:#C8102E;color:#ffffff;text-decoration:none;border-radius:8px;font-size:15px;font-weight:600;">Set new password</a>'
-                . '</p>'
-                . '<p style="margin:0 0 8px;font-size:13px;line-height:1.5;color:#999;">Or copy and paste this link into your browser:</p>'
-                . '<p style="margin:0 0 24px;font-size:13px;line-height:1.5;color:#C8102E;word-break:break-all;">' . esc_url( $reset_url ) . '</p>'
-                . '<p style="margin:0;font-size:13px;line-height:1.5;color:#999;">If you did not request this, you can safely ignore this email &mdash; your password will not change.</p>'
-            );
+            $reset_tpl = $this->render_email_template( 'password_reset', array(
+                'name'       => $user->display_name,
+                'reset_link' => $reset_url,
+            ) );
 
             wp_mail(
                 $user->user_email,
-                'Reset your BPU password',
-                $reset_html,
-                array( 'Content-Type: text/html; charset=UTF-8' )
+                $reset_tpl['subject'],
+                $reset_tpl['body'],
+                array( 'Content-Type: text/plain; charset=UTF-8' )
             );
         }
 
@@ -4706,39 +4668,32 @@ Rules:
         $mentor_name  = $mentor ? $mentor->display_name : 'your mentor';
 
         if ( $mentee ) {
+            $tpl_key_map = array(
+                'confirmed' => 'booking_confirmed',
+                'cancelled' => 'booking_cancelled',
+                'completed' => 'booking_completed',
+            );
+            $vars = array(
+                'name'       => $mentee->display_name,
+                'other_name' => $mentor_name,
+                'date'       => $booking_date,
+                'time'       => $time_slot ? str_replace( '-', ' – ', $time_slot ) . ' GMT' : '',
+            );
             if ( 'confirmed' === $status ) {
-                $heading    = 'Your session has been confirmed!';
-                $body_html  = '<p style="color:#333;font-size:15px;line-height:1.6;">Great news! Your session with <strong>' . esc_html( $mentor_name ) . '</strong>';
-                if ( $booking_date ) {
-                    $body_html .= ' on <strong>' . esc_html( $booking_date ) . '</strong>';
-                }
-                if ( $time_slot ) {
-                    $body_html .= ' at <strong>' . esc_html( str_replace( '-', ' – ', $time_slot ) ) . ' GMT</strong>';
-                }
-                $body_html .= ' has been confirmed.</p>';
-                if ( $meet_link ) {
-                    $body_html .= '<p style="color:#333;font-size:15px;line-height:1.6;">Join the meeting: <a href="' . esc_url( $meet_link ) . '" style="color:#7c3aed;font-weight:600;">' . esc_html( $meet_link ) . '</a></p>';
-                } else {
-                    $body_html .= '<p style="color:#555;font-size:14px;">Your mentor will be in touch about the video call link.</p>';
-                }
-                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/dashboard" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">View my sessions</a></p>';
-            } elseif ( 'cancelled' === $status ) {
-                $heading    = 'Session request declined';
-                $body_html  = '<p style="color:#333;font-size:15px;line-height:1.6;">Unfortunately your session request with <strong>' . esc_html( $mentor_name ) . '</strong> has been declined.</p>';
-                $body_html .= '<p style="color:#555;font-size:14px;">Don\'t be discouraged — there are many great mentors on PAIRED. Browse the directory and book another session.</p>';
-                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors" style="display:inline-block;background:#C8102E;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Find another mentor</a></p>';
-            } else {
-                $heading   = 'Session marked as completed';
-                $body_html = '<p style="color:#333;font-size:15px;line-height:1.6;">Your session with <strong>' . esc_html( $mentor_name ) . '</strong> has been marked as completed. We hope it was valuable!</p>';
-                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors/' . intval( $mentor_id ) . '/review" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Leave a review</a></p>';
-                $body_html .= '<p style="margin-top:12px;"><a href="https://pairedbybpu.uk/paired/mentors" style="color:#7c3aed;font-size:14px;text-decoration:underline;">Or browse more mentors</a></p>';
+                $vars['meet_link'] = $meet_link
+                    ? sprintf( 'Join the meeting: %s', $meet_link )
+                    : 'Your mentor will be in touch about the video call link.';
+            } elseif ( 'completed' === $status ) {
+                $vars['review_link'] = 'https://pairedbybpu.uk/paired/mentors/' . intval( $mentor_id ) . '/review';
             }
+
+            $tpl = $this->render_email_template( $tpl_key_map[ $status ], $vars );
 
             wp_mail(
                 $mentee->user_email,
-                $heading . ' — PAIRED by BPU',
-                $this->build_email_html( $heading, $body_html ),
-                array( 'Content-Type: text/html; charset=UTF-8' )
+                $tpl['subject'],
+                $tpl['body'],
+                array( 'Content-Type: text/plain; charset=UTF-8' )
             );
 
             // Create in-app notification for mentee
@@ -6969,6 +6924,7 @@ jQuery(function($){
             '_bpu_salary_currency' => sanitize_text_field( $body['salary_currency'] ?? 'GBP' ),
             '_bpu_expires_date'    => sanitize_text_field( $body['expires_date'] ?? '' ),
             '_bpu_employer_id'     => $user_id,
+            '_bpu_posted_by_admin' => $is_admin ? 1 : 0,
             '_bpu_impressions'     => 0,
             '_bpu_clicks'          => 0,
             '_bpu_applications_count' => 0,
@@ -7380,23 +7336,39 @@ jQuery(function($){
         $count = intval( get_post_meta( $job_id, '_bpu_applications_count', true ) ?: 0 );
         update_post_meta( $job_id, '_bpu_applications_count', $count + 1 );
 
-        // Notify employer
-        $employer_id = intval( get_post_meta( $job_id, '_bpu_employer_id', true ) );
-        $employer    = get_userdata( $employer_id );
-        if ( $employer ) {
+        // Notify employer — for jobs posted by an administrator, prefer the
+        // configured admin notification address over the poster's own inbox.
+        $employer_id     = intval( get_post_meta( $job_id, '_bpu_employer_id', true ) );
+        $employer        = get_userdata( $employer_id );
+        $posted_by_admin = (bool) get_post_meta( $job_id, '_bpu_posted_by_admin', true );
+        $admin_notify_to = $posted_by_admin ? trim( (string) get_option( '_bpu_job_admin_notification_email', '' ) ) : '';
+        $notify_email    = ( $admin_notify_to && is_email( $admin_notify_to ) ) ? $admin_notify_to : ( $employer ? $employer->user_email : '' );
+
+        if ( $notify_email ) {
+            $employer_email = $this->render_email_template( 'job_application_employer', array(
+                'job_title'       => $job_title,
+                'applicant_name'  => $user->display_name,
+                'applicant_email' => $user->user_email,
+                'dashboard_link'  => sprintf( 'https://web.blackprofessionals.uk/employer/jobs/%d', $job_id ),
+            ) );
             wp_mail(
-                $employer->user_email,
-                sprintf( 'New application: %s', $job_title ),
-                sprintf( "Hello,\n\nA new application has been received for %s from %s (%s).\n\nLog in to your employer dashboard to review it.\n\nhttps://web.blackprofessionals.uk/employer/jobs/%d\n\nBPU Team", $job_title, $user->display_name, $user->user_email, $job_id ),
+                $notify_email,
+                $employer_email['subject'],
+                $employer_email['body'],
                 array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
             );
         }
 
         // Confirm to applicant
+        $applicant_email = $this->render_email_template( 'job_application_applicant', array(
+            'name'      => $user->display_name,
+            'job_title' => $job_title,
+            'company'   => $company,
+        ) );
         wp_mail(
             $user->user_email,
-            sprintf( 'Application submitted: %s at %s', $job_title, $company ),
-            sprintf( "Hi %s,\n\nYour application for %s at %s has been submitted.\n\nWe'll be in touch if you're shortlisted. Good luck!\n\nBPU Team", $user->display_name, $job_title, $company ),
+            $applicant_email['subject'],
+            $applicant_email['body'],
             array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
         );
 
@@ -10209,10 +10181,11 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success'  => true,
             'settings' => array(
-                'commission_rate'       => (float) get_option( '_paired_platform_commission_rate', 0 ),
-                'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
-                'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
-                'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'commission_rate'              => (float) get_option( '_paired_platform_commission_rate', 0 ),
+                'currency'                     => get_option( '_paired_platform_currency', 'GBP' ),
+                'booking_buffer_hours'         => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
+                'max_bookings_per_day'         => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'job_admin_notification_email' => get_option( '_bpu_job_admin_notification_email', '' ),
             ),
         ), 200 );
     }
@@ -10225,10 +10198,11 @@ jQuery(function($){
         if ( ! is_array( $body ) ) $body = array();
 
         $allowed = array(
-            'commission_rate'      => '_paired_platform_commission_rate',
-            'currency'             => '_paired_platform_currency',
-            'booking_buffer_hours' => '_paired_platform_booking_buffer_hours',
-            'max_bookings_per_day' => '_paired_platform_max_bookings_per_day',
+            'commission_rate'              => '_paired_platform_commission_rate',
+            'currency'                     => '_paired_platform_currency',
+            'booking_buffer_hours'         => '_paired_platform_booking_buffer_hours',
+            'max_bookings_per_day'         => '_paired_platform_max_bookings_per_day',
+            'job_admin_notification_email' => '_bpu_job_admin_notification_email',
         );
 
         foreach ( $allowed as $field => $option_key ) {
@@ -10244,6 +10218,11 @@ jQuery(function($){
                 $value = max( 0, (int) $value );
             } elseif ( $field === 'max_bookings_per_day' ) {
                 $value = max( 1, (int) $value );
+            } elseif ( $field === 'job_admin_notification_email' ) {
+                $value = sanitize_email( $value );
+                if ( '' !== $value && ! is_email( $value ) ) {
+                    return new WP_Error( 'bpu_invalid_email', __( 'Invalid job admin notification email.', 'bpu' ), array( 'status' => 400 ) );
+                }
             }
 
             update_option( $option_key, $value );
@@ -10252,10 +10231,11 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success'  => true,
             'settings' => array(
-                'commission_rate'       => (float) get_option( '_paired_platform_commission_rate', 0 ),
-                'currency'              => get_option( '_paired_platform_currency', 'GBP' ),
-                'booking_buffer_hours'  => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
-                'max_bookings_per_day'  => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'commission_rate'              => (float) get_option( '_paired_platform_commission_rate', 0 ),
+                'currency'                     => get_option( '_paired_platform_currency', 'GBP' ),
+                'booking_buffer_hours'         => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
+                'max_bookings_per_day'         => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
+                'job_admin_notification_email' => get_option( '_bpu_job_admin_notification_email', '' ),
             ),
         ), 200 );
     }
@@ -10290,8 +10270,8 @@ jQuery(function($){
             'booking_confirmed' => array(
                 'label'           => 'Booking confirmed notification',
                 'default_subject' => 'Session confirmed — PAIRED by BPU',
-                'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} has been confirmed.\r\n\r\nDate: {{date}}\r\nTime: {{time}}\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
-                'variables'       => array( '{{name}}', '{{other_name}}', '{{date}}', '{{time}}' ),
+                'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} has been confirmed.\r\n\r\nDate: {{date}}\r\nTime: {{time}}\r\n\r\n{{meet_link}}\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{other_name}}', '{{date}}', '{{time}}', '{{meet_link}}' ),
             ),
             'booking_cancelled' => array(
                 'label'           => 'Booking cancelled notification',
@@ -10299,12 +10279,63 @@ jQuery(function($){
                 'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} on {{date}} at {{time}} has been cancelled.\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
                 'variables'       => array( '{{name}}', '{{other_name}}', '{{date}}', '{{time}}' ),
             ),
+            'booking_completed' => array(
+                'label'           => 'Session completed notification',
+                'default_subject' => 'Session completed — PAIRED by BPU',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} has been marked as completed. We hope it was valuable!\r\n\r\nLeave a review: {{review_link}}\r\n\r\nBrowse more mentors: https://pairedbybpu.uk/mentors\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{other_name}}', '{{review_link}}' ),
+            ),
             'password_reset' => array(
                 'label'           => 'Password reset email',
                 'default_subject' => 'Reset your password — Black Professionals United',
                 'default_body'    => "Hi {{name}},\r\n\r\nWe received a request to reset your password. Click the link below to choose a new one:\r\n\r\n{{reset_link}}\r\n\r\nThis link will expire in 1 hour. If you did not request a password reset, please ignore this email.\r\n\r\nThe BPU Team",
                 'variables'       => array( '{{name}}', '{{reset_link}}' ),
             ),
+            'job_application_employer' => array(
+                'label'           => 'New job application (to employer)',
+                'default_subject' => 'New application: {{job_title}}',
+                'default_body'    => "Hello,\r\n\r\nA new application has been received for {{job_title}} from {{applicant_name}} ({{applicant_email}}).\r\n\r\nLog in to your employer dashboard to review it.\r\n\r\n{{dashboard_link}}\r\n\r\nBPU Team",
+                'variables'       => array( '{{job_title}}', '{{applicant_name}}', '{{applicant_email}}', '{{dashboard_link}}' ),
+            ),
+            'job_application_applicant' => array(
+                'label'           => 'Application submitted (to applicant)',
+                'default_subject' => 'Application submitted: {{job_title}} at {{company}}',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour application for {{job_title}} at {{company}} has been submitted.\r\n\r\nWe'll be in touch if you're shortlisted. Good luck!\r\n\r\nBPU Team",
+                'variables'       => array( '{{name}}', '{{job_title}}', '{{company}}' ),
+            ),
+        );
+    }
+
+    /**
+     * Render a stored (or default) email template with variables substituted.
+     *
+     * @param string $key  Template key from get_email_template_definitions().
+     * @param array  $vars Map of variable name (without braces) => replacement value.
+     * @return array{subject: string, body: string}|null
+     */
+    private function render_email_template( $key, array $vars = array() ) {
+        $definitions = $this->get_email_template_definitions();
+        if ( ! isset( $definitions[ $key ] ) ) {
+            return null;
+        }
+        $def = $definitions[ $key ];
+
+        $subject = get_option( '_paired_email_tpl_' . $key . '_subject', '' );
+        $subject = ( is_string( $subject ) && '' !== $subject ) ? $subject : $def['default_subject'];
+
+        $body = get_option( '_paired_email_tpl_' . $key, '' );
+        $body = ( is_string( $body ) && '' !== $body ) ? $body : $def['default_body'];
+
+        $search  = array();
+        $replace = array();
+        foreach ( $vars as $var_key => $var_value ) {
+            $search[]  = '{{' . $var_key . '}}';
+            $replace[] = (string) $var_value;
+        }
+
+        return array(
+            'subject' => str_replace( $search, $replace, $subject ),
+            'body'    => str_replace( $search, $replace, $body ),
         );
     }
 
