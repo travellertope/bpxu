@@ -4668,42 +4668,33 @@ Rules:
         $mentor_name  = $mentor ? $mentor->display_name : 'your mentor';
 
         if ( $mentee ) {
-            if ( 'confirmed' === $status || 'cancelled' === $status ) {
-                $tpl_key = ( 'confirmed' === $status ) ? 'booking_confirmed' : 'booking_cancelled';
-                $vars    = array(
-                    'name'       => $mentee->display_name,
-                    'other_name' => $mentor_name,
-                    'date'       => $booking_date,
-                    'time'       => $time_slot ? str_replace( '-', ' – ', $time_slot ) . ' GMT' : '',
-                );
-                if ( 'confirmed' === $status ) {
-                    $vars['meet_link'] = $meet_link
-                        ? sprintf( 'Join the meeting: %s', $meet_link )
-                        : 'Your mentor will be in touch about the video call link.';
-                }
-
-                $tpl = $this->render_email_template( $tpl_key, $vars );
-
-                wp_mail(
-                    $mentee->user_email,
-                    $tpl['subject'],
-                    $tpl['body'],
-                    array( 'Content-Type: text/plain; charset=UTF-8' )
-                );
-            } else {
-                // 'completed' status has no admin-editable template — keep the styled email.
-                $heading   = 'Session marked as completed';
-                $body_html = '<p style="color:#333;font-size:15px;line-height:1.6;">Your session with <strong>' . esc_html( $mentor_name ) . '</strong> has been marked as completed. We hope it was valuable!</p>';
-                $body_html .= '<p style="margin-top:24px;"><a href="https://pairedbybpu.uk/paired/mentors/' . intval( $mentor_id ) . '/review" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;">Leave a review</a></p>';
-                $body_html .= '<p style="margin-top:12px;"><a href="https://pairedbybpu.uk/paired/mentors" style="color:#7c3aed;font-size:14px;text-decoration:underline;">Or browse more mentors</a></p>';
-
-                wp_mail(
-                    $mentee->user_email,
-                    $heading . ' — PAIRED by BPU',
-                    $this->build_email_html( $heading, $body_html ),
-                    array( 'Content-Type: text/html; charset=UTF-8' )
-                );
+            $tpl_key_map = array(
+                'confirmed' => 'booking_confirmed',
+                'cancelled' => 'booking_cancelled',
+                'completed' => 'booking_completed',
+            );
+            $vars = array(
+                'name'       => $mentee->display_name,
+                'other_name' => $mentor_name,
+                'date'       => $booking_date,
+                'time'       => $time_slot ? str_replace( '-', ' – ', $time_slot ) . ' GMT' : '',
+            );
+            if ( 'confirmed' === $status ) {
+                $vars['meet_link'] = $meet_link
+                    ? sprintf( 'Join the meeting: %s', $meet_link )
+                    : 'Your mentor will be in touch about the video call link.';
+            } elseif ( 'completed' === $status ) {
+                $vars['review_link'] = 'https://pairedbybpu.uk/paired/mentors/' . intval( $mentor_id ) . '/review';
             }
+
+            $tpl = $this->render_email_template( $tpl_key_map[ $status ], $vars );
+
+            wp_mail(
+                $mentee->user_email,
+                $tpl['subject'],
+                $tpl['body'],
+                array( 'Content-Type: text/plain; charset=UTF-8' )
+            );
 
             // Create in-app notification for mentee
             if ( 'confirmed' === $status ) {
@@ -10273,6 +10264,12 @@ jQuery(function($){
                 'default_subject' => 'Session cancelled — PAIRED by BPU',
                 'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} on {{date}} at {{time}} has been cancelled.\r\n\r\nView your sessions: https://pairedbybpu.uk/dashboard\r\n\r\nThe PAIRED Team",
                 'variables'       => array( '{{name}}', '{{other_name}}', '{{date}}', '{{time}}' ),
+            ),
+            'booking_completed' => array(
+                'label'           => 'Session completed notification',
+                'default_subject' => 'Session completed — PAIRED by BPU',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour session with {{other_name}} has been marked as completed. We hope it was valuable!\r\n\r\nLeave a review: {{review_link}}\r\n\r\nBrowse more mentors: https://pairedbybpu.uk/mentors\r\n\r\nThe PAIRED Team",
+                'variables'       => array( '{{name}}', '{{other_name}}', '{{review_link}}' ),
             ),
             'password_reset' => array(
                 'label'           => 'Password reset email',
