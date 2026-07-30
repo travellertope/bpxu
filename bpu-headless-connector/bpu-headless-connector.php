@@ -2662,14 +2662,14 @@ Rules:
             'name' => $user->display_name,
         ) );
 
-        wp_mail( $user->user_email, $tpl['subject'], $tpl['body'], array( 'Content-Type: text/plain; charset=UTF-8' ) );
+        wp_mail( $user->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
     }
 
     /**
      * Send confirmation email to mentee and notification email to mentor on booking creation.
      */
     private function send_booking_emails( WP_User $mentee, WP_User $mentor, string $date, string $time_slot, string $notes ) {
-        $headers       = array( 'Content-Type: text/plain; charset=UTF-8' );
+        $headers       = array( 'Content-Type: text/html; charset=UTF-8' );
         $readable_date = date_i18n( get_option( 'date_format' ), strtotime( $date ) );
         $readable_time = str_replace( '-', ' – ', $time_slot ) . ' GMT';
 
@@ -2681,7 +2681,7 @@ Rules:
             'time'        => $readable_time,
             'notes'       => $notes,
         ) );
-        wp_mail( $mentee->user_email, $mentee_tpl['subject'], $mentee_tpl['body'], $headers );
+        wp_mail( $mentee->user_email, $mentee_tpl['subject'], $mentee_tpl['html'], $headers );
 
         // 2. Mentor notification
         $mentor_tpl = $this->render_email_template( 'booking_mentor', array(
@@ -2691,7 +2691,7 @@ Rules:
             'time'        => $readable_time,
             'notes'       => $notes,
         ) );
-        wp_mail( $mentor->user_email, $mentor_tpl['subject'], $mentor_tpl['body'], $headers );
+        wp_mail( $mentor->user_email, $mentor_tpl['subject'], $mentor_tpl['html'], $headers );
     }
 
     /**
@@ -3116,8 +3116,8 @@ Rules:
             wp_mail(
                 $user->user_email,
                 $reset_tpl['subject'],
-                $reset_tpl['body'],
-                array( 'Content-Type: text/plain; charset=UTF-8' )
+                $reset_tpl['html'],
+                array( 'Content-Type: text/html; charset=UTF-8' )
             );
         }
 
@@ -4704,8 +4704,8 @@ Rules:
             wp_mail(
                 $mentee->user_email,
                 $tpl['subject'],
-                $tpl['body'],
-                array( 'Content-Type: text/plain; charset=UTF-8' )
+                $tpl['html'],
+                array( 'Content-Type: text/html; charset=UTF-8' )
             );
 
             // Create in-app notification for mentee
@@ -7471,8 +7471,8 @@ jQuery(function($){
             wp_mail(
                 $notify_email,
                 $employer_email['subject'],
-                $employer_email['body'],
-                array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+                $employer_email['html'],
+                array( 'Content-Type: text/html; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
             );
         }
 
@@ -7485,8 +7485,8 @@ jQuery(function($){
         wp_mail(
             $user->user_email,
             $applicant_email['subject'],
-            $applicant_email['body'],
-            array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+            $applicant_email['html'],
+            array( 'Content-Type: text/html; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
         );
 
         return new WP_REST_Response( array( 'success' => true, 'application_id' => $app_id ), 201 );
@@ -10428,7 +10428,7 @@ jQuery(function($){
      *
      * @param string $key  Template key from get_email_template_definitions().
      * @param array  $vars Map of variable name (without braces) => replacement value.
-     * @return array{subject: string, body: string}|null
+     * @return array{subject: string, body: string, html: string}|null
      */
     private function render_email_template( $key, array $vars = array() ) {
         $definitions = $this->get_email_template_definitions();
@@ -10450,10 +10450,38 @@ jQuery(function($){
             $replace[] = (string) $var_value;
         }
 
+        $subject = str_replace( $search, $replace, $subject );
+        $body    = str_replace( $search, $replace, $body );
+
         return array(
-            'subject' => str_replace( $search, $replace, $subject ),
-            'body'    => str_replace( $search, $replace, $body ),
+            'subject' => $subject,
+            'body'    => $body,
+            'html'    => $this->build_email_html( esc_html( $subject ), $this->text_to_html_paragraphs( $body ) ),
         );
+    }
+
+    /**
+     * Convert plain-text template content into HTML paragraphs/line breaks so
+     * blank-line-separated paragraphs and single line breaks survive in the
+     * sent email instead of collapsing into one run of text — which is what
+     * happens to \r\n/\n line breaks in a plain-text email once some mail
+     * clients reflow it (RFC 3676 "format=flowed" handling).
+     */
+    private function text_to_html_paragraphs( $text ) {
+        $text       = str_replace( "\r\n", "\n", (string) $text );
+        $paragraphs = preg_split( "/\n{2,}/", trim( $text ) );
+
+        $html = '';
+        foreach ( $paragraphs as $paragraph ) {
+            $paragraph = trim( $paragraph );
+            if ( '' === $paragraph ) {
+                continue;
+            }
+            $html .= '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#333;">'
+                . nl2br( esc_html( $paragraph ) )
+                . '</p>';
+        }
+        return $html;
     }
 
     /**
