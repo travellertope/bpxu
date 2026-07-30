@@ -7384,19 +7384,30 @@ jQuery(function($){
         $employer_id = intval( get_post_meta( $job_id, '_bpu_employer_id', true ) );
         $employer    = get_userdata( $employer_id );
         if ( $employer ) {
+            $employer_email = $this->render_email_template( 'job_application_employer', array(
+                'job_title'       => $job_title,
+                'applicant_name'  => $user->display_name,
+                'applicant_email' => $user->user_email,
+                'dashboard_link'  => sprintf( 'https://web.blackprofessionals.uk/employer/jobs/%d', $job_id ),
+            ) );
             wp_mail(
                 $employer->user_email,
-                sprintf( 'New application: %s', $job_title ),
-                sprintf( "Hello,\n\nA new application has been received for %s from %s (%s).\n\nLog in to your employer dashboard to review it.\n\nhttps://web.blackprofessionals.uk/employer/jobs/%d\n\nBPU Team", $job_title, $user->display_name, $user->user_email, $job_id ),
+                $employer_email['subject'],
+                $employer_email['body'],
                 array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
             );
         }
 
         // Confirm to applicant
+        $applicant_email = $this->render_email_template( 'job_application_applicant', array(
+            'name'      => $user->display_name,
+            'job_title' => $job_title,
+            'company'   => $company,
+        ) );
         wp_mail(
             $user->user_email,
-            sprintf( 'Application submitted: %s at %s', $job_title, $company ),
-            sprintf( "Hi %s,\n\nYour application for %s at %s has been submitted.\n\nWe'll be in touch if you're shortlisted. Good luck!\n\nBPU Team", $user->display_name, $job_title, $company ),
+            $applicant_email['subject'],
+            $applicant_email['body'],
             array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
         );
 
@@ -10305,6 +10316,51 @@ jQuery(function($){
                 'default_body'    => "Hi {{name}},\r\n\r\nWe received a request to reset your password. Click the link below to choose a new one:\r\n\r\n{{reset_link}}\r\n\r\nThis link will expire in 1 hour. If you did not request a password reset, please ignore this email.\r\n\r\nThe BPU Team",
                 'variables'       => array( '{{name}}', '{{reset_link}}' ),
             ),
+            'job_application_employer' => array(
+                'label'           => 'New job application (to employer)',
+                'default_subject' => 'New application: {{job_title}}',
+                'default_body'    => "Hello,\r\n\r\nA new application has been received for {{job_title}} from {{applicant_name}} ({{applicant_email}}).\r\n\r\nLog in to your employer dashboard to review it.\r\n\r\n{{dashboard_link}}\r\n\r\nBPU Team",
+                'variables'       => array( '{{job_title}}', '{{applicant_name}}', '{{applicant_email}}', '{{dashboard_link}}' ),
+            ),
+            'job_application_applicant' => array(
+                'label'           => 'Application submitted (to applicant)',
+                'default_subject' => 'Application submitted: {{job_title}} at {{company}}',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour application for {{job_title}} at {{company}} has been submitted.\r\n\r\nWe'll be in touch if you're shortlisted. Good luck!\r\n\r\nBPU Team",
+                'variables'       => array( '{{name}}', '{{job_title}}', '{{company}}' ),
+            ),
+        );
+    }
+
+    /**
+     * Render a stored (or default) email template with variables substituted.
+     *
+     * @param string $key  Template key from get_email_template_definitions().
+     * @param array  $vars Map of variable name (without braces) => replacement value.
+     * @return array{subject: string, body: string}|null
+     */
+    private function render_email_template( $key, array $vars = array() ) {
+        $definitions = $this->get_email_template_definitions();
+        if ( ! isset( $definitions[ $key ] ) ) {
+            return null;
+        }
+        $def = $definitions[ $key ];
+
+        $subject = get_option( '_paired_email_tpl_' . $key . '_subject', '' );
+        $subject = ( is_string( $subject ) && '' !== $subject ) ? $subject : $def['default_subject'];
+
+        $body = get_option( '_paired_email_tpl_' . $key, '' );
+        $body = ( is_string( $body ) && '' !== $body ) ? $body : $def['default_body'];
+
+        $search  = array();
+        $replace = array();
+        foreach ( $vars as $var_key => $var_value ) {
+            $search[]  = '{{' . $var_key . '}}';
+            $replace[] = (string) $var_value;
+        }
+
+        return array(
+            'subject' => str_replace( $search, $replace, $subject ),
+            'body'    => str_replace( $search, $replace, $body ),
         );
     }
 
