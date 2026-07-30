@@ -18,6 +18,12 @@ interface Application {
     job_company: string;
 }
 
+interface JobFilterOption {
+    job_id: number;
+    title: string;
+    company: string;
+}
+
 interface ApplicationsResponse {
     applications: Application[];
     total: number;
@@ -28,6 +34,7 @@ interface ApplicationsResponse {
         shortlisted?: number;
         rejected?: number;
     };
+    jobs_filter?: JobFilterOption[];
 }
 
 type StatusFilter = 'all' | 'pending' | 'reviewed' | 'shortlisted' | 'rejected';
@@ -53,24 +60,35 @@ export default function JobApplicationsAdmin() {
     const [applications, setApplications] = useState<Application[]>([]);
     const [total, setTotal] = useState(0);
     const [counts, setCounts] = useState<ApplicationsResponse['counts']>({});
+    const [jobsFilter, setJobsFilter] = useState<JobFilterOption[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [jobFilter, setJobFilter] = useState<string>('');
     const [search, setSearch] = useState('');
     const [searchInput, setSearchInput] = useState('');
     const [page, setPage] = useState(1);
     const [updatingId, setUpdatingId] = useState<number | null>(null);
     const [flashId, setFlashId] = useState<number | null>(null);
     const [expandedId, setExpandedId] = useState<number | null>(null);
+    const [exporting, setExporting] = useState(false);
     const perPage = 20;
+
+    const buildFilterParams = useCallback(() => {
+        const params = new URLSearchParams();
+        if (statusFilter !== 'all') params.set('status', statusFilter);
+        if (search.trim()) params.set('search', search.trim());
+        if (jobFilter) params.set('job_id', jobFilter);
+        return params;
+    }, [statusFilter, search, jobFilter]);
 
     const fetchApplications = useCallback(async () => {
         setLoading(true);
         setError('');
         try {
-            const params = new URLSearchParams({ page: String(page), per_page: String(perPage) });
-            if (statusFilter !== 'all') params.set('status', statusFilter);
-            if (search.trim()) params.set('search', search.trim());
+            const params = buildFilterParams();
+            params.set('page', String(page));
+            params.set('per_page', String(perPage));
 
             const res = await fetch(`/api/paired/admin/applications?${params}`);
             const data: ApplicationsResponse = await res.json();
@@ -78,12 +96,13 @@ export default function JobApplicationsAdmin() {
             setApplications(data.applications || []);
             setTotal(data.total || 0);
             setCounts(data.counts || {});
+            setJobsFilter(data.jobs_filter || []);
         } catch (e) {
             setError(e instanceof Error ? e.message : 'Failed to load applications.');
         } finally {
             setLoading(false);
         }
-    }, [page, statusFilter, search]);
+    }, [page, buildFilterParams]);
 
     useEffect(() => {
         fetchApplications();
@@ -99,6 +118,36 @@ export default function JobApplicationsAdmin() {
         setStatusFilter(val);
         setPage(1);
         setExpandedId(null);
+    }
+
+    function handleJobFilterChange(val: string) {
+        setJobFilter(val);
+        setPage(1);
+        setExpandedId(null);
+    }
+
+    async function handleExport() {
+        setExporting(true);
+        try {
+            const params = buildFilterParams();
+            const res = await fetch(`/api/paired/admin/applications/export?${params}`);
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to export applications.');
+
+            const blob = new Blob([data.csv || ''], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = data.filename || 'job-applications.csv';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        } catch (e) {
+            alert(e instanceof Error ? e.message : 'Export failed.');
+        } finally {
+            setExporting(false);
+        }
     }
 
     async function updateStatus(appId: number, newStatus: string) {
@@ -173,22 +222,47 @@ export default function JobApplicationsAdmin() {
                 ))}
             </div>
 
-            {/* Search */}
-            <form onSubmit={handleSearch} className="flex gap-2">
-                <input
-                    type="text"
-                    className="field-input flex-1"
-                    placeholder="Search by applicant name or email..."
-                    value={searchInput}
-                    onChange={e => setSearchInput(e.target.value)}
-                />
-                <button type="submit" className="btn btn-purple btn-sm">Search</button>
-                {search && (
-                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setSearchInput(''); setPage(1); }}>
-                        Clear
-                    </button>
-                )}
-            </form>
+            {/* Search + Job Filter + Export */}
+            <div className="flex flex-col sm:flex-row gap-2">
+                <form onSubmit={handleSearch} className="flex gap-2 flex-1">
+                    <input
+                        type="text"
+                        className="field-input flex-1"
+                        placeholder="Search by applicant name or email..."
+                        value={searchInput}
+                        onChange={e => setSearchInput(e.target.value)}
+                    />
+                    <button type="submit" className="btn btn-purple btn-sm">Search</button>
+                    {search && (
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => { setSearch(''); setSearchInput(''); setPage(1); }}>
+                            Clear
+                        </button>
+                    )}
+                </form>
+
+                <select
+                    className="field-input"
+                    style={{ width: 'auto', minWidth: 180 }}
+                    value={jobFilter}
+                    onChange={e => handleJobFilterChange(e.target.value)}
+                >
+                    <option value="">All jobs</option>
+                    {jobsFilter.map(j => (
+                        <option key={j.job_id} value={j.job_id}>
+                            {decodeHtml(j.title)}{j.company ? ` — ${decodeHtml(j.company)}` : ''}
+                        </option>
+                    ))}
+                </select>
+
+                <button
+                    type="button"
+                    className="btn btn-outline btn-sm"
+                    onClick={handleExport}
+                    disabled={exporting || total === 0}
+                >
+                    {exporting ? 'Exporting...' : 'Export CSV'}
+                </button>
+            </div>
 
             {loading ? (
                 <div className="text-center text-sm text-text-2 py-12">Loading applications...</div>
