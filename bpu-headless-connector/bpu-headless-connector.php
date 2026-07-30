@@ -1486,6 +1486,7 @@ class BPU_Headless_Connector {
                 'per_page' => array( 'default' => 20, 'sanitize_callback' => 'absint' ),
                 'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
                 'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'job_id'   => array( 'default' => 0,   'sanitize_callback' => 'absint' ),
             ),
         ) );
 
@@ -1493,6 +1494,17 @@ class BPU_Headless_Connector {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'admin_update_application_status' ),
             'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_applications' ); },
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/applications/export', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_export_applications' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_applications' ); },
+            'args'                => array(
+                'status' => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'search' => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'job_id' => array( 'default' => 0,  'sanitize_callback' => 'absint' ),
+            ),
         ) );
 
         // Admin: Team Management (requires bpu_manage_team — administrators only)
@@ -2650,14 +2662,14 @@ Rules:
             'name' => $user->display_name,
         ) );
 
-        wp_mail( $user->user_email, $tpl['subject'], $tpl['body'], array( 'Content-Type: text/plain; charset=UTF-8' ) );
+        wp_mail( $user->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
     }
 
     /**
      * Send confirmation email to mentee and notification email to mentor on booking creation.
      */
     private function send_booking_emails( WP_User $mentee, WP_User $mentor, string $date, string $time_slot, string $notes ) {
-        $headers       = array( 'Content-Type: text/plain; charset=UTF-8' );
+        $headers       = array( 'Content-Type: text/html; charset=UTF-8' );
         $readable_date = date_i18n( get_option( 'date_format' ), strtotime( $date ) );
         $readable_time = str_replace( '-', ' – ', $time_slot ) . ' GMT';
 
@@ -2669,7 +2681,7 @@ Rules:
             'time'        => $readable_time,
             'notes'       => $notes,
         ) );
-        wp_mail( $mentee->user_email, $mentee_tpl['subject'], $mentee_tpl['body'], $headers );
+        wp_mail( $mentee->user_email, $mentee_tpl['subject'], $mentee_tpl['html'], $headers );
 
         // 2. Mentor notification
         $mentor_tpl = $this->render_email_template( 'booking_mentor', array(
@@ -2679,7 +2691,7 @@ Rules:
             'time'        => $readable_time,
             'notes'       => $notes,
         ) );
-        wp_mail( $mentor->user_email, $mentor_tpl['subject'], $mentor_tpl['body'], $headers );
+        wp_mail( $mentor->user_email, $mentor_tpl['subject'], $mentor_tpl['html'], $headers );
     }
 
     /**
@@ -3104,8 +3116,8 @@ Rules:
             wp_mail(
                 $user->user_email,
                 $reset_tpl['subject'],
-                $reset_tpl['body'],
-                array( 'Content-Type: text/plain; charset=UTF-8' )
+                $reset_tpl['html'],
+                array( 'Content-Type: text/html; charset=UTF-8' )
             );
         }
 
@@ -4692,8 +4704,8 @@ Rules:
             wp_mail(
                 $mentee->user_email,
                 $tpl['subject'],
-                $tpl['body'],
-                array( 'Content-Type: text/plain; charset=UTF-8' )
+                $tpl['html'],
+                array( 'Content-Type: text/html; charset=UTF-8' )
             );
 
             // Create in-app notification for mentee
@@ -7151,17 +7163,19 @@ jQuery(function($){
         return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 
-    public function admin_get_applications( WP_REST_Request $request ) {
-        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
-        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
-        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
-        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
-
+    /**
+     * Build the meta_query for the admin applications list/export from shared filter params.
+     */
+    private function build_applications_meta_query( $status, $search, $job_id ) {
         $valid_statuses = array( 'pending', 'reviewed', 'shortlisted', 'rejected' );
+        $meta_query     = array();
 
-        $meta_query = array();
         if ( $status && in_array( $status, $valid_statuses, true ) ) {
             $meta_query[] = array( 'key' => '_bpu_status', 'value' => $status );
+        }
+
+        if ( $job_id ) {
+            $meta_query[] = array( 'key' => '_bpu_job_id', 'value' => $job_id );
         }
 
         if ( $search ) {
@@ -7171,6 +7185,39 @@ jQuery(function($){
                 array( 'key' => '_bpu_applicant_email', 'value' => $search, 'compare' => 'LIKE' ),
             );
         }
+
+        return $meta_query;
+    }
+
+    private function format_application_for_admin( WP_Post $post ) {
+        $job_id  = intval( get_post_meta( $post->ID, '_bpu_job_id', true ) );
+        $cv_id   = intval( get_post_meta( $post->ID, '_bpu_cv_id', true ) );
+        $answers = maybe_unserialize( get_post_meta( $post->ID, '_bpu_screening_answers', true ) );
+
+        return array(
+            'id'                 => $post->ID,
+            'applicant_name'     => get_post_meta( $post->ID, '_bpu_applicant_name', true ),
+            'applicant_email'    => get_post_meta( $post->ID, '_bpu_applicant_email', true ),
+            'applicant_phone'    => get_post_meta( $post->ID, '_bpu_applicant_phone', true ),
+            'cv_url'             => $cv_id ? wp_get_attachment_url( $cv_id ) : '',
+            'cover_letter'       => get_post_meta( $post->ID, '_bpu_cover_letter', true ),
+            'screening_answers'  => is_array( $answers ) ? $answers : array(),
+            'status'             => get_post_meta( $post->ID, '_bpu_status', true ) ?: 'pending',
+            'applied_at'         => get_post_meta( $post->ID, '_bpu_applied_at', true ),
+            'job_id'             => $job_id,
+            'job_title'          => $job_id ? get_the_title( $job_id ) : '(Deleted job)',
+            'job_company'        => $job_id ? get_post_meta( $job_id, '_bpu_company', true ) : '',
+        );
+    }
+
+    public function admin_get_applications( WP_REST_Request $request ) {
+        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $job_id   = intval( $request->get_param( 'job_id' ) ?: 0 );
+
+        $meta_query = $this->build_applications_meta_query( $status, $search, $job_id );
 
         $args = array(
             'post_type'      => 'bpu_job_application',
@@ -7185,42 +7232,33 @@ jQuery(function($){
         }
 
         $query        = new WP_Query( $args );
-        $applications = array();
+        $applications = array_map( array( $this, 'format_application_for_admin' ), $query->posts );
 
-        foreach ( $query->posts as $post ) {
-            $job_id  = intval( get_post_meta( $post->ID, '_bpu_job_id', true ) );
-            $cv_id   = intval( get_post_meta( $post->ID, '_bpu_cv_id', true ) );
-            $answers = maybe_unserialize( get_post_meta( $post->ID, '_bpu_screening_answers', true ) );
-
-            $applications[] = array(
-                'id'                 => $post->ID,
-                'applicant_name'     => get_post_meta( $post->ID, '_bpu_applicant_name', true ),
-                'applicant_email'    => get_post_meta( $post->ID, '_bpu_applicant_email', true ),
-                'applicant_phone'    => get_post_meta( $post->ID, '_bpu_applicant_phone', true ),
-                'cv_url'             => $cv_id ? wp_get_attachment_url( $cv_id ) : '',
-                'cover_letter'       => get_post_meta( $post->ID, '_bpu_cover_letter', true ),
-                'screening_answers'  => is_array( $answers ) ? $answers : array(),
-                'status'             => get_post_meta( $post->ID, '_bpu_status', true ) ?: 'pending',
-                'applied_at'         => get_post_meta( $post->ID, '_bpu_applied_at', true ),
-                'job_id'             => $job_id,
-                'job_title'          => $job_id ? get_the_title( $job_id ) : '(Deleted job)',
-                'job_company'        => $job_id ? get_post_meta( $job_id, '_bpu_company', true ) : '',
-            );
-        }
-
-        // Count by status
+        // Count by status, and collect the distinct set of jobs that have applications
+        // (used to populate the "Job" filter dropdown), across ALL applications —
+        // independent of the currently-applied filters.
         $count_args = array(
             'post_type'      => 'bpu_job_application',
             'post_status'    => 'any',
             'posts_per_page' => -1,
             'fields'         => 'ids',
         );
-        $all_ids = get_posts( $count_args );
-        $counts  = array( 'all' => count( $all_ids ), 'pending' => 0, 'reviewed' => 0, 'shortlisted' => 0, 'rejected' => 0 );
+        $all_ids     = get_posts( $count_args );
+        $counts      = array( 'all' => count( $all_ids ), 'pending' => 0, 'reviewed' => 0, 'shortlisted' => 0, 'rejected' => 0 );
+        $jobs_filter = array();
         foreach ( $all_ids as $aid ) {
             $s = get_post_meta( $aid, '_bpu_status', true ) ?: 'pending';
             if ( isset( $counts[ $s ] ) ) {
                 $counts[ $s ]++;
+            }
+
+            $aid_job_id = intval( get_post_meta( $aid, '_bpu_job_id', true ) );
+            if ( $aid_job_id && ! isset( $jobs_filter[ $aid_job_id ] ) ) {
+                $jobs_filter[ $aid_job_id ] = array(
+                    'job_id'  => $aid_job_id,
+                    'title'   => get_the_title( $aid_job_id ) ?: '(Deleted job)',
+                    'company' => get_post_meta( $aid_job_id, '_bpu_company', true ),
+                );
             }
         }
 
@@ -7229,7 +7267,86 @@ jQuery(function($){
             'total'        => $query->found_posts,
             'total_pages'  => $query->max_num_pages,
             'counts'       => $counts,
+            'jobs_filter'  => array_values( $jobs_filter ),
         ), 200 );
+    }
+
+    /**
+     * Admin: Export job applications matching the current filters as CSV.
+     *
+     * Returns the CSV as a JSON string rather than a raw file response — the
+     * frontend turns it into a Blob and triggers the browser download, which
+     * keeps this on the same JSON REST pipeline as the rest of the admin API.
+     */
+    public function admin_export_applications( WP_REST_Request $request ) {
+        $status = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $job_id = intval( $request->get_param( 'job_id' ) ?: 0 );
+
+        $meta_query = $this->build_applications_meta_query( $status, $search, $job_id );
+
+        $args = array(
+            'post_type'      => 'bpu_job_application',
+            'post_status'    => 'any',
+            'posts_per_page' => 10000,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+        );
+        if ( ! empty( $meta_query ) ) {
+            $args['meta_query'] = $meta_query;
+        }
+
+        $posts = get_posts( $args );
+
+        $columns = array(
+            'ID', 'Applicant Name', 'Applicant Email', 'Applicant Phone',
+            'Job Title', 'Company', 'Status', 'Applied At', 'CV URL',
+            'Cover Letter', 'Screening Answers',
+        );
+
+        $csv_rows   = array();
+        $csv_rows[] = implode( ',', array_map( array( $this, 'csv_escape' ), $columns ) );
+
+        foreach ( $posts as $post ) {
+            $app = $this->format_application_for_admin( $post );
+
+            $answers_flat = implode( ' | ', array_map( function ( $qa ) {
+                $q = isset( $qa['question'] ) ? $qa['question'] : '';
+                $a = isset( $qa['answer'] ) ? $qa['answer'] : '';
+                return sprintf( 'Q: %s — A: %s', $q, $a );
+            }, $app['screening_answers'] ) );
+
+            $row = array(
+                $app['id'],
+                $app['applicant_name'],
+                $app['applicant_email'],
+                $app['applicant_phone'],
+                $app['job_title'],
+                $app['job_company'],
+                $app['status'],
+                $app['applied_at'],
+                $app['cv_url'],
+                $app['cover_letter'],
+                $answers_flat,
+            );
+
+            $csv_rows[] = implode( ',', array_map( array( $this, 'csv_escape' ), $row ) );
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'filename' => 'job-applications-' . gmdate( 'Y-m-d' ) . '.csv',
+            'count'    => count( $posts ),
+            'csv'      => implode( "\r\n", $csv_rows ),
+        ), 200 );
+    }
+
+    /**
+     * Escape a single value for inclusion in a CSV file.
+     */
+    private function csv_escape( $value ) {
+        $value = str_replace( '"', '""', (string) $value );
+        return '"' . $value . '"';
     }
 
     public function admin_update_application_status( WP_REST_Request $request ) {
@@ -7354,8 +7471,8 @@ jQuery(function($){
             wp_mail(
                 $notify_email,
                 $employer_email['subject'],
-                $employer_email['body'],
-                array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+                $employer_email['html'],
+                array( 'Content-Type: text/html; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
             );
         }
 
@@ -7368,8 +7485,8 @@ jQuery(function($){
         wp_mail(
             $user->user_email,
             $applicant_email['subject'],
-            $applicant_email['body'],
-            array( 'Content-Type: text/plain; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+            $applicant_email['html'],
+            array( 'Content-Type: text/html; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
         );
 
         return new WP_REST_Response( array( 'success' => true, 'application_id' => $app_id ), 201 );
@@ -10311,7 +10428,7 @@ jQuery(function($){
      *
      * @param string $key  Template key from get_email_template_definitions().
      * @param array  $vars Map of variable name (without braces) => replacement value.
-     * @return array{subject: string, body: string}|null
+     * @return array{subject: string, body: string, html: string}|null
      */
     private function render_email_template( $key, array $vars = array() ) {
         $definitions = $this->get_email_template_definitions();
@@ -10333,10 +10450,38 @@ jQuery(function($){
             $replace[] = (string) $var_value;
         }
 
+        $subject = str_replace( $search, $replace, $subject );
+        $body    = str_replace( $search, $replace, $body );
+
         return array(
-            'subject' => str_replace( $search, $replace, $subject ),
-            'body'    => str_replace( $search, $replace, $body ),
+            'subject' => $subject,
+            'body'    => $body,
+            'html'    => $this->build_email_html( esc_html( $subject ), $this->text_to_html_paragraphs( $body ) ),
         );
+    }
+
+    /**
+     * Convert plain-text template content into HTML paragraphs/line breaks so
+     * blank-line-separated paragraphs and single line breaks survive in the
+     * sent email instead of collapsing into one run of text — which is what
+     * happens to \r\n/\n line breaks in a plain-text email once some mail
+     * clients reflow it (RFC 3676 "format=flowed" handling).
+     */
+    private function text_to_html_paragraphs( $text ) {
+        $text       = str_replace( "\r\n", "\n", (string) $text );
+        $paragraphs = preg_split( "/\n{2,}/", trim( $text ) );
+
+        $html = '';
+        foreach ( $paragraphs as $paragraph ) {
+            $paragraph = trim( $paragraph );
+            if ( '' === $paragraph ) {
+                continue;
+            }
+            $html .= '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#333;">'
+                . nl2br( esc_html( $paragraph ) )
+                . '</p>';
+        }
+        return $html;
     }
 
     /**
