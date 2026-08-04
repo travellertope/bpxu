@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.1.0
+ * Version: 2.2.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -72,6 +72,9 @@ class BPU_Headless_Connector {
         // Weekly job digest (WP Cron)
         add_filter( 'cron_schedules', array( $this, 'add_weekly_cron_schedule' ) );
         add_action( 'bpu_weekly_job_digest', array( $this, 'send_weekly_job_digests' ) );
+
+        // Daily birthday reminders (WP Cron)
+        add_action( 'bpu_daily_birthday_check', array( $this, 'send_birthday_reminders' ) );
 
         // Sync bpu_pro role with WooCommerce Subscription status
         add_action( 'woocommerce_subscription_status_active',     array( $this, 'on_subscription_activated' ) );
@@ -3590,6 +3593,38 @@ Rules:
             );
         }
         return $schedules;
+    }
+
+    /** Members whose stored birthday (ACF date_picker, saved as Ymd) falls on today's month/day. */
+    private function get_members_with_birthday_today(): array {
+        return ( new WP_User_Query( array(
+            'number'     => -1,
+            'meta_query' => array(
+                array(
+                    'key'     => 'birthday',
+                    'value'   => '^[0-9]{4}' . date( 'md' ) . '$',
+                    'compare' => 'REGEXP',
+                ),
+            ),
+        ) ) )->get_results();
+    }
+
+    /**
+     * WP Cron handler — sends a birthday email to every member whose birthday is today.
+     */
+    public function send_birthday_reminders() {
+        $members = $this->get_members_with_birthday_today();
+        if ( empty( $members ) ) {
+            return;
+        }
+
+        foreach ( $members as $member ) {
+            $tpl = $this->render_email_template( 'birthday', array(
+                'name' => $member->display_name,
+            ) );
+
+            wp_mail( $member->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+        }
     }
 
     /** Base64url-decode (RFC 7515). */
@@ -10420,6 +10455,12 @@ jQuery(function($){
                 'default_body'    => "Hi {{name}},\r\n\r\nYour application for {{job_title}} at {{company}} has been submitted.\r\n\r\nWe'll be in touch if you're shortlisted. Good luck!\r\n\r\nBPU Team",
                 'variables'       => array( '{{name}}', '{{job_title}}', '{{company}}' ),
             ),
+            'birthday' => array(
+                'label'           => 'Birthday reminder email',
+                'default_subject' => 'Happy Birthday from BPU!',
+                'default_body'    => "Hi {{name}},\r\n\r\nThe whole team at Black Professionals United wants to wish you a very happy birthday!\r\n\r\nWe hope you have a wonderful day. Thank you for being part of our community — here's to another great year ahead in your career and beyond.\r\n\r\nVisit your member portal: https://app.blackprofessionals.uk\r\n\r\nWarmly,\r\nThe BPU Team",
+                'variables'       => array( '{{name}}' ),
+            ),
         );
     }
 
@@ -12203,4 +12244,17 @@ function bpu_schedule_weekly_digest() {
 
 function bpu_unschedule_weekly_digest() {
     wp_clear_scheduled_hook( 'bpu_weekly_job_digest' );
+}
+
+register_activation_hook( __FILE__, 'bpu_schedule_birthday_check' );
+register_deactivation_hook( __FILE__, 'bpu_unschedule_birthday_check' );
+
+function bpu_schedule_birthday_check() {
+    if ( ! wp_next_scheduled( 'bpu_daily_birthday_check' ) ) {
+        wp_schedule_event( strtotime( 'tomorrow 08:00:00' ), 'daily', 'bpu_daily_birthday_check' );
+    }
+}
+
+function bpu_unschedule_birthday_check() {
+    wp_clear_scheduled_hook( 'bpu_daily_birthday_check' );
 }
