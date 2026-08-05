@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.2.0
+ * Version: 2.3.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -75,6 +75,10 @@ class BPU_Headless_Connector {
 
         // Daily birthday reminders (WP Cron)
         add_action( 'bpu_daily_birthday_check', array( $this, 'send_birthday_reminders' ) );
+
+        // Birthday admin dashboard
+        add_action( 'admin_menu', array( $this, 'register_birthday_admin_page' ) );
+        add_action( 'wp_ajax_bpu_send_birthday_email', array( $this, 'ajax_send_birthday_email' ) );
 
         // Sync bpu_pro role with WooCommerce Subscription status
         add_action( 'woocommerce_subscription_status_active',     array( $this, 'on_subscription_activated' ) );
@@ -3619,12 +3623,76 @@ Rules:
         }
 
         foreach ( $members as $member ) {
-            $tpl = $this->render_email_template( 'birthday', array(
-                'name' => $member->display_name,
-            ) );
-
-            wp_mail( $member->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+            $this->send_single_birthday_email( $member );
         }
+    }
+
+    /**
+     * Send the birthday email to one member and record the send so the admin
+     * dashboard can tell whether this year's email has gone out.
+     */
+    private function send_single_birthday_email( WP_User $member ): bool {
+        $tpl = $this->render_email_template( 'birthday', array(
+            'name' => $member->display_name,
+        ) );
+
+        $sent = wp_mail( $member->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+
+        if ( $sent ) {
+            update_user_meta( $member->ID, '_bpu_last_birthday_email_year', (int) date( 'Y' ) );
+            update_user_meta( $member->ID, '_bpu_last_birthday_email_sent', current_time( 'mysql' ) );
+        }
+
+        return (bool) $sent;
+    }
+
+    /**
+     * All members with a birthday on file, with the fields the admin birthday
+     * dashboard needs: this year's occurrence, whether it has already happened,
+     * and whether the reminder email has been sent for it.
+     */
+    private function get_all_members_with_birthdays(): array {
+        $users = ( new WP_User_Query( array(
+            'number'     => -1,
+            'meta_query' => array(
+                array( 'key' => 'birthday', 'value' => '', 'compare' => '!=' ),
+            ),
+        ) ) )->get_results();
+
+        $today_ymd    = date( 'Ymd' );
+        $current_year = (int) date( 'Y' );
+        $rows         = array();
+
+        foreach ( $users as $user ) {
+            $raw = get_user_meta( $user->ID, 'birthday', true ); // ACF date_picker, stored as Ymd.
+            if ( ! preg_match( '/^(\d{4})(\d{2})(\d{2})$/', (string) $raw, $m ) ) {
+                continue;
+            }
+            list( , $birth_year, $month, $day ) = $m;
+
+            $occurrence_ymd = $current_year . $month . $day;
+            $occurred       = $occurrence_ymd <= $today_ymd;
+            $sent_year      = (int) get_user_meta( $user->ID, '_bpu_last_birthday_email_year', true );
+
+            $rows[] = array(
+                'id'             => $user->ID,
+                'name'           => $user->display_name,
+                'email'          => $user->user_email,
+                'month'          => (int) $month,
+                'day'            => (int) $day,
+                'turns'          => $current_year - (int) $birth_year,
+                'is_today'       => $occurrence_ymd === $today_ymd,
+                'occurred'       => $occurred,
+                'sent_this_year' => $sent_year === $current_year,
+                'last_sent'      => get_user_meta( $user->ID, '_bpu_last_birthday_email_sent', true ) ?: '',
+            );
+        }
+
+        usort( $rows, function ( $a, $b ) {
+            return [ $a['month'], $a['day'] ] <=> [ $b['month'], $b['day'] ];
+        } );
+
+        return $rows;
     }
 
     /** Base64url-decode (RFC 7515). */
@@ -8184,6 +8252,277 @@ jQuery(function($){
         }
 
         wp_send_json_success( array( 'deleted' => $deleted ) );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  BIRTHDAY ADMIN DASHBOARD
+    // ══════════════════════════════════════════════════════════════
+
+    public function register_birthday_admin_page() {
+        add_menu_page(
+            'Birthday Dashboard',
+            'Birthdays',
+            'manage_options',
+            'bpu-birthdays',
+            array( $this, 'render_birthday_dashboard_page' ),
+            'dashicons-calendar-alt',
+            99
+        );
+    }
+
+    public function render_birthday_dashboard_page() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Not allowed.' );
+
+        $year   = (int) date( 'Y' );
+        $month  = max( 1, min( 12, intval( $_GET['month'] ?? date( 'n' ) ) ) );
+        $status = sanitize_text_field( $_GET['status'] ?? 'all' );
+        $search = sanitize_text_field( $_GET['s'] ?? '' );
+        $nonce  = wp_create_nonce( 'bpu_send_birthday_email' );
+
+        $all_rows   = $this->get_all_members_with_birthdays();
+        $month_rows = array_values( array_filter( $all_rows, fn( $r ) => $r['month'] === $month ) );
+
+        if ( $search !== '' ) {
+            $needle     = strtolower( $search );
+            $month_rows = array_values( array_filter( $month_rows, function ( $r ) use ( $needle ) {
+                return str_contains( strtolower( $r['name'] ), $needle ) || str_contains( strtolower( $r['email'] ), $needle );
+            } ) );
+        }
+
+        if ( 'sent' === $status ) {
+            $month_rows = array_values( array_filter( $month_rows, fn( $r ) => $r['occurred'] && $r['sent_this_year'] ) );
+        } elseif ( 'missed' === $status ) {
+            $month_rows = array_values( array_filter( $month_rows, fn( $r ) => $r['occurred'] && ! $r['sent_this_year'] && ! $r['is_today'] ) );
+        } elseif ( 'today' === $status ) {
+            $month_rows = array_values( array_filter( $month_rows, fn( $r ) => $r['is_today'] ) );
+        } elseif ( 'upcoming' === $status ) {
+            $month_rows = array_values( array_filter( $month_rows, fn( $r ) => ! $r['occurred'] ) );
+        }
+
+        // Group filtered rows by day-of-month for the calendar cells.
+        $by_day = array();
+        foreach ( $month_rows as $r ) {
+            $by_day[ $r['day'] ][] = $r;
+        }
+
+        $days_in_month     = (int) date( 't', mktime( 0, 0, 0, $month, 1, $year ) );
+        $leading_blanks    = ( (int) date( 'N', mktime( 0, 0, 0, $month, 1, $year ) ) ) - 1; // Monday-first grid.
+        $is_current_month  = $month === (int) date( 'n' );
+        $today_day         = (int) date( 'j' );
+
+        $sent_count     = count( array_filter( $month_rows, fn( $r ) => $r['occurred'] && $r['sent_this_year'] ) );
+        $missed_count   = count( array_filter( $month_rows, fn( $r ) => $r['occurred'] && ! $r['sent_this_year'] && ! $r['is_today'] ) );
+        $today_count    = count( array_filter( $month_rows, fn( $r ) => $r['is_today'] ) );
+        $upcoming_count = count( array_filter( $month_rows, fn( $r ) => ! $r['occurred'] ) );
+
+        $month_names = array();
+        for ( $m = 1; $m <= 12; $m++ ) {
+            $month_names[ $m ] = date( 'F', mktime( 0, 0, 0, $m, 1 ) );
+        }
+
+        $prev_month = $month === 1 ? 12 : $month - 1;
+        $next_month = $month === 12 ? 1 : $month + 1;
+        $base_args  = array( 'page' => 'bpu-birthdays', 'status' => $status, 's' => $search );
+        ?>
+        <div class="wrap">
+            <h1>🎂 Birthday Dashboard</h1>
+            <p>Members with a date of birth on file, grouped into a calendar. Use this to check who has an upcoming birthday and whether their reminder email has already gone out.</p>
+
+            <!-- Filters -->
+            <form method="get" style="background:#fff;padding:14px 16px;border:1px solid #ddd;border-radius:4px;display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:16px 0;">
+                <input type="hidden" name="page" value="bpu-birthdays" />
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Month</label>
+                    <select name="month">
+                        <?php foreach ( $month_names as $num => $label ) : ?>
+                            <option value="<?php echo esc_attr( $num ); ?>" <?php selected( $month, $num ); ?>><?php echo esc_html( $label ); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Email status</label>
+                    <select name="status">
+                        <option value="all"      <?php selected( $status, 'all' );      ?>>All</option>
+                        <option value="today"    <?php selected( $status, 'today' );    ?>>Today's birthdays</option>
+                        <option value="sent"     <?php selected( $status, 'sent' );     ?>>Sent</option>
+                        <option value="missed"   <?php selected( $status, 'missed' );   ?>>Missed / not sent</option>
+                        <option value="upcoming" <?php selected( $status, 'upcoming' ); ?>>Upcoming</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="display:block;font-size:12px;font-weight:600;margin-bottom:3px;">Search</label>
+                    <input type="text" name="s" placeholder="Name or email" value="<?php echo esc_attr( $search ); ?>" />
+                </div>
+
+                <div style="display:flex;gap:6px;">
+                    <button type="submit" class="button button-primary">Filter</button>
+                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=bpu-birthdays' ) ); ?>" class="button">Reset</a>
+                </div>
+
+                <div style="display:flex;gap:6px;margin-left:auto;">
+                    <a href="<?php echo esc_url( add_query_arg( array_merge( $base_args, array( 'month' => $prev_month ) ), admin_url( 'admin.php' ) ) ); ?>" class="button">‹ Prev month</a>
+                    <a href="<?php echo esc_url( add_query_arg( array_merge( $base_args, array( 'month' => (int) date( 'n' ) ) ), admin_url( 'admin.php' ) ) ); ?>" class="button">This month</a>
+                    <a href="<?php echo esc_url( add_query_arg( array_merge( $base_args, array( 'month' => $next_month ) ), admin_url( 'admin.php' ) ) ); ?>" class="button">Next month ›</a>
+                </div>
+            </form>
+
+            <!-- Summary cards -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px;">
+                <?php foreach ( array(
+                    array( 'label' => 'Today',            'value' => $today_count,    'color' => '#7e3af2' ),
+                    array( 'label' => 'Sent',              'value' => $sent_count,     'color' => '#0e9f6e' ),
+                    array( 'label' => 'Missed / Not Sent', 'value' => $missed_count,   'color' => '#d63638' ),
+                    array( 'label' => 'Upcoming',          'value' => $upcoming_count, 'color' => '#1a56db' ),
+                ) as $card ) : ?>
+                    <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px 18px;border-top:3px solid <?php echo $card['color']; ?>;">
+                        <p style="font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#666;margin:0 0 6px;"><?php echo esc_html( $card['label'] ); ?></p>
+                        <p style="font-size:24px;font-weight:700;color:#1e1e1e;margin:0;"><?php echo esc_html( $card['value'] ); ?></p>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Calendar grid -->
+            <div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:16px;margin-bottom:24px;">
+                <h2 style="margin-top:0;"><?php echo esc_html( $month_names[ $month ] . ' ' . $year ); ?></h2>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:6px;">
+                    <?php foreach ( array( 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ) as $dow ) : ?>
+                        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#666;text-align:center;padding:4px 0;"><?php echo esc_html( $dow ); ?></div>
+                    <?php endforeach; ?>
+
+                    <?php for ( $i = 0; $i < $leading_blanks; $i++ ) : ?>
+                        <div></div>
+                    <?php endfor; ?>
+
+                    <?php for ( $day = 1; $day <= $days_in_month; $day++ ) :
+                        $day_rows  = $by_day[ $day ] ?? array();
+                        $is_today  = $is_current_month && $day === $today_day;
+                        $has_missed = (bool) array_filter( $day_rows, fn( $r ) => $r['occurred'] && ! $r['sent_this_year'] && ! $r['is_today'] );
+                        $cell_border = $is_today ? '#7e3af2' : ( $has_missed ? '#d63638' : '#eee' );
+                    ?>
+                        <div style="min-height:70px;border:1.5px solid <?php echo $cell_border; ?>;border-radius:4px;padding:6px;background:<?php echo $is_today ? '#f5f3ff' : '#fff'; ?>;">
+                            <div style="font-size:12px;font-weight:700;color:#444;"><?php echo (int) $day; ?></div>
+                            <?php foreach ( $day_rows as $r ) :
+                                $dot = $r['sent_this_year'] ? '#0e9f6e' : ( $r['occurred'] ? '#d63638' : '#9ca3af' );
+                            ?>
+                                <div title="<?php echo esc_attr( $r['name'] . ' — ' . $r['email'] ); ?>" style="font-size:11px;margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                                    <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:<?php echo $dot; ?>;margin-right:4px;"></span><?php echo esc_html( $r['name'] ); ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endfor; ?>
+                </div>
+                <p style="margin:12px 0 0;font-size:12px;color:#666;">
+                    <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#0e9f6e;margin-right:4px;"></span> Sent
+                    &nbsp;&nbsp;<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#d63638;margin-right:4px;"></span> Missed / not yet sent
+                    &nbsp;&nbsp;<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#9ca3af;margin-right:4px;"></span> Upcoming
+                </p>
+            </div>
+
+            <!-- Member table -->
+            <?php if ( empty( $month_rows ) ) : ?>
+                <p>No members match these filters.</p>
+            <?php else : ?>
+            <table class="widefat striped">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Birthday</th>
+                        <th>Turns</th>
+                        <th>Email status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ( $month_rows as $r ) :
+                        $date_label = date( 'j M', mktime( 0, 0, 0, $r['month'], $r['day'] ) );
+                        if ( $r['is_today'] && $r['sent_this_year'] ) {
+                            $status_html = '<span style="color:#0e9f6e;font-weight:600;">✅ Sent today' . ( $r['last_sent'] ? ' at ' . esc_html( date( 'H:i', strtotime( $r['last_sent'] ) ) ) : '' ) . '</span>';
+                        } elseif ( $r['is_today'] && ! $r['sent_this_year'] ) {
+                            $status_html = '<span style="color:#e3a008;font-weight:600;">⏳ Pending today</span>';
+                        } elseif ( $r['occurred'] && $r['sent_this_year'] ) {
+                            $status_html = '<span style="color:#0e9f6e;font-weight:600;">✅ Sent' . ( $r['last_sent'] ? ' on ' . esc_html( date( 'j M', strtotime( $r['last_sent'] ) ) ) : '' ) . '</span>';
+                        } elseif ( $r['occurred'] && ! $r['sent_this_year'] ) {
+                            $status_html = '<span style="color:#d63638;font-weight:600;">⚠️ Missed</span>';
+                        } else {
+                            $status_html = '<span style="color:#999;">— Upcoming</span>';
+                        }
+                    ?>
+                    <tr>
+                        <td><?php echo esc_html( $r['name'] ); ?></td>
+                        <td><?php echo esc_html( $r['email'] ); ?></td>
+                        <td><?php echo esc_html( $date_label ); ?></td>
+                        <td><?php echo (int) $r['turns']; ?></td>
+                        <td><?php echo $status_html; ?></td>
+                        <td>
+                            <?php if ( ! $r['sent_this_year'] ) : ?>
+                                <button class="button bpu-send-birthday" data-user-id="<?php echo esc_attr( $r['id'] ); ?>">Send now</button>
+                            <?php else : ?>
+                                <button class="button bpu-send-birthday" data-user-id="<?php echo esc_attr( $r['id'] ); ?>">Resend</button>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php endif; ?>
+        </div>
+        <script>
+        (function() {
+            const nonce = <?php echo wp_json_encode( $nonce ); ?>;
+            document.querySelectorAll('.bpu-send-birthday').forEach(function(btn) {
+                btn.addEventListener('click', async function() {
+                    const userId = btn.dataset.userId;
+                    btn.disabled = true;
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Sending…';
+                    const fd = new FormData();
+                    fd.append('action', 'bpu_send_birthday_email');
+                    fd.append('nonce', nonce);
+                    fd.append('user_id', userId);
+                    try {
+                        const r = await fetch(ajaxurl, { method: 'POST', body: fd });
+                        const d = await r.json();
+                        if (d.success) {
+                            btn.textContent = 'Sent ✓';
+                            setTimeout(() => location.reload(), 1000);
+                        } else {
+                            btn.disabled = false;
+                            btn.textContent = originalText;
+                            alert('Error: ' + (d.data || 'unknown'));
+                        }
+                    } catch (e) {
+                        btn.disabled = false;
+                        btn.textContent = originalText;
+                        alert('Request failed.');
+                    }
+                });
+            });
+        })();
+        </script>
+        <?php
+    }
+
+    public function ajax_send_birthday_email() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Not allowed.', 403 );
+        if ( ! check_ajax_referer( 'bpu_send_birthday_email', 'nonce', false ) ) wp_send_json_error( 'Bad nonce.', 403 );
+
+        $user_id = intval( $_POST['user_id'] ?? 0 );
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            wp_send_json_error( 'User not found.', 404 );
+        }
+
+        if ( ! $this->send_single_birthday_email( $user ) ) {
+            wp_send_json_error( 'Email failed to send.', 500 );
+        }
+
+        wp_send_json_success( array(
+            'sent_at' => get_user_meta( $user_id, '_bpu_last_birthday_email_sent', true ),
+        ) );
     }
 
     // ══════════════════════════════════════════════════════════════
