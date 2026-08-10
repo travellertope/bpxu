@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.5.0
+ * Version: 2.6.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -6933,11 +6933,21 @@ jQuery(function($){
         $query = new WP_Query( $args );
         $jobs  = array_map( array( $this, 'format_job_for_api' ), $query->posts );
 
-        return new WP_REST_Response( array(
+        $response = new WP_REST_Response( array(
             'jobs'  => $jobs,
             'total' => $query->found_posts,
             'pages' => $query->max_num_pages,
         ), 200 );
+
+        // The job list changes constantly (new postings, expiries) — make sure no
+        // server-level cache (e.g. LiteSpeed's built-in REST API cache, which
+        // caches by exact URL independently of anything WordPress's own
+        // Cache-Control headers say) ever serves a stale copy of this endpoint.
+        $response->header( 'Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0' );
+        $response->header( 'Pragma', 'no-cache' );
+        $response->header( 'X-LiteSpeed-Cache-Control', 'no-cache' );
+
+        return $response;
     }
 
     public function get_single_job( WP_REST_Request $request ) {
