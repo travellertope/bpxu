@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const qs = request.nextUrl.searchParams.toString();
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/admin/employer-accounts${qs ? `?${qs}` : ''}`, {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json().catch(() => ({}));

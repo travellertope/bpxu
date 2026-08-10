@@ -15,6 +15,7 @@ export async function GET(req: NextRequest) {
         if (status) url.searchParams.set('status', status);
 
         const res = await fetch(url.toString(), {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json();

@@ -12,7 +12,7 @@ export async function GET(
     try {
         const res = await fetch(
             `${WP}/wp-json/bpu/v1/paired/mentors/${id}/reviews${qs ? `?${qs}` : ''}`,
-            { headers: { 'Cache-Control': 'no-store' } }
+            { cache: 'no-store', headers: { 'Cache-Control': 'no-store' } }
         );
         const data = await res.json();
         return NextResponse.json(data, { status: res.status });

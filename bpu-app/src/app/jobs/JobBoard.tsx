@@ -85,7 +85,7 @@ function JobCard({ job }: JobCardProps) {
     const linkHref = isInbound ? `/jobs/${job.id}` : `/go/${job.id}`;
     const linkProps = isInbound
         ? {}
-        : { target: '_blank', rel: 'noopener noreferrer' };
+        : { target: '_blank', rel: 'noopener noreferrer', prefetch: false };
 
     return (
         <Link

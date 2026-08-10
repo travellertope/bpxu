@@ -21,6 +21,7 @@ export async function GET(
 
     try {
         const res = await fetch(url.toString(), {
+            cache: 'no-store',
             headers: { 'Cache-Control': 'no-store' },
         });
         const data = await res.json();

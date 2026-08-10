@@ -10,6 +10,7 @@ export async function GET(
 
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/paired/mentors/${id}/sessions`, {
+            cache: 'no-store',
             headers: { 'Cache-Control': 'no-store' },
         });
         const data = await res.json();

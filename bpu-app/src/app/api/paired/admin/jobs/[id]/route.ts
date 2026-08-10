@@ -15,6 +15,7 @@ export async function GET(
 
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/admin/jobs/${id}`, {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${jwt}`,
                 'Cache-Control': 'no-store',
@@ -41,6 +42,7 @@ export async function PUT(
         const body = await request.json();
         const res = await fetch(`${WP}/wp-json/bpu/v1/jobs/${id}`, {
             method: 'PUT',
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${jwt}`,
                 'Content-Type': 'application/json',

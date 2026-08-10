@@ -10,6 +10,7 @@ export async function GET() {
 
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/employer/profile`, {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json().catch(() => ({}));
@@ -28,6 +29,7 @@ export async function PUT(request: NextRequest) {
         const body = await request.json();
         const res = await fetch(`${WP}/wp-json/bpu/v1/employer/profile`, {
             method: 'PUT',
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${jwt}`,
                 'Content-Type': 'application/json',
