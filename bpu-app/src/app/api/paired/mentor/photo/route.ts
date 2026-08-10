@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
         if (!res.ok) {
             return NextResponse.json({ error: data.message || 'Failed to upload photo.' }, { status: res.status });
         }
-        return NextResponse.json(data);
+        return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
     } catch {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }

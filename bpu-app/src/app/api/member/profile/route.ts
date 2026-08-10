@@ -23,7 +23,7 @@ export async function GET() {
         return NextResponse.json({ error: data?.message || 'Failed to fetch profile' }, { status: response.status });
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
 }
 
 export async function POST(request: NextRequest) {
@@ -59,5 +59,5 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
 }

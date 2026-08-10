@@ -18,7 +18,10 @@ export async function POST(
             headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json' },
         });
         const data = await res.json().catch(() => ({}));
-        return NextResponse.json(data, { status: res.status });
+        return NextResponse.json(data, {
+            status: res.status,
+            headers: { 'Cache-Control': 'no-store, must-revalidate' },
+        });
     } catch {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }

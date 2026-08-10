@@ -29,7 +29,7 @@ export async function GET(
         if (!res.ok) {
             return NextResponse.json({ error: data.message || 'Failed to fetch custom hours.' }, { status: res.status });
         }
-        return NextResponse.json(data);
+        return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
     } catch {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
@@ -65,7 +65,7 @@ export async function PUT(
         if (!res.ok) {
             return NextResponse.json({ error: data.message || 'Failed to save custom hours.' }, { status: res.status });
         }
-        return NextResponse.json(data);
+        return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
     } catch {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }

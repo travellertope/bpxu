@@ -33,7 +33,7 @@ export async function GET() {
             );
         }
 
-        return NextResponse.json(data);
+        return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
     } catch {
         return NextResponse.json({ error: 'Something went wrong.' }, { status: 500 });
     }
