@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.4.0
+ * Version: 2.5.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -7077,6 +7077,30 @@ jQuery(function($){
             }
         }
 
+        // Notify admin of a new job awaiting review, so the moderation queue
+        // doesn't go unnoticed — employer-submitted jobs stay hidden from the
+        // public board until someone approves them.
+        if ( ! $is_admin ) {
+            $notify_to = trim( (string) get_option( '_bpu_job_admin_notification_email', '' ) );
+            if ( ! $notify_to || ! is_email( $notify_to ) ) {
+                $notify_to = get_option( 'admin_email' );
+            }
+            if ( $notify_to ) {
+                $tpl = $this->render_email_template( 'job_pending_review', array(
+                    'job_title'   => $title,
+                    'company'     => sanitize_text_field( $body['company'] ?? '' ) ?: 'Unknown Company',
+                    'employer'    => $user->display_name,
+                    'review_link' => 'https://web.blackprofessionals.uk/admin/jobs',
+                ) );
+                wp_mail(
+                    $notify_to,
+                    $tpl['subject'],
+                    $tpl['html'],
+                    array( 'Content-Type: text/html; charset=UTF-8', 'From: BPU <noreply@blackprofessionals.uk>' )
+                );
+            }
+        }
+
         return new WP_REST_Response( array(
             'success' => true,
             'job_id'  => $post_id,
@@ -10531,6 +10555,12 @@ jQuery(function($){
                 'default_subject' => 'Application submitted: {{job_title}} at {{company}}',
                 'default_body'    => "Hi {{name}},\r\n\r\nYour application for {{job_title}} at {{company}} has been submitted.\r\n\r\nWe'll be in touch if you're shortlisted. Good luck!\r\n\r\nBPU Team",
                 'variables'       => array( '{{name}}', '{{job_title}}', '{{company}}' ),
+            ),
+            'job_pending_review' => array(
+                'label'           => 'New job awaiting review (to admin)',
+                'default_subject' => 'New job awaiting review: {{job_title}}',
+                'default_body'    => "Hi,\r\n\r\nA new job listing has been submitted and is awaiting approval before it appears on the job board.\r\n\r\nTitle: {{job_title}}\r\nCompany: {{company}}\r\nSubmitted by: {{employer}}\r\n\r\nReview and publish it here:\r\n{{review_link}}\r\n\r\nBPU Team",
+                'variables'       => array( '{{job_title}}', '{{company}}', '{{employer}}', '{{review_link}}' ),
             ),
             'birthday' => array(
                 'label'           => 'Birthday reminder email',
