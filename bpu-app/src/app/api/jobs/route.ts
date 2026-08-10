@@ -10,6 +10,9 @@ export async function GET(request: NextRequest) {
             headers: { 'Cache-Control': 'no-store' },
         });
         const data = await res.json().catch(() => ({}));
+        if (request.nextUrl.searchParams.get('debug') === '1') {
+            (data as Record<string, unknown>)._debug_origin_headers = Object.fromEntries(res.headers.entries());
+        }
         return NextResponse.json(data, { status: res.status });
     } catch {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
