@@ -44,7 +44,7 @@ export async function POST(
                 { status: res.status }
             );
         }
-        return NextResponse.json(data);
+        return NextResponse.json(data, { headers: { 'Cache-Control': 'no-store, must-revalidate' } });
     } catch {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
