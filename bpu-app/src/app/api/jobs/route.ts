@@ -6,6 +6,7 @@ export async function GET(request: NextRequest) {
     const qs = request.nextUrl.searchParams.toString();
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/jobs${qs ? `?${qs}` : ''}`, {
+            cache: 'no-store',
             headers: { 'Cache-Control': 'no-store' },
         });
         const data = await res.json().catch(() => ({}));

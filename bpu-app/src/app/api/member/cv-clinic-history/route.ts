@@ -13,6 +13,7 @@ export async function GET(_request: NextRequest) {
 
     try {
         const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/cv-clinic-history`, {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${jwt}`,
                 'Cache-Control': 'no-store',

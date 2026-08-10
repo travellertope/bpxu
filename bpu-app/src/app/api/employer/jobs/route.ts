@@ -17,6 +17,7 @@ export async function GET() {
 
     try {
         const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/employer/jobs`, {
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${session}`,
                 'Cache-Control': 'no-store',
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
     try {
         const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs`, {
             method: 'POST',
+            cache: 'no-store',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session}`,

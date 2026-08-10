@@ -10,6 +10,7 @@ export async function GET() {
 
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/paired/mentor/payout-settings`, {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json();
@@ -27,6 +28,7 @@ export async function PUT(req: NextRequest) {
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/paired/mentor/payout-settings`, {
             method: 'PUT',
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Content-Type': 'application/json', 'Cache-Control': 'no-store' },
             body: JSON.stringify(body),
         });

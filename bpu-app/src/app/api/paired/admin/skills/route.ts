@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/paired/admin/skills`, {
             method: 'POST',
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${jwt}`,
                 'Content-Type': 'application/json',

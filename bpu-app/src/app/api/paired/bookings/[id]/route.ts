@@ -15,6 +15,7 @@ export async function GET(
 
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/bookings/${id}`, {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json().catch(() => ({ error: 'Invalid response from server' }));

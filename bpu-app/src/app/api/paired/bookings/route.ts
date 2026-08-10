@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
 
     try {
         const res = await fetch(url.toString(), {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json();
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
     try {
         const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/bookings`, {
             method: 'POST',
+            cache: 'no-store',
             headers: {
                 'Authorization': `Bearer ${jwt}`,
                 'Content-Type': 'application/json',

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     try {
         const res = await fetch(
             `${WP}/wp-json/bpu/v1/paired/notifications${qs ? `?${qs}` : ''}`,
-            { headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' } }
+            { cache: 'no-store', headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' } }
         );
         const data = await res.json();
         return NextResponse.json(data, { status: res.status });

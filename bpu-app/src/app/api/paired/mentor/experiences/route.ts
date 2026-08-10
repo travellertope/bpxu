@@ -14,6 +14,7 @@ export async function GET() {
 
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/paired/mentor/experiences`, {
+            cache: 'no-store',
             headers: { 'Authorization': `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
         });
         const data = await res.json();
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     try {
         const res = await fetch(`${WP}/wp-json/bpu/v1/paired/mentor/experiences`, {
             method: 'POST',
+            cache: 'no-store',
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${jwt}`,
