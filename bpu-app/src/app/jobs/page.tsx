@@ -18,6 +18,14 @@ async function fetchJobs(): Promise<{ jobs: Job[]; total: number }> {
     }
 }
 
+// The listing changes constantly, and a cached copy of this document also
+// pins the JS bundle visitors run. Never let this page be prerendered or
+// reused — note this governs Next only; an edge/CDN cache in front of the app
+// has to be excluded there as well.
+export const dynamic = 'force-dynamic';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
 export const metadata = {
     title: 'Job Board | BPU Portal',
     description: 'Find your next career opportunity. Browse jobs curated for Black professionals in the UK.',

@@ -184,6 +184,8 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
     const [page, setPage] = useState(1);
     const [loading, setLoading] = useState(false);
     const [loadingMore, setLoadingMore] = useState(false);
+    // True when a refresh failed and what's on screen may be out of date.
+    const [stale, setStale] = useState(false);
 
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -200,20 +202,27 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
         return `/api/job-listings?${params}`;
     }, [search, industry, typeFilter, remoteOnly, empTypes]);
 
-    // Refetch from page 1 whenever filters change (debounced for search)
+    // Refetch from page 1 whenever filters change (debounced for search).
+    // This also runs on mount, refreshing the server-rendered initialJobs.
+    // A failure here used to be swallowed — `if (res.ok)` with no else and no
+    // catch — which left the server-rendered list on screen looking current.
+    // When that HTML was itself served from an edge cache, the board could sit
+    // frozen on a days-old snapshot with nothing anywhere saying so. Surface it.
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         const delay = search ? 350 : 0;
         debounceRef.current = setTimeout(async () => {
             setLoading(true);
             try {
-                const res = await fetch(buildUrl(1));
-                if (res.ok) {
-                    const data = await res.json();
-                    setJobs(data.jobs ?? []);
-                    setTotal(data.total ?? 0);
-                    setPage(1);
-                }
+                const res = await fetch(buildUrl(1), { cache: 'no-store' });
+                if (!res.ok) throw new Error(`Job listings request failed (${res.status})`);
+                const data = await res.json();
+                setJobs(data.jobs ?? []);
+                setTotal(data.total ?? 0);
+                setPage(1);
+                setStale(false);
+            } catch {
+                setStale(true);
             } finally {
                 setLoading(false);
             }
@@ -226,12 +235,14 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
         const nextPage = page + 1;
         setLoadingMore(true);
         try {
-            const res = await fetch(buildUrl(nextPage));
-            if (res.ok) {
-                const data = await res.json();
-                setJobs(prev => [...prev, ...(data.jobs ?? [])]);
-                setPage(nextPage);
-            }
+            const res = await fetch(buildUrl(nextPage), { cache: 'no-store' });
+            if (!res.ok) throw new Error(`Job listings request failed (${res.status})`);
+            const data = await res.json();
+            setJobs(prev => [...prev, ...(data.jobs ?? [])]);
+            setPage(nextPage);
+            setStale(false);
+        } catch {
+            setStale(true);
         } finally {
             setLoadingMore(false);
         }
@@ -329,6 +340,23 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
                     ))}
                 </div>
             </div>
+
+            {stale && (
+                <div
+                    className="card card-p mb-4 text-sm"
+                    style={{ borderColor: 'var(--amber, #b45309)', color: 'var(--amber, #b45309)' }}
+                    role="status"
+                >
+                    Couldn&apos;t refresh the job list, so these results may be out of date.{' '}
+                    <button
+                        type="button"
+                        onClick={() => window.location.reload()}
+                        className="underline font-semibold"
+                    >
+                        Reload
+                    </button>
+                </div>
+            )}
 
             {/* Results count */}
             <p className="text-sm text-text-2 mb-4">
