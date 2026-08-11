@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.6.1
+ * Version: 2.6.2
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -387,6 +387,25 @@ class BPU_Headless_Connector {
         }
         $user = get_userdata( intval( $payload['user_id'] ) );
         return $user && $user->has_cap( $capability );
+    }
+
+    /**
+     * True if the user is a BPU job manager — someone who publishes and
+     * moderates jobs directly rather than submitting them for review.
+     *
+     * Gated on `bpu_manage_jobs`, the same capability every /admin/jobs route
+     * checks. The job authoring endpoints previously tested for the literal
+     * `administrator` role instead, which locked out the BPU Editor role: it
+     * carries bpu_manage_jobs and reaches the admin job manager UI, but was
+     * treated as an outside submitter. The administrator fallback is belt and
+     * braces for sites where the capability was stripped from that role.
+     */
+    private function user_can_manage_jobs( $user ): bool {
+        if ( ! $user instanceof WP_User ) {
+            return false;
+        }
+        return $user->has_cap( 'bpu_manage_jobs' )
+            || in_array( 'administrator', (array) $user->roles, true );
     }
 
     /**
@@ -7016,10 +7035,14 @@ jQuery(function($){
 
         $user_id = intval( $payload['user_id'] );
         $user    = get_userdata( $user_id );
-        $is_admin    = in_array( 'administrator', (array) $user->roles, true );
-        $is_employer = in_array( 'bpu_employer',  (array) $user->roles, true );
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_unauthorized', __( 'Unauthorized.', 'bpu' ), array( 'status' => 401 ) );
+        }
 
-        if ( ! $is_admin && ! $is_employer ) {
+        $can_manage_jobs = $this->user_can_manage_jobs( $user );
+        $is_employer     = in_array( 'bpu_employer', (array) $user->roles, true );
+
+        if ( ! $can_manage_jobs && ! $is_employer ) {
             return new WP_Error( 'bpu_forbidden', __( 'Only employers can post jobs.', 'bpu' ), array( 'status' => 403 ) );
         }
 
@@ -7038,7 +7061,7 @@ jQuery(function($){
             'post_type'    => 'bpu_job',
             'post_title'   => $title,
             'post_content' => wp_kses_post( $body['description'] ?? '' ),
-            'post_status'  => $is_admin ? 'publish' : 'pending',
+            'post_status'  => $can_manage_jobs ? 'publish' : 'pending',
             'post_author'  => $user_id,
         ) );
 
@@ -7058,7 +7081,7 @@ jQuery(function($){
             '_bpu_salary_currency' => sanitize_text_field( $body['salary_currency'] ?? 'GBP' ),
             '_bpu_expires_date'    => sanitize_text_field( $body['expires_date'] ?? '' ),
             '_bpu_employer_id'     => $user_id,
-            '_bpu_posted_by_admin' => $is_admin ? 1 : 0,
+            '_bpu_posted_by_admin' => $can_manage_jobs ? 1 : 0,
             '_bpu_impressions'     => 0,
             '_bpu_clicks'          => 0,
             '_bpu_applications_count' => 0,
@@ -7090,7 +7113,7 @@ jQuery(function($){
         // Notify admin of a new job awaiting review, so the moderation queue
         // doesn't go unnoticed — employer-submitted jobs stay hidden from the
         // public board until someone approves them.
-        if ( ! $is_admin ) {
+        if ( ! $can_manage_jobs ) {
             $notify_to = trim( (string) get_option( '_bpu_job_admin_notification_email', '' ) );
             if ( ! $notify_to || ! is_email( $notify_to ) ) {
                 $notify_to = get_option( 'admin_email' );
@@ -7114,7 +7137,7 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success' => true,
             'job_id'  => $post_id,
-            'status'  => $is_admin ? 'published' : 'pending_review',
+            'status'  => $can_manage_jobs ? 'published' : 'pending_review',
         ), 201 );
     }
 
@@ -7132,9 +7155,9 @@ jQuery(function($){
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
-        $user     = get_userdata( $user_id );
-        $is_admin = in_array( 'administrator', (array) $user->roles, true );
-        if ( ! $is_admin && intval( $post->post_author ) !== $user_id ) {
+        $user            = get_userdata( $user_id );
+        $can_manage_jobs = $this->user_can_manage_jobs( $user );
+        if ( ! $can_manage_jobs && intval( $post->post_author ) !== $user_id ) {
             return new WP_Error( 'bpu_forbidden', __( 'You can only edit your own jobs.', 'bpu' ), array( 'status' => 403 ) );
         }
 
@@ -7199,7 +7222,7 @@ jQuery(function($){
         }
 
         $user = get_userdata( $user_id );
-        if ( ! in_array( 'administrator', (array) $user->roles, true ) && intval( $post->post_author ) !== $user_id ) {
+        if ( ! $this->user_can_manage_jobs( $user ) && intval( $post->post_author ) !== $user_id ) {
             return new WP_Error( 'bpu_forbidden', __( 'Forbidden.', 'bpu' ), array( 'status' => 403 ) );
         }
 
