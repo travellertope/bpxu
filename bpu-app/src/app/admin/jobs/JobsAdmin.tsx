@@ -3,17 +3,32 @@
 import { useState, useEffect, useCallback } from 'react';
 import { decodeHtml } from '@/lib/utils';
 
+// The WP connector returns `status`/`post_status`, `job_type` and `date_posted`.
+// This UI historically read `status`, `type` and `date`; only `status` is now
+// sent under that name, so accept both spellings for each and resolve below.
 interface Job {
     id: number;
     title: string;
     company: string;
-    type: 'inbound' | 'outbound';
-    status: string;
+    type?: 'inbound' | 'outbound';
+    job_type?: 'inbound' | 'outbound';
+    status?: string;
+    post_status?: string;
     impressions: number;
     clicks: number;
     applications: number;
-    date: string;
+    date?: string;
+    date_posted?: string;
 }
+
+const jobStatus = (j: Job): string => j.status ?? j.post_status ?? '';
+const jobType = (j: Job): string => j.type ?? j.job_type ?? '';
+const jobDate = (j: Job): string => {
+    const raw = j.date ?? j.date_posted;
+    if (!raw) return '—';
+    const d = new Date(raw.replace(' ', 'T'));
+    return isNaN(d.getTime()) ? raw : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+};
 
 interface JobsResponse {
     jobs: Job[];
@@ -123,8 +138,11 @@ export default function JobsAdmin() {
 
     const totalPages = Math.ceil(total / perPage);
 
+    // An unrecognised/missing status must read as unknown, never silently as a
+    // live one — mislabelling a pending job "Published" is what kept approved-
+    // looking jobs off the public board unnoticed.
     const badgeFor = (status: string) => {
-        const info = STATUS_BADGE[status] || { className: 'badge-amber', label: status };
+        const info = STATUS_BADGE[status] || { className: 'badge-red', label: status || 'Unknown status' };
         return <span className={`badge ${info.className}`}>{info.label}</span>;
     };
 
@@ -230,10 +248,10 @@ export default function JobsAdmin() {
                                         </td>
                                         <td className="p-3 text-sm text-text-2">{decodeHtml(j.company || '—')}</td>
                                         <td className="p-3 text-center">
-                                            <span className={`badge ${TYPE_BADGE[j.type] || 'badge-gray'}`}>{j.type || '—'}</span>
+                                            <span className={`badge ${TYPE_BADGE[jobType(j)] || 'badge-gray'}`}>{jobType(j) || '—'}</span>
                                         </td>
                                         <td className="p-3 text-center">
-                                            {badgeFor(j.status)}
+                                            {badgeFor(jobStatus(j))}
                                             {flashId === j.id && (
                                                 <span className="ml-1 text-xs text-green-500 font-semibold">Updated!</span>
                                             )}
@@ -241,7 +259,7 @@ export default function JobsAdmin() {
                                         <td className="p-3 text-center text-sm text-text-2">{j.impressions ?? 0}</td>
                                         <td className="p-3 text-center text-sm text-text-2">{j.clicks ?? 0}</td>
                                         <td className="p-3 text-center text-sm text-text-2">{j.applications ?? 0}</td>
-                                        <td className="p-3 text-sm text-text-3">{j.date}</td>
+                                        <td className="p-3 text-sm text-text-3">{jobDate(j)}</td>
                                         <td className="p-3 text-right">
                                             <div className="flex items-center justify-end gap-2">
                                                 <a
@@ -254,10 +272,13 @@ export default function JobsAdmin() {
                                                 <select
                                                     className="field-input"
                                                     style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', display: 'inline-block', width: 'auto' }}
-                                                    value={j.status}
+                                                    value={VALID_STATUSES.includes(jobStatus(j)) ? jobStatus(j) : ''}
                                                     disabled={updatingId === j.id}
                                                     onChange={e => updateStatus(j.id, e.target.value)}
                                                 >
+                                                    {!VALID_STATUSES.includes(jobStatus(j)) && (
+                                                        <option value="" disabled>— unknown —</option>
+                                                    )}
                                                     {VALID_STATUSES.map(s => {
                                                         const info = STATUS_BADGE[s];
                                                         return <option key={s} value={s}>{info?.label || s}</option>;
@@ -285,12 +306,12 @@ export default function JobsAdmin() {
                                     >
                                         {decodeHtml(j.title)}
                                     </a>
-                                    {badgeFor(j.status)}
+                                    {badgeFor(jobStatus(j))}
                                 </div>
                                 <p className="text-xs text-text-3">{decodeHtml(j.company || '—')}</p>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <span className={`badge ${TYPE_BADGE[j.type] || 'badge-gray'}`}>{j.type || '—'}</span>
-                                    <span className="text-xs text-text-3">Posted {j.date}</span>
+                                    <span className={`badge ${TYPE_BADGE[jobType(j)] || 'badge-gray'}`}>{jobType(j) || '—'}</span>
+                                    <span className="text-xs text-text-3">Posted {jobDate(j)}</span>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2 text-center">
                                     <div>
@@ -322,10 +343,13 @@ export default function JobsAdmin() {
                                     <select
                                         className="field-input ml-auto"
                                         style={{ fontSize: '0.75rem', padding: '4px 8px', height: 'auto', display: 'inline-block', width: 'auto' }}
-                                        value={j.status}
+                                        value={VALID_STATUSES.includes(jobStatus(j)) ? jobStatus(j) : ''}
                                         disabled={updatingId === j.id}
                                         onChange={e => updateStatus(j.id, e.target.value)}
                                     >
+                                        {!VALID_STATUSES.includes(jobStatus(j)) && (
+                                            <option value="" disabled>— unknown —</option>
+                                        )}
                                         {VALID_STATUSES.map(s => {
                                             const info = STATUS_BADGE[s];
                                             return <option key={s} value={s}>{info?.label || s}</option>;
