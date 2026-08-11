@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyRecaptcha } from '@/lib/recaptcha';
+import { verifyRecaptcha, recaptchaErrorMessage } from '@/lib/recaptcha';
 
 const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -10,9 +10,9 @@ export async function POST(request: NextRequest) {
     let body: Record<string, unknown>;
     try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid request' }, { status: 400 }); }
 
-    const captchaOk = await verifyRecaptcha(body.recaptcha_token as string | undefined);
-    if (!captchaOk) {
-        return NextResponse.json({ error: 'reCAPTCHA verification failed. Please try again.' }, { status: 400 });
+    const captcha = await verifyRecaptcha(body.recaptcha_token as string | undefined);
+    if (!captcha.ok) {
+        return NextResponse.json({ error: recaptchaErrorMessage(captcha.reason) }, { status: 400 });
     }
 
     // Strip the token before forwarding to WP
