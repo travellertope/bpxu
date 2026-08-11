@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.6.2
+ * Version: 2.7.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1493,6 +1493,15 @@ class BPU_Headless_Connector {
                 'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
                 'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
             ),
+        ) );
+
+        // Explains why published jobs are or aren't on the public board.
+        // Declared before the /(?P<id>\d+) routes for clarity; the numeric
+        // pattern means it cannot collide with them.
+        register_rest_route( $this->namespace, '/admin/jobs/board-diagnostics', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_job_board_diagnostics' ),
+            'permission_callback' => function( $req ) { return $this->check_bpu_capability( $req, 'bpu_manage_jobs' ); },
         ) );
 
         register_rest_route( $this->namespace, '/admin/jobs/(?P<id>\d+)/status', array(
@@ -6919,6 +6928,46 @@ jQuery(function($){
         );
     }
 
+    /**
+     * Matches jobs that have NOT expired, for the public board.
+     *
+     * `_bpu_expires_date` is compared as a plain string, which is only correct
+     * for values stored as YYYY-MM-DD. Anything else — a d/m/Y date, a Unix
+     * timestamp, a stray label — sorts below today's date and silently drops a
+     * published job off the board with no trace anywhere in the admin UI.
+     * Imported feed listings are the likely source of odd values, so treat
+     * anything unreadable as "not expired": failing to parse a date is not
+     * evidence that a job is over. Only a value we can actually read, and that
+     * has actually passed, hides a job.
+     */
+    private function job_not_expired_meta_clause(): array {
+        return array(
+            'relation' => 'OR',
+            array( 'key' => '_bpu_expires_date', 'compare' => 'NOT EXISTS' ),
+            array( 'key' => '_bpu_expires_date', 'value' => '', 'compare' => '=' ),
+            // Not an ISO date, so the string comparison below is meaningless
+            // for it. No trailing anchor: 'YYYY-MM-DD HH:MM:SS' is still fine.
+            array( 'key' => '_bpu_expires_date', 'value' => '^[0-9]{4}-[0-9]{2}-[0-9]{2}', 'compare' => 'NOT REGEXP' ),
+            array( 'key' => '_bpu_expires_date', 'value' => gmdate( 'Y-m-d' ), 'compare' => '>=' ),
+        );
+    }
+
+    /**
+     * True only when an expiry value is readable AND has passed. Mirrors
+     * job_not_expired_meta_clause() for single-record checks.
+     */
+    private function is_job_expired( $expires ): bool {
+        $expires = trim( (string) $expires );
+        if ( '' === $expires ) {
+            return false;
+        }
+        $ts = strtotime( $expires );
+        if ( false === $ts ) {
+            return false; // unreadable — do not treat as expired
+        }
+        return gmdate( 'Y-m-d', $ts ) < gmdate( 'Y-m-d' );
+    }
+
     public function get_jobs( WP_REST_Request $request ) {
         $per_page    = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
         $page        = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
@@ -6937,16 +6986,9 @@ jQuery(function($){
             'order'          => 'DESC',
         );
 
-        $today      = gmdate( 'Y-m-d' );
         $meta_query = array(
             'relation' => 'AND',
-            // Exclude jobs where an expiry date is set and is in the past
-            array(
-                'relation' => 'OR',
-                array( 'key' => '_bpu_expires_date', 'value' => '', 'compare' => '=' ),
-                array( 'key' => '_bpu_expires_date', 'compare' => 'NOT EXISTS' ),
-                array( 'key' => '_bpu_expires_date', 'value' => $today, 'compare' => '>=' ),
-            ),
+            $this->job_not_expired_meta_clause(),
         );
         if ( $job_type && in_array( $job_type, array( 'inbound', 'outbound' ), true ) ) {
             $meta_query[] = array( 'key' => '_bpu_job_type', 'value' => $job_type );
@@ -7006,7 +7048,7 @@ jQuery(function($){
 
         // Return 404 for expired jobs
         $expires = get_post_meta( $job_id, '_bpu_expires_date', true );
-        if ( $expires && $expires < gmdate( 'Y-m-d' ) ) {
+        if ( $this->is_job_expired( $expires ) ) {
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
@@ -7300,6 +7342,99 @@ jQuery(function($){
             'total'       => $query->found_posts,
             'total_pages' => $query->max_num_pages,
             'counts'      => $counts,
+        ), 200 );
+    }
+
+    /**
+     * Reports why published jobs do or don't reach the public board.
+     *
+     * The board applies one filter the admin job manager does not — the
+     * expiry check — and nothing in the UI shows its effect, so a job can read
+     * "Published" while being invisible to the public with no explanation.
+     * This buckets every published job by the state of its expiry value and
+     * lists the newest ones with a verdict, which distinguishes "correctly
+     * hidden because it genuinely expired" from "hidden because its date is
+     * stored in a format the comparison cannot read".
+     */
+    public function admin_job_board_diagnostics( WP_REST_Request $request ) {
+        global $wpdb;
+
+        $today = gmdate( 'Y-m-d' );
+
+        $buckets = $wpdb->get_results( $wpdb->prepare(
+            "SELECT CASE
+                        WHEN pm.meta_value IS NULL THEN 'missing'
+                        WHEN pm.meta_value = '' THEN 'empty'
+                        WHEN pm.meta_value NOT REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}' THEN 'unreadable'
+                        WHEN pm.meta_value < %s THEN 'expired'
+                        ELSE 'live'
+                    END AS bucket,
+                    COUNT(*) AS total
+             FROM {$wpdb->posts} p
+             LEFT JOIN {$wpdb->postmeta} pm
+                    ON pm.post_id = p.ID AND pm.meta_key = '_bpu_expires_date'
+             WHERE p.post_type = 'bpu_job' AND p.post_status = 'publish'
+             GROUP BY bucket",
+            $today
+        ), ARRAY_A );
+
+        // Sample the values that cannot be compared as dates — if this is
+        // non-empty, the board is dropping jobs over a storage format.
+        $unreadable = $wpdb->get_col(
+            "SELECT DISTINCT pm.meta_value
+             FROM {$wpdb->posts} p
+             INNER JOIN {$wpdb->postmeta} pm
+                     ON pm.post_id = p.ID AND pm.meta_key = '_bpu_expires_date'
+             WHERE p.post_type = 'bpu_job' AND p.post_status = 'publish'
+               AND pm.meta_value <> ''
+               AND pm.meta_value NOT REGEXP '^[0-9]{4}-[0-9]{2}-[0-9]{2}'
+             LIMIT 20"
+        );
+
+        // The newest published jobs, with the board's verdict on each.
+        $recent = array();
+        $newest = new WP_Query( array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => 'publish',
+            'posts_per_page' => 20,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'no_found_rows'  => true,
+        ) );
+        foreach ( $newest->posts as $post ) {
+            $expires  = get_post_meta( $post->ID, '_bpu_expires_date', true );
+            $recent[] = array(
+                'id'          => $post->ID,
+                'title'       => $post->post_title,
+                'posted'      => $post->post_date,
+                'expires_raw' => (string) $expires,
+                'on_board'    => ! $this->is_job_expired( $expires ),
+            );
+        }
+
+        // What the public board query itself returns right now.
+        $board = new WP_Query( array(
+            'post_type'      => 'bpu_job',
+            'post_status'    => 'publish',
+            'posts_per_page' => 1,
+            'fields'         => 'ids',
+            'meta_query'     => array( 'relation' => 'AND', $this->job_not_expired_meta_clause() ),
+        ) );
+
+        $counts = wp_count_posts( 'bpu_job' );
+
+        return new WP_REST_Response( array(
+            'today'              => $today,
+            'post_status_counts' => array(
+                'publish' => intval( $counts->publish ),
+                'pending' => intval( $counts->pending ),
+                'draft'   => intval( $counts->draft ),
+                'trash'   => intval( $counts->trash ),
+            ),
+            'published_by_expiry' => $buckets,
+            'unreadable_samples'  => $unreadable,
+            'board_total'         => intval( $board->found_posts ),
+            'newest_published'    => $recent,
         ), 200 );
     }
 
