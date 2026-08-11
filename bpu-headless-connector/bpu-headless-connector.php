@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.6.0
+ * Version: 2.6.1
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -7236,6 +7236,12 @@ jQuery(function($){
         $jobs  = array();
         foreach ( $query->posts as $post ) {
             $job                = $this->format_job_for_api( $post );
+            // `status` is what the admin job manager UI reads. It used to be sent
+            // only as `post_status`, so every row rendered with an undefined status
+            // — the moderation dropdown fell back to its first option ("Published")
+            // and pending jobs looked live while the public board (publish-only)
+            // correctly skipped them. Keep `post_status` for any other consumer.
+            $job['status']      = $post->post_status;
             $job['post_status'] = $post->post_status;
             $job['author_name'] = get_the_author_meta( 'display_name', $post->post_author );
             $jobs[]             = $job;
@@ -7267,6 +7273,7 @@ jQuery(function($){
         }
 
         $job                = $this->format_job_for_api( $post );
+        $job['status']      = $post->post_status;
         $job['post_status'] = $post->post_status;
 
         return new WP_REST_Response( array( 'job' => $job ), 200 );
