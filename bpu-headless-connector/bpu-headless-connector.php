@@ -409,6 +409,22 @@ class BPU_Headless_Connector {
     }
 
     /**
+     * True if the user may read and action job applications for any job.
+     *
+     * Gated on `bpu_manage_applications`, the same capability the
+     * /admin/applications routes check — so this grants nothing new: BPU
+     * Editors and Moderators already read every application through those
+     * routes, and were only being turned away from the per-job view.
+     */
+    private function user_can_manage_applications( $user ): bool {
+        if ( ! $user instanceof WP_User ) {
+            return false;
+        }
+        return $user->has_cap( 'bpu_manage_applications' )
+            || in_array( 'administrator', (array) $user->roles, true );
+    }
+
+    /**
      * Returns true if user_id is a Pro member.
      * Checks (in order): administrator role, bpu_pro role, active WooCommerce Subscription.
      */
@@ -7682,9 +7698,8 @@ jQuery(function($){
             return new WP_Error( 'bpu_not_found', __( 'Job not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
-        $user     = get_userdata( $user_id );
-        $is_admin = in_array( 'administrator', (array) $user->roles, true );
-        if ( ! $is_admin && intval( $post->post_author ) !== $user_id ) {
+        $user = get_userdata( $user_id );
+        if ( ! $this->user_can_manage_applications( $user ) && intval( $post->post_author ) !== $user_id ) {
             return new WP_Error( 'bpu_forbidden', __( 'Forbidden.', 'bpu' ), array( 'status' => 403 ) );
         }
 
