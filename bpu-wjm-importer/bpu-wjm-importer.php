@@ -118,6 +118,23 @@ function bpu_wjm_parse_salary( string $raw ): array {
 // ─────────────────────────────────────────────────────────────────
 
 /**
+ * True only when a closing date is readable AND has already passed.
+ * An unreadable value is not evidence a listing has ended, so it is treated
+ * as still open — matching how the public board decides the same question.
+ */
+function bpu_wjm_is_expired( string $expires ): bool {
+    $expires = trim( $expires );
+    if ( '' === $expires ) {
+        return false;
+    }
+    $ts = strtotime( $expires );
+    if ( false === $ts ) {
+        return false;
+    }
+    return gmdate( 'Y-m-d', $ts ) < gmdate( 'Y-m-d' );
+}
+
+/**
  * Import a single WP Job Manager post → BPU job.
  * Returns [ 'status' => 'imported'|'skipped'|'error', 'msg' => string ]
  */
@@ -223,7 +240,20 @@ function bpu_wjm_import_single( WP_Post $wjm ): array {
     }
 
     // ── Decide post_status ───────────────────────────────────────
-    $bpu_status = ( $wjm->post_status === 'pending' ) ? 'pending' : 'publish';
+    // The source query deliberately includes 'expired' listings so their
+    // records come across, but mapping anything non-pending to 'publish' filed
+    // dead listings as live ones. They stayed off the public board — their past
+    // _job_expires date excludes them there — while still counting as published
+    // everywhere else, which is why the admin job manager reported thousands of
+    // published jobs against a few hundred actually on the board. Import them
+    // as drafts: the record is kept, the count stays honest.
+    if ( 'pending' === $wjm->post_status ) {
+        $bpu_status = 'pending';
+    } elseif ( 'expired' === $wjm->post_status || bpu_wjm_is_expired( $expires ) ) {
+        $bpu_status = 'draft';
+    } else {
+        $bpu_status = 'publish';
+    }
 
     // ── Create the BPU job post ───────────────────────────────────
     $bpu_id = wp_insert_post( [
