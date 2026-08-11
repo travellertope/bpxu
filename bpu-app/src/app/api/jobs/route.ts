@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { wpJobsUrl, NO_STORE } from '@/lib/wp-jobs';
 
-const WP = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
@@ -17,12 +17,8 @@ export const revalidate = 0;
  * Keeping the alias lets them recover on their own.
  */
 export async function GET(request: NextRequest) {
-    const qs = request.nextUrl.searchParams.toString();
     try {
-        const res = await fetch(`${WP}/wp-json/bpu/v1/jobs${qs ? `?${qs}` : ''}`, {
-            cache: 'no-store',
-            headers: { 'Cache-Control': 'no-store' },
-        });
+        const res = await fetch(wpJobsUrl(request.nextUrl.searchParams), NO_STORE);
         const data = await res.json().catch(() => ({}));
         return NextResponse.json(data, {
             status: res.status,

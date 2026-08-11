@@ -1,14 +1,11 @@
 import { getBPUSession } from '@/lib/auth';
 import { Job } from './types';
 import JobBoard from './JobBoard';
-
-const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+import { wpJobsUrl, NO_STORE } from '@/lib/wp-jobs';
 
 async function fetchJobs(): Promise<{ jobs: Job[]; total: number }> {
     try {
-        const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/jobs?per_page=20`, {
-            cache: 'no-store',
-        });
+        const res = await fetch(wpJobsUrl({ per_page: '20' }), NO_STORE);
         if (!res.ok) return { jobs: [], total: 0 };
         const data = await res.json();
         const jobs = Array.isArray(data) ? data : (data.jobs ?? []);
