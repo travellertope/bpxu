@@ -2,17 +2,12 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-
-declare global {
-    interface Window {
-        grecaptcha: {
-            ready: (cb: () => void) => void;
-            execute: (siteKey: string, opts: { action: string }) => Promise<string>;
-        };
-    }
-}
-
-const SITE_KEY = process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '';
+import {
+    getRecaptchaToken,
+    loadRecaptchaScript,
+    RecaptchaUnavailableError,
+    RECAPTCHA_BLOCKED_MESSAGE,
+} from '@/lib/recaptcha-client';
 
 function ForgotPasswordForm() {
     const searchParams = useSearchParams();
@@ -23,30 +18,24 @@ function ForgotPasswordForm() {
     const [error, setError]     = useState('');
     const [sent, setSent]       = useState(false);
 
-    useEffect(() => {
-        if (!SITE_KEY || document.getElementById('recaptcha-script')) return;
-        const script = document.createElement('script');
-        script.id  = 'recaptcha-script';
-        script.src = `https://www.google.com/recaptcha/api.js?render=${SITE_KEY}`;
-        script.async = true;
-        document.head.appendChild(script);
-    }, []);
-
-    async function getRecaptchaToken(action: string): Promise<string> {
-        if (!SITE_KEY || typeof window === 'undefined' || !window.grecaptcha) return '';
-        return new Promise(resolve => {
-            window.grecaptcha.ready(() => {
-                window.grecaptcha.execute(SITE_KEY, { action }).then(resolve).catch(() => resolve(''));
-            });
-        });
-    }
+    useEffect(() => { loadRecaptchaScript(); }, []);
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         setError('');
         setLoading(true);
         try {
-            const recaptcha_token = await getRecaptchaToken('forgot_password');
+            let recaptcha_token: string;
+            try {
+                recaptcha_token = await getRecaptchaToken('forgot_password');
+            } catch (err) {
+                if (err instanceof RecaptchaUnavailableError) {
+                    setError(RECAPTCHA_BLOCKED_MESSAGE);
+                    setLoading(false);
+                    return;
+                }
+                throw err;
+            }
             const res = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },

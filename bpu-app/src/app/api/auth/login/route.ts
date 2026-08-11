@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { verifyRecaptcha } from '@/lib/recaptcha';
+import { verifyRecaptcha, recaptchaErrorMessage } from '@/lib/recaptcha';
 
 const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
 
@@ -14,9 +14,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Username and password are required.' }, { status: 400 });
     }
 
-    const captchaOk = await verifyRecaptcha(body.recaptcha_token);
-    if (!captchaOk) {
-        return NextResponse.json({ error: 'reCAPTCHA verification failed. Please try again.' }, { status: 400 });
+    const captcha = await verifyRecaptcha(body.recaptcha_token);
+    if (!captcha.ok) {
+        return NextResponse.json({ error: recaptchaErrorMessage(captcha.reason) }, { status: 400 });
     }
 
     const res = await fetch(`${WP_URL}/wp-json/bpu/v1/auth/login`, {
