@@ -197,7 +197,7 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
         if (typeFilter !== 'all') params.set('job_type', typeFilter);
         if (remoteOnly) params.set('remote', '1');
         if (empTypes.length === 1) params.set('employment_type', empTypes[0]);
-        return `/api/jobs?${params}`;
+        return `/api/job-listings?${params}`;
     }, [search, industry, typeFilter, remoteOnly, empTypes]);
 
     // Refetch from page 1 whenever filters change (debounced for search)
