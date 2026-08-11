@@ -199,6 +199,14 @@ export default function JobBoard({ initialJobs, initialTotal }: JobBoardProps) {
         if (typeFilter !== 'all') params.set('job_type', typeFilter);
         if (remoteOnly) params.set('remote', '1');
         if (empTypes.length === 1) params.set('employment_type', empTypes[0]);
+        // Cache-buster. `?page=1&per_page=20` is the URL this board requests on
+        // every visit, and on 11 Aug it was still answering with a 9 Aug
+        // snapshot — 291 roles, including listings that expired on the 9th —
+        // while the same endpoint on a query string nobody had requested came
+        // back current. Whatever holds that entry keys on the full URL and
+        // ignores no-store, so make the URL unique per request. The server
+        // sends the same buster on to WordPress, covering both legs.
+        params.set('_cb', `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`);
         return `/api/job-listings?${params}`;
     }, [search, industry, typeFilter, remoteOnly, empTypes]);
 
