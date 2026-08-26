@@ -10,12 +10,17 @@ export default async function MemberLayout({ children }: { children: React.React
     redirect('/login?returnTo=/dashboard');
   }
 
+  const user = session.user;
+  const isAdmin = user.roles.includes('administrator');
+
+  if (!isAdmin && user.roles.includes('bpu_employer')) {
+    redirect('/employer/jobs');
+  }
+
   const headerList = await headers();
   const pathname = headerList.get('x-next-pathname') || headerList.get('x-invoke-path') || '';
 
-  const user = session.user;
   const isPro = user.is_pro || false;
-  const isAdmin = user.roles.includes('administrator');
 
   return (
     <MemberDashboardShell

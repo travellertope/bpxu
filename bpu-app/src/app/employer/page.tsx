@@ -12,7 +12,7 @@ export default async function EmployerPage() {
     // If logged in as employer (has employer role), redirect to dashboard
     if (session.authenticated && session.user) {
         const roles = session.user.roles ?? [];
-        if (roles.includes('employer') || roles.includes('administrator')) {
+        if (roles.includes('bpu_employer') || roles.includes('administrator')) {
             redirect('/employer/jobs');
         }
     }
