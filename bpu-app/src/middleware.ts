@@ -4,6 +4,7 @@ import type { NextRequest } from 'next/server';
 export function middleware(req: NextRequest) {
   const url = req.nextUrl;
   const hostname = req.headers.get('host') || '';
+  const platform = hostname.includes('pairedbybpu.uk') ? 'paired' : 'bpu';
 
   // Permanently redirect the old app. subdomain to web.
   if (hostname.startsWith('app.blackprofessionals.uk')) {
@@ -23,12 +24,15 @@ export function middleware(req: NextRequest) {
       !url.pathname.includes('.')
     ) {
       url.pathname = `/paired${url.pathname === '/' ? '' : url.pathname}`;
-      return NextResponse.rewrite(url);
+      const rewritten = NextResponse.rewrite(url);
+      rewritten.headers.set('x-bpu-platform', platform);
+      return rewritten;
     }
   }
 
   const response = NextResponse.next();
   response.headers.set('x-next-pathname', url.pathname);
+  response.headers.set('x-bpu-platform', platform);
   return response;
 }
 

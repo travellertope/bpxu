@@ -9,6 +9,7 @@ export default async function PairedLayout({ children }: { children: React.React
 
   const headerList = await headers();
   const pathname = headerList.get('x-next-pathname') || headerList.get('x-invoke-path') || '';
+  const platform = (headerList.get('x-bpu-platform') as 'paired' | 'bpu') || 'bpu';
 
   const isPublicPage = !session.authenticated ||
     pathname === '/paired' ||
@@ -66,6 +67,7 @@ export default async function PairedLayout({ children }: { children: React.React
       isMentor={isMentor}
       isAdmin={isAdmin}
       userRoles={roles as string[]}
+      platform={platform}
       notificationBell={<NotificationBell />}
     >
       {children}

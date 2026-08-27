@@ -9,6 +9,7 @@ interface Props {
     isMentor: boolean;
     isAdmin: boolean;
     userRoles?: string[];
+    platform?: 'paired' | 'bpu';
     children: React.ReactNode;
     notificationBell: React.ReactNode;
 }
@@ -43,8 +44,9 @@ function NavLink({ href, icon, label, active, onClick }: { href: string; icon: s
     );
 }
 
-export default function DashboardShell({ currentPath, userName, userEmail, isMentor, isAdmin, userRoles = [], children, notificationBell }: Props) {
+export default function DashboardShell({ currentPath, userName, userEmail, isMentor, isAdmin, userRoles = [], platform = 'bpu', children, notificationBell }: Props) {
     const [open, setOpen] = useState(false);
+    const isPaired = platform === 'paired';
 
     function isActive(href: string) {
         if (href === '/paired/dashboard') return currentPath === '/paired/dashboard';
@@ -70,36 +72,47 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                     </svg>
                 </button>
 
-                <a href="/paired" className="dash-sidebar-brand">
-                    <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="BPU" />
-                    <span className="portal-label">PAIRED</span>
-                </a>
+                {isPaired ? (
+                    <a href="/paired" className="dash-sidebar-brand">
+                        <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="BPU" />
+                        <span className="portal-label">PAIRED</span>
+                    </a>
+                ) : (
+                    <a href="/dashboard" className="dash-sidebar-brand">
+                        <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="BPU" />
+                        <span className="portal-label">BPU</span>
+                    </a>
+                )}
 
                 <nav className="dash-nav">
-                    <div className="dash-nav-section">
-                        <div className="dash-nav-label">General</div>
-                        <NavLink href="/paired/dashboard" icon="dashboard" label="Dashboard" active={isActive('/paired/dashboard')} onClick={close} />
-                        <NavLink href="/paired/mentors" icon="mentors" label="Browse Mentors" active={isActive('/paired/mentors')} onClick={close} />
-                    </div>
+                    {isPaired && (
+                        <>
+                            <div className="dash-nav-section">
+                                <div className="dash-nav-label">General</div>
+                                <NavLink href="/paired/dashboard" icon="dashboard" label="Dashboard" active={isActive('/paired/dashboard')} onClick={close} />
+                                <NavLink href="/paired/mentors" icon="mentors" label="Browse Mentors" active={isActive('/paired/mentors')} onClick={close} />
+                            </div>
 
-                    <div className="dash-nav-section">
-                        <div className="dash-nav-label">Mentee</div>
-                        <NavLink href="/paired/mentee/bookings" icon="bookings" label="My Bookings" active={isActive('/paired/mentee/bookings')} onClick={close} />
-                        <NavLink href="/paired/messages" icon="messages" label="Messages" active={isActive('/paired/messages')} onClick={close} />
-                        <NavLink href="/paired/favourites" icon="heart" label="Favourites" active={isActive('/paired/favourites')} onClick={close} />
-                        <NavLink href="/paired/notifications" icon="bell" label="Notifications" active={isActive('/paired/notifications')} onClick={close} />
-                        <NavLink href="/paired/referral" icon="referral" label="Referrals" active={isActive('/paired/referral')} onClick={close} />
-                        <NavLink href="/paired/mentee/profile" icon="profile" label="Personal Profile" active={isActive('/paired/mentee/profile')} onClick={close} />
-                    </div>
+                            <div className="dash-nav-section">
+                                <div className="dash-nav-label">Mentee</div>
+                                <NavLink href="/paired/mentee/bookings" icon="bookings" label="My Bookings" active={isActive('/paired/mentee/bookings')} onClick={close} />
+                                <NavLink href="/paired/messages" icon="messages" label="Messages" active={isActive('/paired/messages')} onClick={close} />
+                                <NavLink href="/paired/favourites" icon="heart" label="Favourites" active={isActive('/paired/favourites')} onClick={close} />
+                                <NavLink href="/paired/notifications" icon="bell" label="Notifications" active={isActive('/paired/notifications')} onClick={close} />
+                                <NavLink href="/paired/referral" icon="referral" label="Referrals" active={isActive('/paired/referral')} onClick={close} />
+                                <NavLink href="/paired/mentee/profile" icon="profile" label="Personal Profile" active={isActive('/paired/mentee/profile')} onClick={close} />
+                            </div>
 
-                    {isMentor && (
-                        <div className="dash-nav-section">
-                            <div className="dash-nav-label">Mentor</div>
-                            <NavLink href="/paired/mentor/sessions" icon="sessions" label="Sessions" active={isActive('/paired/mentor/sessions')} onClick={close} />
-                            <NavLink href="/paired/mentor/bookings" icon="bookings" label="Mentor Bookings" active={isActive('/paired/mentor/bookings')} onClick={close} />
-                            <NavLink href="/paired/mentor/mentees" icon="mentees" label="Mentees" active={isActive('/paired/mentor/mentees')} onClick={close} />
-                            <NavLink href="/paired/mentor/settings" icon="settings" label="Mentor Profile" active={isActive('/paired/mentor/settings')} onClick={close} />
-                        </div>
+                            {isMentor && (
+                                <div className="dash-nav-section">
+                                    <div className="dash-nav-label">Mentor</div>
+                                    <NavLink href="/paired/mentor/sessions" icon="sessions" label="Sessions" active={isActive('/paired/mentor/sessions')} onClick={close} />
+                                    <NavLink href="/paired/mentor/bookings" icon="bookings" label="Mentor Bookings" active={isActive('/paired/mentor/bookings')} onClick={close} />
+                                    <NavLink href="/paired/mentor/mentees" icon="mentees" label="Mentees" active={isActive('/paired/mentor/mentees')} onClick={close} />
+                                    <NavLink href="/paired/mentor/settings" icon="settings" label="Mentor Profile" active={isActive('/paired/mentor/settings')} onClick={close} />
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {isAdmin && (
@@ -110,8 +123,8 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 <NavLink href="/admin/dashboard" icon="dashboard" label="Dashboard" active={isActive('/admin/dashboard')} onClick={close} />
                             </div>
 
-                            {/* ── Job Manager ── */}
-                            {hasRole('administrator', 'bpu_editor', 'bpu_moderator') && (
+                            {/* ── Job Manager (BPU only) ── */}
+                            {!isPaired && hasRole('administrator', 'bpu_editor', 'bpu_moderator') && (
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Job Manager</div>
                                     {hasRole('administrator', 'bpu_editor') && <NavLink href="/admin/jobs" icon="apps" label="Job Board" active={isActive('/admin/jobs')} onClick={close} />}
@@ -122,8 +135,8 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 </div>
                             )}
 
-                            {/* ── Mentorship ── */}
-                            {hasRole('administrator') && (
+                            {/* ── Mentorship (PAIRED only) ── */}
+                            {isPaired && hasRole('administrator') && (
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Mentorship</div>
                                     <NavLink href="/admin/mentors" icon="profile" label="Mentors" active={isActive('/admin/mentors')} onClick={close} />
@@ -134,8 +147,8 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 </div>
                             )}
 
-                            {/* ── Finance ── */}
-                            {hasRole('administrator') && (
+                            {/* ── Finance (PAIRED only) ── */}
+                            {isPaired && hasRole('administrator') && (
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Finance</div>
                                     <NavLink href="/admin/transactions" icon="dollar" label="Transactions" active={isActive('/admin/transactions')} onClick={close} />
@@ -145,16 +158,16 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 </div>
                             )}
 
-                            {/* ── Analytics ── */}
-                            {hasRole('administrator', 'bpu_editor') && (
+                            {/* ── Analytics (PAIRED only) ── */}
+                            {isPaired && hasRole('administrator', 'bpu_editor') && (
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Analytics</div>
                                     <NavLink href="/admin/stats" icon="chart" label="Platform Stats" active={isActive('/admin/stats')} onClick={close} />
                                 </div>
                             )}
 
-                            {/* ── Growth ── */}
-                            {hasRole('administrator') && (
+                            {/* ── Growth (PAIRED only) ── */}
+                            {isPaired && hasRole('administrator') && (
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Growth</div>
                                     <NavLink href="/admin/referrals" icon="referral" label="Referrals" active={isActive('/admin/referrals')} onClick={close} />
@@ -162,8 +175,8 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 </div>
                             )}
 
-                            {/* ── Members ── */}
-                            {hasRole('administrator', 'bpu_editor') && (
+                            {/* ── Members (BPU only) ── */}
+                            {!isPaired && hasRole('administrator', 'bpu_editor') && (
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Members</div>
                                     <NavLink href="/admin/members" icon="profile" label="Members" active={isActive('/admin/members')} onClick={close} />

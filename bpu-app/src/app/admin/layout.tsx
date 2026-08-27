@@ -12,6 +12,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const headerList = await headers();
   const pathname = headerList.get('x-next-pathname') || headerList.get('x-invoke-path') || '';
+  const platform = (headerList.get('x-bpu-platform') as 'paired' | 'bpu') || 'bpu';
 
   const user = session.user;
   const roles = Array.isArray(user.roles) ? user.roles : Object.values(user.roles);
@@ -30,6 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       isMentor={isMentor}
       isAdmin={isAdmin}
       userRoles={roles as string[]}
+      platform={platform}
       notificationBell={<NotificationBell />}
     >
       {children}
