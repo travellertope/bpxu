@@ -20,6 +20,10 @@ export default function ProfileClient({ user }: Props) {
   const [prefSaving, setPrefSaving] = useState(false);
   const [prefMsg, setPrefMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
+  const [smsNotifications, setSmsNotifications] = useState(false);
+  const [smsPrefSaving, setSmsPrefSaving] = useState(false);
+  const [smsPrefMsg, setSmsPrefMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
   const [experiences] = useState<WorkExperience[]>(user.experiences || []);
   const [educations] = useState<Education[]>(user.educations || []);
   const [certifications] = useState<Certification[]>(user.certifications || []);
@@ -54,6 +58,16 @@ export default function ProfileClient({ user }: Props) {
       : { type: 'err', text: 'Could not save preferences.' }
     );
     setPrefSaving(false);
+  };
+
+  const handleSmsPrefSave = async () => {
+    setSmsPrefSaving(true);
+    const ok = await BPUApi.updatePreferences({ sms_notifications: smsNotifications });
+    setSmsPrefMsg(ok
+      ? { type: 'ok', text: 'Preferences saved.' }
+      : { type: 'err', text: 'Could not save preferences.' }
+    );
+    setSmsPrefSaving(false);
   };
 
   return (
@@ -449,6 +463,34 @@ export default function ProfileClient({ user }: Props) {
             <p className="text-sm text-text-2">Weekly job digest and notification controls are available with Pro.</p>
             <a href="/upgrade" className="btn btn-amber btn-sm shrink-0">Upgrade &rarr;</a>
           </div>
+        )}
+      </div>
+
+      {/* SMS preferences -- available to everyone with a phone number on file */}
+      <div className="card card-p space-y-4">
+        <p className="text-xs font-bold uppercase tracking-wide text-text-3">SMS Notifications</p>
+        {profile.phone_number ? (
+          <>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={smsNotifications}
+                onChange={e => setSmsNotifications(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm">Text me birthday wishes and account security codes</span>
+            </label>
+            {smsPrefMsg && (
+              <div className={`alert ${smsPrefMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+                {smsPrefMsg.text}
+              </div>
+            )}
+            <button onClick={handleSmsPrefSave} disabled={smsPrefSaving} className="btn btn-outline btn-sm">
+              {smsPrefSaving ? 'Saving…' : 'Save preferences'}
+            </button>
+          </>
+        ) : (
+          <p className="text-sm text-text-2">Add a phone number above to enable SMS notifications.</p>
         )}
       </div>
     </div>

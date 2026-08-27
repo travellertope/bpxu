@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { Job } from './types';
+import { decodeHtml } from '@/lib/utils';
 
 const PER_PAGE = 20;
 
@@ -87,6 +88,9 @@ function JobCard({ job }: JobCardProps) {
         ? {}
         : { target: '_blank', rel: 'noopener noreferrer', prefetch: false };
 
+    const company = decodeHtml(job.company);
+    const title = decodeHtml(job.title);
+
     return (
         <Link
             href={linkHref}
@@ -96,19 +100,19 @@ function JobCard({ job }: JobCardProps) {
         >
             {/* Header: logo + title + badge */}
             <div className="flex items-start gap-3 mb-3">
-                <CompanyAvatar name={job.company} logoUrl={logoUrl} />
+                <CompanyAvatar name={company} logoUrl={logoUrl} />
                 <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold text-base leading-snug">{job.title}</h3>
+                        <h3 className="font-semibold text-base leading-snug">{title}</h3>
                         {isInbound ? (
                             <span className="badge badge-green shrink-0">Apply now</span>
                         ) : (
                             <span className="badge badge-amber shrink-0">Partner</span>
                         )}
                     </div>
-                    <p className="text-sm text-text-2 mt-0.5 truncate">{job.company}</p>
+                    <p className="text-sm text-text-2 mt-0.5 truncate">{company}</p>
                     {excerpt && (
-                        <p className="text-xs text-text-2 mt-1 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{excerpt}</p>
+                        <p className="text-xs text-text-2 mt-1 leading-snug" style={{display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{decodeHtml(excerpt)}</p>
                     )}
                 </div>
             </div>

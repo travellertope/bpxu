@@ -40,6 +40,7 @@ type FormData = {
   where_in_uk: string;
   city: string;
   user_bio: string;
+  sms_notifications: boolean;
 };
 
 const EMPTY: FormData = {
@@ -47,7 +48,7 @@ const EMPTY: FormData = {
   first_name: '', last_name: '', phone_number: '', birthday: '', gender: '', sexuality: '',
   education: '', ethnicity: '', first_gen_immigrant: '', disability: '', other_disability: '',
   employment_status: '', industry: '', field_of_expertise: '', expertise_not_listed: '', years_experience: '', skills: '',
-  country: '', where_in_uk: '', city: '', user_bio: '',
+  country: '', where_in_uk: '', city: '', user_bio: '', sms_notifications: false,
 };
 
 const INDUSTRIES = [
@@ -237,6 +238,10 @@ function RegisterForm() {
 
   function set(field: keyof FormData, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
+  }
+
+  function setSmsNotifications(value: boolean) {
+    setForm(prev => ({ ...prev, sms_notifications: value }));
   }
 
   function validateStep(): string {
@@ -475,6 +480,20 @@ function RegisterForm() {
                 value={form.phone_number} onChange={v => set('phone_number', v)}
                 required={false} autoComplete="tel" disabled={loading}
               />
+              {form.phone_number && (
+                <label className="flex items-center gap-3 cursor-pointer -mt-2">
+                  <input
+                    type="checkbox"
+                    checked={form.sms_notifications}
+                    onChange={e => setSmsNotifications(e.target.checked)}
+                    className="w-4 h-4"
+                    disabled={loading}
+                  />
+                  <span className="text-sm text-text-2">
+                    Text me important updates &mdash; birthday wishes and account security codes
+                  </span>
+                </label>
+              )}
               <Field
                 id="birthday" label="Date of birth" type="date"
                 value={form.birthday} onChange={v => set('birthday', v)}

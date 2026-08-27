@@ -345,7 +345,7 @@ export class BPUApi {
     /**
      * Save Pro member email preferences (weekly digest opt-in, target role).
      */
-    static async updatePreferences(prefs: { weekly_emails?: boolean; target_role?: string }): Promise<boolean> {
+    static async updatePreferences(prefs: { weekly_emails?: boolean; target_role?: string; sms_notifications?: boolean }): Promise<boolean> {
         try {
             const res = await fetch('/api/member/preferences', {
                 method: 'POST',

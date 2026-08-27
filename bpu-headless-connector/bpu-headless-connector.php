@@ -646,6 +646,24 @@ class BPU_Headless_Connector {
         ) );
 
         // ──────────────────────────────────────────────────────
+        // 6h. Forgot Password via SMS (public — sends a 6-digit OTP)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/forgot-password-sms', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_forgot_password_sms' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // 6i. Verify SMS OTP + set new password (public)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/auth/verify-reset-code', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_verify_reset_code' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
         // 6b. SSO Profile (JWT Bearer auth — for Next.js profile refresh)
         // ──────────────────────────────────────────────────────
         register_rest_route( $this->namespace, '/sso/profile', array(
@@ -1652,6 +1670,19 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_send_birthday_email' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // Admin: Profile completeness dashboard
+        register_rest_route( $this->namespace, '/admin/profile-completeness', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_profile_completeness' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/profile-completeness/export', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_export_profile_completeness' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
     }
 
     /**
@@ -2129,6 +2160,84 @@ class BPU_Headless_Connector {
         }
 
         return new WP_REST_Response( array_merge( array( 'success' => true ), $results ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  SMS (Twilio)
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Twilio credentials — wp-config.php constants take priority, falling
+     * back to wp_options (same convention as GEMINI_API_KEY).
+     */
+    private function get_twilio_credentials(): array {
+        return array(
+            'sid'   => defined( 'TWILIO_ACCOUNT_SID' ) ? TWILIO_ACCOUNT_SID : get_option( 'bpu_twilio_account_sid', '' ),
+            'token' => defined( 'TWILIO_AUTH_TOKEN' ) ? TWILIO_AUTH_TOKEN : get_option( 'bpu_twilio_auth_token', '' ),
+            'from'  => defined( 'TWILIO_FROM_NUMBER' ) ? TWILIO_FROM_NUMBER : get_option( 'bpu_twilio_from_number', '' ),
+        );
+    }
+
+    /**
+     * Normalise a UK/international phone number to E.164 for Twilio.
+     * Returns '' if the number can't be confidently normalised.
+     */
+    private function normalize_phone_e164( string $phone ): string {
+        $phone = trim( $phone );
+        if ( '' === $phone ) {
+            return '';
+        }
+        $digits = preg_replace( '/[^\d+]/', '', $phone );
+        if ( 0 === strpos( $digits, '+' ) ) {
+            return $digits;
+        }
+        if ( preg_match( '/^0\d{9,10}$/', $digits ) ) {
+            return '+44' . substr( $digits, 1 ); // UK trunk prefix.
+        }
+        if ( preg_match( '/^\d{10,15}$/', $digits ) ) {
+            return '+' . $digits;
+        }
+        return '';
+    }
+
+    /**
+     * Send an SMS via the Twilio Messages API. Never throws — returns
+     * false (and logs nothing) if credentials are missing or the send fails,
+     * so a misconfigured/unavailable SMS provider never breaks the caller's
+     * primary flow (registration, password reset, birthday email, etc).
+     */
+    private function send_sms( string $to, string $message ): bool {
+        $creds = $this->get_twilio_credentials();
+        if ( empty( $creds['sid'] ) || empty( $creds['token'] ) || empty( $creds['from'] ) ) {
+            return false;
+        }
+
+        $to = $this->normalize_phone_e164( $to );
+        if ( '' === $to ) {
+            return false;
+        }
+
+        $response = wp_remote_post(
+            "https://api.twilio.com/2010-04-01/Accounts/{$creds['sid']}/Messages.json",
+            array(
+                'headers' => array(
+                    'Authorization' => 'Basic ' . base64_encode( $creds['sid'] . ':' . $creds['token'] ),
+                ),
+                'body'    => array(
+                    'From' => $creds['from'],
+                    'To'   => $to,
+                    'Body' => $message,
+                ),
+                'timeout' => 15,
+            )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return false;
+        }
+
+        $status = wp_remote_retrieve_response_code( $response );
+        return $status >= 200 && $status < 300;
     }
 
     /**
@@ -2723,6 +2832,25 @@ Rules:
         ) );
 
         wp_mail( $user->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+
+        $this->maybe_send_sms( $user->ID, sprintf(
+            'Welcome to Black Professionals United, %s! Your account is ready — explore jobs, mentoring and more at app.blackprofessionals.uk',
+            $user->display_name
+        ) );
+    }
+
+    /**
+     * Send $message by SMS to $user_id's phone on file, but only if they have
+     * opted in to SMS notifications (_bpu_sms_notifications user meta) and a
+     * phone number is on record. Silently no-ops otherwise.
+     */
+    private function maybe_send_sms( int $user_id, string $message ): bool {
+        $opted_in = '1' === get_user_meta( $user_id, '_bpu_sms_notifications', true );
+        $phone    = (string) get_user_meta( $user_id, 'phone_number', true );
+        if ( ! $opted_in || empty( $phone ) ) {
+            return false;
+        }
+        return $this->send_sms( $phone, $message );
     }
 
     /**
@@ -3104,6 +3232,10 @@ Rules:
             }
         }
 
+        if ( isset( $body['sms_notifications'] ) ) {
+            update_user_meta( $user_id, '_bpu_sms_notifications', $body['sms_notifications'] ? '1' : '0' );
+        }
+
         $user = get_userdata( $user_id );
 
         $jwt = $this->generate_jwt( array(
@@ -3226,6 +3358,115 @@ Rules:
         wp_set_password( $password, $user->ID );
         delete_user_meta( $user->ID, '_bpu_password_reset_token' );
         delete_user_meta( $user->ID, '_bpu_password_reset_expires' );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'message' => 'Your password has been updated. You can now sign in.',
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/auth/forgot-password-sms — text a 6-digit verification
+     * code to the phone number on file. Accepts email or username.
+     * Always returns 200 to prevent user/phone enumeration.
+     * Rate-limited to 3 requests per IP per 15 minutes.
+     */
+    public function handle_forgot_password_sms( WP_REST_Request $request ) {
+        $ip       = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+        $rate_key = 'bpu_forgot_sms_rate_' . md5( $ip );
+        $attempts = (int) get_transient( $rate_key );
+        $generic  = array(
+            'success' => true,
+            'message' => 'If an account with a phone number on file exists, a verification code has been sent.',
+        );
+        if ( $attempts >= 3 ) {
+            return new WP_REST_Response( $generic, 200 );
+        }
+        set_transient( $rate_key, $attempts + 1, 15 * MINUTE_IN_SECONDS );
+
+        $body  = $request->get_json_params();
+        $login = sanitize_text_field( $body['email'] ?? '' );
+
+        if ( empty( $login ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Email is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $user = is_email( $login )
+            ? get_user_by( 'email', $login )
+            : get_user_by( 'login', $login );
+
+        if ( $user ) {
+            $phone = $this->normalize_phone_e164( (string) get_user_meta( $user->ID, 'phone_number', true ) );
+            if ( $phone ) {
+                $code = str_pad( (string) random_int( 0, 999999 ), 6, '0', STR_PAD_LEFT );
+                set_transient( 'bpu_sms_otp_' . $user->ID, array(
+                    'code_hash' => wp_hash_password( $code ),
+                    'attempts'  => 0,
+                ), 10 * MINUTE_IN_SECONDS );
+
+                $this->send_sms( $phone, sprintf(
+                    'Your Black Professionals United verification code is %s. It expires in 10 minutes. Never share this code with anyone.',
+                    $code
+                ) );
+            }
+        }
+
+        return new WP_REST_Response( $generic, 200 );
+    }
+
+    /**
+     * POST /bpu/v1/auth/verify-reset-code — verify the SMS OTP and set a new
+     * password in one step. Accepts email/username, code and new password.
+     */
+    public function handle_verify_reset_code( WP_REST_Request $request ) {
+        $ip       = sanitize_text_field( $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0' );
+        $rate_key = 'bpu_verify_sms_rate_' . md5( $ip );
+        $attempts = (int) get_transient( $rate_key );
+        if ( $attempts >= 10 ) {
+            return new WP_Error( 'bpu_rate_limited', __( 'Too many attempts. Please try again later.', 'bpu' ), array( 'status' => 429 ) );
+        }
+        set_transient( $rate_key, $attempts + 1, 15 * MINUTE_IN_SECONDS );
+
+        $body     = $request->get_json_params();
+        $login    = sanitize_text_field( $body['email'] ?? '' );
+        $code     = sanitize_text_field( $body['code'] ?? '' );
+        $password = $body['password'] ?? '';
+
+        if ( empty( $login ) || empty( $code ) || empty( $password ) ) {
+            return new WP_Error( 'bpu_missing', __( 'Email, code and password are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+        if ( strlen( $password ) < 8 ) {
+            return new WP_Error( 'bpu_weak_password', __( 'Password must be at least 8 characters.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $user = is_email( $login )
+            ? get_user_by( 'email', $login )
+            : get_user_by( 'login', $login );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_invalid_code', __( 'Invalid or expired code.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $otp_key = 'bpu_sms_otp_' . $user->ID;
+        $otp     = get_transient( $otp_key );
+
+        if ( ! is_array( $otp ) || empty( $otp['code_hash'] ) ) {
+            return new WP_Error( 'bpu_invalid_code', __( 'Invalid or expired code. Please request a new one.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( (int) $otp['attempts'] >= 5 ) {
+            delete_transient( $otp_key );
+            return new WP_Error( 'bpu_too_many_attempts', __( 'Too many incorrect attempts. Please request a new code.', 'bpu' ), array( 'status' => 429 ) );
+        }
+
+        if ( ! wp_check_password( $code, $otp['code_hash'] ) ) {
+            $otp['attempts'] = (int) $otp['attempts'] + 1;
+            set_transient( $otp_key, $otp, 10 * MINUTE_IN_SECONDS );
+            return new WP_Error( 'bpu_invalid_code', __( 'Incorrect code. Please try again.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        wp_set_password( $password, $user->ID );
+        delete_transient( $otp_key );
 
         return new WP_REST_Response( array(
             'success' => true,
@@ -3395,17 +3636,22 @@ Rules:
         }
 
         $user_id = intval( $payload['user_id'] );
-        if ( ! $this->is_pro_member( $user_id ) ) {
-            return new WP_Error( 'bpu_not_pro', __( 'Email preferences require a BPU Pro membership.', 'bpu' ), array( 'status' => 403 ) );
+        $body    = $request->get_json_params();
+
+        if ( isset( $body['weekly_emails'] ) || isset( $body['target_role'] ) ) {
+            if ( ! $this->is_pro_member( $user_id ) ) {
+                return new WP_Error( 'bpu_not_pro', __( 'Email preferences require a BPU Pro membership.', 'bpu' ), array( 'status' => 403 ) );
+            }
+            if ( isset( $body['weekly_emails'] ) ) {
+                update_user_meta( $user_id, '_bpu_weekly_emails', $body['weekly_emails'] ? '1' : '0' );
+            }
+            if ( isset( $body['target_role'] ) ) {
+                update_user_meta( $user_id, '_bpu_target_role', sanitize_text_field( $body['target_role'] ) );
+            }
         }
 
-        $body = $request->get_json_params();
-
-        if ( isset( $body['weekly_emails'] ) ) {
-            update_user_meta( $user_id, '_bpu_weekly_emails', $body['weekly_emails'] ? '1' : '0' );
-        }
-        if ( isset( $body['target_role'] ) ) {
-            update_user_meta( $user_id, '_bpu_target_role', sanitize_text_field( $body['target_role'] ) );
+        if ( isset( $body['sms_notifications'] ) ) {
+            update_user_meta( $user_id, '_bpu_sms_notifications', $body['sms_notifications'] ? '1' : '0' );
         }
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
@@ -3695,6 +3941,11 @@ Rules:
             update_user_meta( $member->ID, '_bpu_last_birthday_email_year', (int) date( 'Y' ) );
             update_user_meta( $member->ID, '_bpu_last_birthday_email_sent', current_time( 'mysql' ) );
         }
+
+        $this->maybe_send_sms( $member->ID, sprintf(
+            'Happy Birthday, %s! The whole BPU team wishes you a wonderful day and another great year ahead. — Black Professionals United',
+            $member->display_name
+        ) );
 
         return (bool) $sent;
     }
@@ -12221,6 +12472,123 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success' => true,
             'sent_at' => get_user_meta( $user_id, '_bpu_last_birthday_email_sent', true ),
+        ), 200 );
+    }
+
+    /**
+     * The profile fields tracked by the "profile completeness" dashboard,
+     * keyed by ACF field name (as used with get_field()/update_field()),
+     * mapped to a human-readable label.
+     */
+    private function get_profile_completeness_fields(): array {
+        return array(
+            'birthday'                    => 'Date of birth',
+            'phone_number'                => 'Phone number',
+            'industry'                    => 'Industry',
+            'industryfield_of_expertise'  => 'Field of expertise',
+            'current_employment_status'   => 'Employment status',
+            'level_of_education'          => 'Education level',
+            'years_of_experience'         => 'Years of experience',
+            'skills_separate'             => 'Skills',
+            'country_location'            => 'Country',
+            'location_city'               => 'City',
+            'user_bio'                    => 'Bio',
+        );
+    }
+
+    /** True if an ACF/user-meta value should count as "not filled in". */
+    private function is_profile_field_empty( $value ): bool {
+        if ( is_array( $value ) ) {
+            return empty( $value );
+        }
+        return null === $value || '' === trim( (string) $value );
+    }
+
+    /**
+     * GET /admin/profile-completeness — for each tracked profile field,
+     * how many members (and what %) have not filled it in, plus how many
+     * members have every tracked field filled in.
+     */
+    public function admin_get_profile_completeness( WP_REST_Request $request ) {
+        $fields = $this->get_profile_completeness_fields();
+        $users  = ( new WP_User_Query( array( 'number' => -1, 'fields' => 'ID' ) ) )->get_results();
+        $total  = count( $users );
+
+        $missing_counts = array_fill_keys( array_keys( $fields ), 0 );
+        $fully_complete = 0;
+
+        foreach ( $users as $user_id ) {
+            $any_missing = false;
+            foreach ( $fields as $key => $label ) {
+                $value = function_exists( 'get_field' ) ? get_field( $key, 'user_' . $user_id ) : get_user_meta( $user_id, $key, true );
+                if ( $this->is_profile_field_empty( $value ) ) {
+                    $missing_counts[ $key ]++;
+                    $any_missing = true;
+                }
+            }
+            if ( ! $any_missing ) {
+                $fully_complete++;
+            }
+        }
+
+        $breakdown = array();
+        foreach ( $fields as $key => $label ) {
+            $missing = $missing_counts[ $key ];
+            $breakdown[] = array(
+                'field'         => $key,
+                'label'         => $label,
+                'missing_count' => $missing,
+                'missing_pct'   => $total > 0 ? round( $missing / $total * 100, 1 ) : 0,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'total_members'        => $total,
+            'fully_complete_count' => $fully_complete,
+            'fully_complete_pct'   => $total > 0 ? round( $fully_complete / $total * 100, 1 ) : 0,
+            'fields'                => $breakdown,
+        ), 200 );
+    }
+
+    /**
+     * GET /admin/profile-completeness/export?field=birthday — CSV (as a JSON
+     * string, same convention as admin_export_applications()) of every
+     * member missing the given field, for outreach/follow-up.
+     */
+    public function admin_export_profile_completeness( WP_REST_Request $request ) {
+        $fields = $this->get_profile_completeness_fields();
+        $field  = sanitize_key( (string) $request->get_param( 'field' ) );
+
+        if ( '' === $field || ! isset( $fields[ $field ] ) ) {
+            return new WP_Error( 'bpu_invalid_field', __( 'Unknown profile field.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $users = ( new WP_User_Query( array( 'number' => -1 ) ) )->get_results();
+
+        $csv_rows = array( 'ID,Name,Email,Phone,Registered' );
+        $count    = 0;
+
+        foreach ( $users as $user ) {
+            $value = function_exists( 'get_field' ) ? get_field( $field, 'user_' . $user->ID ) : get_user_meta( $user->ID, $field, true );
+            if ( ! $this->is_profile_field_empty( $value ) ) {
+                continue;
+            }
+            $count++;
+            $csv_rows[] = implode( ',', array(
+                $user->ID,
+                $this->csv_escape( $user->display_name ),
+                $this->csv_escape( $user->user_email ),
+                $this->csv_escape( (string) get_user_meta( $user->ID, 'phone_number', true ) ),
+                $this->csv_escape( $user->user_registered ),
+            ) );
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'filename' => 'missing-' . $field . '-' . gmdate( 'Y-m-d' ) . '.csv',
+            'count'    => $count,
+            'label'    => $fields[ $field ],
+            'csv'      => implode( "\r\n", $csv_rows ),
         ), 200 );
     }
 

@@ -168,6 +168,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                     <div className="dash-nav-label">Members</div>
                                     <NavLink href="/admin/members" icon="profile" label="Members" active={isActive('/admin/members')} onClick={close} />
                                     <NavLink href="/admin/birthdays" icon="calendar" label="Birthdays" active={isActive('/admin/birthdays')} onClick={close} />
+                                    <NavLink href="/admin/profile-completeness" icon="chart" label="Profile Completeness" active={isActive('/admin/profile-completeness')} onClick={close} />
                                 </div>
                             )}
 
