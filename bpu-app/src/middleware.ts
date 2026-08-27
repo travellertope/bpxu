@@ -13,6 +13,13 @@ export function middleware(req: NextRequest) {
   }
 
   if (hostname.includes('pairedbybpu.uk')) {
+    // Admin tools are managed from the BPU domain; send anyone hitting
+    // /admin on the PAIRED domain straight to the PAIRED dashboard
+    // instead of letting it fall through to a rewritten 404.
+    if (url.pathname.startsWith('/admin')) {
+      return NextResponse.redirect(new URL('/paired/dashboard', url));
+    }
+
     if (
       !url.pathname.startsWith('/paired') &&
       !url.pathname.startsWith('/_next') &&
