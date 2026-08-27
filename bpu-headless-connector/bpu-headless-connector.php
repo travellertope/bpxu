@@ -1670,6 +1670,19 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_send_birthday_email' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // Admin: Profile completeness dashboard
+        register_rest_route( $this->namespace, '/admin/profile-completeness', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_profile_completeness' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/admin/profile-completeness/export', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_export_profile_completeness' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
     }
 
     /**
@@ -12459,6 +12472,123 @@ jQuery(function($){
         return new WP_REST_Response( array(
             'success' => true,
             'sent_at' => get_user_meta( $user_id, '_bpu_last_birthday_email_sent', true ),
+        ), 200 );
+    }
+
+    /**
+     * The profile fields tracked by the "profile completeness" dashboard,
+     * keyed by ACF field name (as used with get_field()/update_field()),
+     * mapped to a human-readable label.
+     */
+    private function get_profile_completeness_fields(): array {
+        return array(
+            'birthday'                    => 'Date of birth',
+            'phone_number'                => 'Phone number',
+            'industry'                    => 'Industry',
+            'industryfield_of_expertise'  => 'Field of expertise',
+            'current_employment_status'   => 'Employment status',
+            'level_of_education'          => 'Education level',
+            'years_of_experience'         => 'Years of experience',
+            'skills_separate'             => 'Skills',
+            'country_location'            => 'Country',
+            'location_city'               => 'City',
+            'user_bio'                    => 'Bio',
+        );
+    }
+
+    /** True if an ACF/user-meta value should count as "not filled in". */
+    private function is_profile_field_empty( $value ): bool {
+        if ( is_array( $value ) ) {
+            return empty( $value );
+        }
+        return null === $value || '' === trim( (string) $value );
+    }
+
+    /**
+     * GET /admin/profile-completeness — for each tracked profile field,
+     * how many members (and what %) have not filled it in, plus how many
+     * members have every tracked field filled in.
+     */
+    public function admin_get_profile_completeness( WP_REST_Request $request ) {
+        $fields = $this->get_profile_completeness_fields();
+        $users  = ( new WP_User_Query( array( 'number' => -1, 'fields' => 'ID' ) ) )->get_results();
+        $total  = count( $users );
+
+        $missing_counts = array_fill_keys( array_keys( $fields ), 0 );
+        $fully_complete = 0;
+
+        foreach ( $users as $user_id ) {
+            $any_missing = false;
+            foreach ( $fields as $key => $label ) {
+                $value = function_exists( 'get_field' ) ? get_field( $key, 'user_' . $user_id ) : get_user_meta( $user_id, $key, true );
+                if ( $this->is_profile_field_empty( $value ) ) {
+                    $missing_counts[ $key ]++;
+                    $any_missing = true;
+                }
+            }
+            if ( ! $any_missing ) {
+                $fully_complete++;
+            }
+        }
+
+        $breakdown = array();
+        foreach ( $fields as $key => $label ) {
+            $missing = $missing_counts[ $key ];
+            $breakdown[] = array(
+                'field'         => $key,
+                'label'         => $label,
+                'missing_count' => $missing,
+                'missing_pct'   => $total > 0 ? round( $missing / $total * 100, 1 ) : 0,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'total_members'        => $total,
+            'fully_complete_count' => $fully_complete,
+            'fully_complete_pct'   => $total > 0 ? round( $fully_complete / $total * 100, 1 ) : 0,
+            'fields'                => $breakdown,
+        ), 200 );
+    }
+
+    /**
+     * GET /admin/profile-completeness/export?field=birthday — CSV (as a JSON
+     * string, same convention as admin_export_applications()) of every
+     * member missing the given field, for outreach/follow-up.
+     */
+    public function admin_export_profile_completeness( WP_REST_Request $request ) {
+        $fields = $this->get_profile_completeness_fields();
+        $field  = sanitize_key( (string) $request->get_param( 'field' ) );
+
+        if ( '' === $field || ! isset( $fields[ $field ] ) ) {
+            return new WP_Error( 'bpu_invalid_field', __( 'Unknown profile field.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $users = ( new WP_User_Query( array( 'number' => -1 ) ) )->get_results();
+
+        $csv_rows = array( 'ID,Name,Email,Phone,Registered' );
+        $count    = 0;
+
+        foreach ( $users as $user ) {
+            $value = function_exists( 'get_field' ) ? get_field( $field, 'user_' . $user->ID ) : get_user_meta( $user->ID, $field, true );
+            if ( ! $this->is_profile_field_empty( $value ) ) {
+                continue;
+            }
+            $count++;
+            $csv_rows[] = implode( ',', array(
+                $user->ID,
+                $this->csv_escape( $user->display_name ),
+                $this->csv_escape( $user->user_email ),
+                $this->csv_escape( (string) get_user_meta( $user->ID, 'phone_number', true ) ),
+                $this->csv_escape( $user->user_registered ),
+            ) );
+        }
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'filename' => 'missing-' . $field . '-' . gmdate( 'Y-m-d' ) . '.csv',
+            'count'    => $count,
+            'label'    => $fields[ $field ],
+            'csv'      => implode( "\r\n", $csv_rows ),
         ), 200 );
     }
 
