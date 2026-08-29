@@ -92,6 +92,7 @@ class BPU_Headless_Connector {
         add_action( 'admin_menu', array( $this, 'register_employer_link_admin_page' ) );
         add_action( 'admin_menu', array( $this, 'register_job_reports_admin_page' ) );
         add_action( 'admin_menu', array( $this, 'register_spam_cleanup_admin_page' ) );
+        add_action( 'admin_menu', array( $this, 'register_import_members_admin_page' ) );
         add_filter( 'manage_bpu_job_posts_columns',       array( $this, 'job_list_columns' ) );
         add_action( 'manage_bpu_job_posts_custom_column', array( $this, 'job_list_column_content' ), 10, 2 );
         add_action( 'wp_ajax_bpu_reports_export_csv', array( $this, 'ajax_reports_export_csv' ) );
@@ -99,6 +100,9 @@ class BPU_Headless_Connector {
         add_action( 'wp_ajax_bpu_employer_search_users', array( $this, 'ajax_employer_search_users' ) );
         add_action( 'wp_ajax_bpu_employer_link_user',   array( $this, 'ajax_employer_link_user' ) );
         add_action( 'wp_ajax_bpu_employer_unlink_user', array( $this, 'ajax_employer_unlink_user' ) );
+        add_action( 'wp_ajax_bpu_import_members_upload',  array( $this, 'ajax_import_members_upload' ) );
+        add_action( 'wp_ajax_bpu_import_members_process', array( $this, 'ajax_import_members_process' ) );
+        add_action( 'wp_ajax_bpu_import_members_cleanup', array( $this, 'ajax_import_members_cleanup' ) );
 
         // Job preview button on edit screen
         add_filter( 'preview_post_link',      array( $this, 'bpu_job_preview_link' ), 10, 2 );
@@ -8572,11 +8576,44 @@ jQuery(function($){
         );
     }
 
+    /**
+     * Shared spam-signal detector, used by both the Spam Cleanup admin page
+     * (against live accounts) and the legacy member importer (against CSV
+     * rows, before any account is created). Returns a list of human-readable
+     * reasons; empty means "no signal found".
+     */
+    private function detect_spam_signup_reasons( string $login, string $email ): array {
+        static $url_pattern    = '/\.(com|uk|net|org|io|in|co|info|biz|xyz|top|site|online|store|shop|blogspot|wordpress|ru|cn|cc)\b/i';
+        static $crypto_pattern = '/\b(bitcoin|coinbase|binance|crypto|nft|token|invest|forex|trading|wallet|usdt|btc|eth)\b/i';
+
+        $reasons = array();
+        // Many accounts here legitimately have their email address as their
+        // username — that alone shouldn't trip the "URL-like" TLD check.
+        $login_is_own_email = 0 === strcasecmp( $login, $email );
+        if ( ! $login_is_own_email && preg_match( $url_pattern, $login ) ) $reasons[] = 'URL as username';
+        if ( preg_match( '#https?://#i', $login ) )            $reasons[] = 'URL as username';
+        if ( str_starts_with( strtolower( $login ), 'www.' ) )  $reasons[] = 'URL as username';
+        if ( preg_match( $crypto_pattern, $login ) )            $reasons[] = 'Crypto/spam keyword';
+        if ( preg_match( $crypto_pattern, $email ) )            $reasons[] = 'Crypto/spam keyword in email';
+        if ( strlen( $login ) > 40 )                            $reasons[] = 'Unusually long username';
+        // Username looks like random chars (8+ consonants in a row)
+        if ( preg_match( '/[bcdfghjklmnpqrstvwxyz]{8,}/i', $login ) ) $reasons[] = 'Random-looking username';
+
+        // Gmail (and Google Workspace aliases) ignore dots in the local part,
+        // so "p.ol.ly.lu9.3@gmail.com" and "polly.lu93@gmail.com" are the
+        // same inbox. Heavily-dotted addresses are a common bot pattern for
+        // registering many "unique" accounts that all land in one mailbox.
+        $local  = strstr( $email, '@', true );
+        $domain = strtolower( (string) substr( strrchr( $email, '@' ), 1 ) );
+        if ( in_array( $domain, array( 'gmail.com', 'googlemail.com' ), true ) && false !== $local && substr_count( $local, '.' ) >= 4 ) {
+            $reasons[] = 'Heavily-dotted Gmail address (bot pattern)';
+        }
+
+        return $reasons;
+    }
+
     /** Identify likely spam users based on common patterns. */
     private function get_spam_candidates(): array {
-        global $wpdb;
-
-        // URL-like username patterns: contains a dot + common TLD or starts with www
         $users = get_users( array(
             'number'  => -1,
             'fields'  => array( 'ID', 'user_login', 'user_email', 'user_registered' ),
@@ -8584,20 +8621,8 @@ jQuery(function($){
         ) );
 
         $spam = array();
-        $url_pattern = '/\.(com|uk|net|org|io|in|co|info|biz|xyz|top|site|online|store|shop|blogspot|wordpress|ru|cn|cc)\b/i';
-        $crypto_pattern = '/\b(bitcoin|coinbase|binance|crypto|nft|token|invest|forex|trading|wallet|usdt|btc|eth)\b/i';
-
         foreach ( $users as $u ) {
-            $reasons = array();
-            if ( preg_match( $url_pattern, $u->user_login ) )          $reasons[] = 'URL as username';
-            if ( preg_match( '#https?://#i', $u->user_login ) )         $reasons[] = 'URL as username';
-            if ( str_starts_with( strtolower( $u->user_login ), 'www.' ) ) $reasons[] = 'URL as username';
-            if ( preg_match( $crypto_pattern, $u->user_login ) )        $reasons[] = 'Crypto/spam keyword';
-            if ( preg_match( $crypto_pattern, $u->user_email ) )        $reasons[] = 'Crypto/spam keyword in email';
-            if ( strlen( $u->user_login ) > 40 )                        $reasons[] = 'Unusually long username';
-            // Username looks like random chars (8+ consonants in a row)
-            if ( preg_match( '/[bcdfghjklmnpqrstvwxyz]{8,}/i', $u->user_login ) ) $reasons[] = 'Random-looking username';
-
+            $reasons = $this->detect_spam_signup_reasons( $u->user_login, $u->user_email );
             if ( $reasons ) {
                 $spam[] = array(
                     'id'         => $u->ID,
@@ -8726,6 +8751,480 @@ jQuery(function($){
         }
 
         wp_send_json_success( array( 'deleted' => $deleted ) );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  LEGACY MEMBER IMPORT (WP All Export "Users" CSV)
+    // ══════════════════════════════════════════════════════════════
+
+    /** ACF profile fields imported from the export, keyed by the CSV column name (they match 1:1). */
+    private function import_members_acf_fields(): array {
+        return array(
+            'age_range',
+            'birthday',
+            'country_location',
+            'current_employment_status',
+            'do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of',
+            'expertise_not_listed',
+            'first-generation_immigrant',
+            'how_would_you_best_describe_your_ethnicity',
+            'industry',
+            'industryfield_of_expertise',
+            'level_of_education',
+            'location_city',
+            'other_disability',
+            'phone_number',
+            'skills_separate',
+            'user_bio',
+            'what_is_your_gender',
+            'where_in_the_uk',
+            'years_of_experience',
+            'your_sexuality',
+        );
+    }
+
+    /** Directory the cleaned import files live in, created with access blocked from the web. */
+    private function import_members_dir(): string {
+        $upload_dir = wp_upload_dir();
+        $dir = trailingslashit( $upload_dir['basedir'] ) . 'bpu-imports';
+        if ( ! file_exists( $dir ) ) {
+            wp_mkdir_p( $dir );
+        }
+        if ( ! file_exists( $dir . '/.htaccess' ) ) {
+            file_put_contents( $dir . '/.htaccess', "Deny from all\n" );
+        }
+        if ( ! file_exists( $dir . '/index.php' ) ) {
+            file_put_contents( $dir . '/index.php', "<?php // Silence is golden.\n" );
+        }
+        return $dir;
+    }
+
+    public function register_import_members_admin_page() {
+        add_menu_page(
+            'Import Members',
+            'Import Members',
+            'manage_options',
+            'bpu-import-members',
+            array( $this, 'render_import_members_page' ),
+            'dashicons-database-import',
+            100
+        );
+    }
+
+    public function render_import_members_page() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_die( 'Not allowed.' );
+
+        $upload_nonce  = wp_create_nonce( 'bpu_import_members_upload' );
+        $process_nonce = wp_create_nonce( 'bpu_import_members_process' );
+        $cleanup_nonce = wp_create_nonce( 'bpu_import_members_cleanup' );
+        ?>
+        <div class="wrap">
+            <h1>📥 Import Members (Legacy Export)</h1>
+            <p>Upload a WP All Export "Users" CSV. Rows are matched to existing accounts by email:</p>
+            <ul style="list-style:disc;margin-left:24px;">
+                <li><strong>New accounts</strong> are created with the original password (so members can sign in unchanged), the role from the export, and every profile field from the file.</li>
+                <li><strong>Existing accounts</strong> only get profile fields <em>filled in where currently blank</em> — nothing already saved on this site is overwritten, and passwords/roles are never touched.</li>
+                <li>Corrupted rows (broken CSV escaping), rows with an invalid email, duplicate emails within the file, and likely-spam signups (scam/crypto usernames, heavily-dotted Gmail addresses, etc.) are skipped and listed in a report — nothing unvalidated or spammy is written.</li>
+            </ul>
+
+            <div class="card" style="max-width:640px;padding:16px;margin-top:16px;">
+                <p><input type="file" id="bpu-import-file" accept=".csv" /></p>
+                <p>
+                    <label>
+                        <input type="checkbox" id="bpu-import-dryrun" checked />
+                        Dry run — preview only, don't write anything yet
+                    </label>
+                </p>
+                <p><button id="bpu-import-upload-btn" class="button button-primary">Upload &amp; validate</button></p>
+                <div id="bpu-import-upload-result"></div>
+            </div>
+
+            <div id="bpu-import-run-panel" style="display:none;max-width:640px;margin-top:16px;">
+                <div class="card" style="padding:16px;">
+                    <p id="bpu-import-run-summary"></p>
+                    <progress id="bpu-import-progress" value="0" max="100" style="width:100%;"></progress>
+                    <p id="bpu-import-progress-text"></p>
+                    <p>
+                        <button id="bpu-import-start-btn" class="button button-primary">Start import</button>
+                        <span id="bpu-import-final-result" style="margin-left:8px;font-weight:600;"></span>
+                    </p>
+                </div>
+            </div>
+
+            <script>
+            (function() {
+                const uploadNonce  = <?php echo wp_json_encode( $upload_nonce ); ?>;
+                const processNonce = <?php echo wp_json_encode( $process_nonce ); ?>;
+                const cleanupNonce = <?php echo wp_json_encode( $cleanup_nonce ); ?>;
+                const BATCH_SIZE = 25;
+
+                let token = null;
+                let total = 0;
+                let dryRun = true;
+                let problems = [];
+                let totals = { created: 0, updated: 0, unchanged: 0, errors: 0 };
+
+                const fileInput   = document.getElementById('bpu-import-file');
+                const dryRunBox   = document.getElementById('bpu-import-dryrun');
+                const uploadBtn   = document.getElementById('bpu-import-upload-btn');
+                const uploadResult = document.getElementById('bpu-import-upload-result');
+                const runPanel    = document.getElementById('bpu-import-run-panel');
+                const runSummary  = document.getElementById('bpu-import-run-summary');
+                const progressBar = document.getElementById('bpu-import-progress');
+                const progressText = document.getElementById('bpu-import-progress-text');
+                const startBtn    = document.getElementById('bpu-import-start-btn');
+                const finalResult = document.getElementById('bpu-import-final-result');
+
+                function downloadCsv(filename, rows) {
+                    const csv = rows.map(r => r.map(c => '"' + String(c ?? '').replace(/"/g, '""') + '"').join(',')).join('\r\n');
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }
+
+                uploadBtn.addEventListener('click', async () => {
+                    if (!fileInput.files.length) { uploadResult.textContent = 'Choose a CSV file first.'; return; }
+                    uploadBtn.disabled = true;
+                    uploadResult.textContent = 'Uploading and validating…';
+
+                    const fd = new FormData();
+                    fd.append('action', 'bpu_import_members_upload');
+                    fd.append('nonce', uploadNonce);
+                    fd.append('file', fileInput.files[0]);
+
+                    try {
+                        const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (!data.success) {
+                            uploadResult.style.color = 'red';
+                            uploadResult.textContent = 'Error: ' + (data.data || 'unknown');
+                            uploadBtn.disabled = false;
+                            return;
+                        }
+                        token = data.data.token;
+                        total = data.data.total;
+                        problems = data.data.problems || [];
+                        dryRun = dryRunBox.checked;
+
+                        let html = `<p><strong>${total}</strong> valid row(s) ready to import.</p>`;
+                        if (problems.length) {
+                            html += `<p style="color:#b32d2e;">${problems.length} row(s) skipped (corrupted / invalid email / duplicate). <button id="bpu-import-download-problems" class="button button-small">Download report</button></p>`;
+                        }
+                        uploadResult.innerHTML = html;
+                        if (problems.length) {
+                            document.getElementById('bpu-import-download-problems').addEventListener('click', () => {
+                                downloadCsv('import-problems.csv', [['Row', 'Reason', 'ID', 'Login', 'Email'], ...problems.map(p => [p.row, p.reasons, p.id, p.login, p.email])]);
+                            });
+                        }
+
+                        if (total > 0) {
+                            runPanel.style.display = 'block';
+                            runSummary.textContent = `${total} row(s) — ${dryRun ? 'DRY RUN (nothing will be written)' : 'LIVE — this will create/update accounts'}.`;
+                        }
+                        uploadBtn.disabled = false;
+                    } catch (e) {
+                        uploadResult.style.color = 'red';
+                        uploadResult.textContent = 'Upload failed: ' + e.message;
+                        uploadBtn.disabled = false;
+                    }
+                });
+
+                startBtn.addEventListener('click', async () => {
+                    if (!token) return;
+                    if (!dryRun && !confirm(`This will create/update ${total} account(s) on the live site. Continue?`)) return;
+
+                    startBtn.disabled = true;
+                    totals = { created: 0, updated: 0, unchanged: 0, errors: 0 };
+                    let offset = 0;
+                    let rowProblems = [];
+
+                    while (offset < total) {
+                        const fd = new FormData();
+                        fd.append('action', 'bpu_import_members_process');
+                        fd.append('nonce', processNonce);
+                        fd.append('token', token);
+                        fd.append('offset', offset);
+                        fd.append('limit', BATCH_SIZE);
+                        fd.append('dry_run', dryRun ? '1' : '0');
+
+                        const res = await fetch(ajaxurl, { method: 'POST', body: fd });
+                        const data = await res.json();
+                        if (!data.success) {
+                            finalResult.style.color = 'red';
+                            finalResult.textContent = 'Error: ' + (data.data || 'unknown');
+                            startBtn.disabled = false;
+                            return;
+                        }
+
+                        totals.created   += data.data.created;
+                        totals.updated   += data.data.updated;
+                        totals.unchanged += data.data.unchanged;
+                        totals.errors    += data.data.errors;
+                        rowProblems = rowProblems.concat(data.data.error_rows || []);
+
+                        offset += data.data.processed;
+                        const pct = Math.round((offset / total) * 100);
+                        progressBar.value = pct;
+                        progressText.textContent = `${offset} / ${total} processed — created ${totals.created}, updated ${totals.updated}, unchanged ${totals.unchanged}, errors ${totals.errors}`;
+                    }
+
+                    finalResult.style.color = 'green';
+                    finalResult.textContent = dryRun ? 'Dry run complete — nothing was written.' : 'Import complete.';
+                    if (rowProblems.length) {
+                        finalResult.textContent += ` ${rowProblems.length} row error(s) — see downloaded report.`;
+                        downloadCsv('import-errors.csv', [['Row', 'Email', 'Error'], ...rowProblems.map(p => [p.row, p.email, p.error])]);
+                    }
+
+                    const cfd = new FormData();
+                    cfd.append('action', 'bpu_import_members_cleanup');
+                    cfd.append('nonce', cleanupNonce);
+                    cfd.append('token', token);
+                    fetch(ajaxurl, { method: 'POST', body: cfd });
+
+                    startBtn.disabled = false;
+                });
+            })();
+            </script>
+        </div>
+        <?php
+    }
+
+    /**
+     * Parse + validate the uploaded CSV, write a cleaned copy to disk (never
+     * the raw upload), and return a token the process step reads batches from.
+     * Read-only against the DB — no accounts are touched at this step.
+     */
+    public function ajax_import_members_upload() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Not allowed.', 403 );
+        if ( ! check_ajax_referer( 'bpu_import_members_upload', 'nonce', false ) ) wp_send_json_error( 'Bad nonce.', 403 );
+
+        if ( empty( $_FILES['file']['tmp_name'] ) || ! is_uploaded_file( $_FILES['file']['tmp_name'] ) ) {
+            wp_send_json_error( 'No file uploaded.' );
+        }
+        if ( $_FILES['file']['size'] > 50 * 1024 * 1024 ) {
+            wp_send_json_error( 'File too large (50MB max).' );
+        }
+
+        $handle = fopen( $_FILES['file']['tmp_name'], 'r' );
+        if ( ! $handle ) {
+            wp_send_json_error( 'Could not read the uploaded file.' );
+        }
+
+        $header = fgetcsv( $handle );
+        if ( ! $header ) {
+            fclose( $handle );
+            wp_send_json_error( 'Empty or unreadable CSV.' );
+        }
+        $col = array_flip( $header );
+
+        $required = array( 'ID', 'User Login', 'User Email' );
+        foreach ( $required as $r ) {
+            if ( ! isset( $col[ $r ] ) ) {
+                fclose( $handle );
+                wp_send_json_error( "Missing expected column: {$r}" );
+            }
+        }
+
+        $acf_fields = $this->import_members_acf_fields();
+        $seen_emails = array();
+        $clean_rows  = array();
+        $problems    = array();
+        $row_num     = 1; // header was row 1
+
+        $get = function ( $row, $name ) use ( $col ) {
+            return isset( $col[ $name ], $row[ $col[ $name ] ] ) ? trim( (string) $row[ $col[ $name ] ] ) : '';
+        };
+
+        while ( ( $row = fgetcsv( $handle ) ) !== false ) {
+            $row_num++;
+
+            $id_raw = $get( $row, 'ID' );
+            $login  = $get( $row, 'User Login' );
+            $email  = $get( $row, 'User Email' );
+
+            $reasons = array();
+            if ( ! ctype_digit( $id_raw ) )                              $reasons[] = 'Non-numeric ID (likely a corrupted row)';
+            if ( '' === $email || ! is_email( $email ) )                 $reasons[] = 'Invalid email';
+            if ( '' === $login || strlen( $login ) > 60 || preg_match( '/[\r\n]/', $login ) ) $reasons[] = 'Invalid username';
+
+            if ( empty( $reasons ) ) {
+                $email_lc = strtolower( $email );
+                if ( isset( $seen_emails[ $email_lc ] ) ) {
+                    $reasons[] = 'Duplicate email in file (first seen on row ' . $seen_emails[ $email_lc ] . ')';
+                } else {
+                    $seen_emails[ $email_lc ] = $row_num;
+                }
+            }
+
+            if ( empty( $reasons ) ) {
+                $spam_reasons = $this->detect_spam_signup_reasons( $login, $email );
+                if ( $spam_reasons ) {
+                    $reasons[] = 'Likely spam: ' . implode( ', ', $spam_reasons );
+                }
+            }
+
+            if ( ! empty( $reasons ) ) {
+                $problems[] = array(
+                    'row'     => $row_num,
+                    'reasons' => implode( '; ', $reasons ),
+                    'id'      => $id_raw,
+                    'login'   => $login,
+                    'email'   => $email,
+                );
+                continue;
+            }
+
+            $clean = array(
+                'user_login'      => $login,
+                'user_email'      => $email,
+                'first_name'      => sanitize_text_field( html_entity_decode( $get( $row, 'First Name' ), ENT_QUOTES, 'UTF-8' ) ),
+                'last_name'       => sanitize_text_field( html_entity_decode( $get( $row, 'Last Name' ), ENT_QUOTES, 'UTF-8' ) ),
+                'display_name'    => sanitize_text_field( html_entity_decode( $get( $row, 'Display Name' ), ENT_QUOTES, 'UTF-8' ) ),
+                'user_registered' => $get( $row, 'User Registered' ),
+                'role'            => sanitize_key( $get( $row, 'User Role' ) ),
+                'user_pass'       => $get( $row, 'User Pass' ),
+            );
+            foreach ( $acf_fields as $f ) {
+                $clean[ $f ] = sanitize_textarea_field( html_entity_decode( $get( $row, $f ), ENT_QUOTES, 'UTF-8' ) );
+            }
+
+            $clean_rows[] = $clean;
+        }
+        fclose( $handle );
+
+        $dir   = $this->import_members_dir();
+        $token = wp_generate_password( 24, false, false );
+        $file  = $dir . '/' . $token . '.json';
+        file_put_contents( $file, wp_json_encode( $clean_rows ) );
+
+        wp_send_json_success( array(
+            'token'    => $token,
+            'total'    => count( $clean_rows ),
+            'problems' => $problems,
+        ) );
+    }
+
+    /** Process one batch of previously-validated rows: match by email, create or fill-blanks-update. */
+    public function ajax_import_members_process() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Not allowed.', 403 );
+        if ( ! check_ajax_referer( 'bpu_import_members_process', 'nonce', false ) ) wp_send_json_error( 'Bad nonce.', 403 );
+
+        $token   = sanitize_file_name( $_POST['token'] ?? '' );
+        $offset  = max( 0, intval( $_POST['offset'] ?? 0 ) );
+        $limit   = min( 100, max( 1, intval( $_POST['limit'] ?? 25 ) ) );
+        $dry_run = ! empty( $_POST['dry_run'] ) && '1' === $_POST['dry_run'];
+
+        $file = $this->import_members_dir() . '/' . $token . '.json';
+        if ( ! $token || ! file_exists( $file ) ) {
+            wp_send_json_error( 'Import batch not found or expired. Please re-upload.' );
+        }
+
+        $all  = json_decode( file_get_contents( $file ), true );
+        if ( ! is_array( $all ) ) {
+            wp_send_json_error( 'Corrupted import batch. Please re-upload.' );
+        }
+
+        $batch      = array_slice( $all, $offset, $limit );
+        $acf_fields = $this->import_members_acf_fields();
+        $valid_roles = array_keys( wp_roles()->roles );
+
+        $created = 0; $updated = 0; $unchanged = 0; $errors = 0;
+        $error_rows = array();
+
+        require_once ABSPATH . 'wp-admin/includes/user.php';
+        global $wpdb;
+
+        foreach ( $batch as $i => $row ) {
+            $row_number = $offset + $i;
+            $existing = get_user_by( 'email', $row['user_email'] );
+
+            if ( $existing ) {
+                $filled = array();
+                foreach ( $acf_fields as $f ) {
+                    if ( '' === $row[ $f ] ) continue;
+                    $current = function_exists( 'get_field' ) ? get_field( $f, 'user_' . $existing->ID ) : get_user_meta( $existing->ID, $f, true );
+                    if ( $this->is_profile_field_empty( $current ) ) {
+                        $filled[] = $f;
+                        if ( ! $dry_run ) {
+                            update_field( $f, $row[ $f ], 'user_' . $existing->ID );
+                        }
+                    }
+                }
+                if ( $filled ) { $updated++; } else { $unchanged++; }
+                continue;
+            }
+
+            if ( $dry_run ) {
+                $created++;
+                continue;
+            }
+
+            $login = $row['user_login'];
+            if ( username_exists( $login ) ) {
+                $login = $login . '-legacy-' . substr( md5( $row['user_email'] ), 0, 6 );
+            }
+
+            $role = in_array( $row['role'], $valid_roles, true ) ? $row['role'] : 'subscriber';
+
+            $new_id = wp_insert_user( array(
+                'user_login'      => $login,
+                'user_email'      => $row['user_email'],
+                'user_pass'       => wp_generate_password( 32 ), // placeholder; overwritten below with the original hash
+                'first_name'      => $row['first_name'],
+                'last_name'       => $row['last_name'],
+                'display_name'    => $row['display_name'] ?: trim( $row['first_name'] . ' ' . $row['last_name'] ) ?: $login,
+                'role'            => $role,
+                'user_registered' => $row['user_registered'] ?: current_time( 'mysql' ),
+            ) );
+
+            if ( is_wp_error( $new_id ) ) {
+                $errors++;
+                $error_rows[] = array( 'row' => $row_number, 'email' => $row['user_email'], 'error' => $new_id->get_error_message() );
+                continue;
+            }
+
+            // Preserve the original password hash directly — wp_insert_user() would
+            // otherwise re-hash our random placeholder, which is what we want to avoid.
+            if ( $row['user_pass'] ) {
+                $wpdb->update( $wpdb->users, array( 'user_pass' => $row['user_pass'] ), array( 'ID' => $new_id ) );
+            }
+
+            foreach ( $acf_fields as $f ) {
+                if ( '' !== $row[ $f ] ) {
+                    update_field( $f, $row[ $f ], 'user_' . $new_id );
+                }
+            }
+
+            $created++;
+        }
+
+        wp_send_json_success( array(
+            'processed'  => count( $batch ),
+            'created'    => $created,
+            'updated'    => $updated,
+            'unchanged'  => $unchanged,
+            'errors'     => $errors,
+            'error_rows' => $error_rows,
+        ) );
+    }
+
+    /** Deletes the cleaned batch file once the client is done with it (or has abandoned the run). */
+    public function ajax_import_members_cleanup() {
+        if ( ! current_user_can( 'manage_options' ) ) wp_send_json_error( 'Not allowed.', 403 );
+        if ( ! check_ajax_referer( 'bpu_import_members_cleanup', 'nonce', false ) ) wp_send_json_error( 'Bad nonce.', 403 );
+
+        $token = sanitize_file_name( $_POST['token'] ?? '' );
+        $file  = $this->import_members_dir() . '/' . $token . '.json';
+        if ( $token && file_exists( $file ) ) {
+            unlink( $file );
+        }
+        wp_send_json_success();
     }
 
     // ══════════════════════════════════════════════════════════════
