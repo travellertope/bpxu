@@ -8576,11 +8576,44 @@ jQuery(function($){
         );
     }
 
+    /**
+     * Shared spam-signal detector, used by both the Spam Cleanup admin page
+     * (against live accounts) and the legacy member importer (against CSV
+     * rows, before any account is created). Returns a list of human-readable
+     * reasons; empty means "no signal found".
+     */
+    private function detect_spam_signup_reasons( string $login, string $email ): array {
+        static $url_pattern    = '/\.(com|uk|net|org|io|in|co|info|biz|xyz|top|site|online|store|shop|blogspot|wordpress|ru|cn|cc)\b/i';
+        static $crypto_pattern = '/\b(bitcoin|coinbase|binance|crypto|nft|token|invest|forex|trading|wallet|usdt|btc|eth)\b/i';
+
+        $reasons = array();
+        // Many accounts here legitimately have their email address as their
+        // username — that alone shouldn't trip the "URL-like" TLD check.
+        $login_is_own_email = 0 === strcasecmp( $login, $email );
+        if ( ! $login_is_own_email && preg_match( $url_pattern, $login ) ) $reasons[] = 'URL as username';
+        if ( preg_match( '#https?://#i', $login ) )            $reasons[] = 'URL as username';
+        if ( str_starts_with( strtolower( $login ), 'www.' ) )  $reasons[] = 'URL as username';
+        if ( preg_match( $crypto_pattern, $login ) )            $reasons[] = 'Crypto/spam keyword';
+        if ( preg_match( $crypto_pattern, $email ) )            $reasons[] = 'Crypto/spam keyword in email';
+        if ( strlen( $login ) > 40 )                            $reasons[] = 'Unusually long username';
+        // Username looks like random chars (8+ consonants in a row)
+        if ( preg_match( '/[bcdfghjklmnpqrstvwxyz]{8,}/i', $login ) ) $reasons[] = 'Random-looking username';
+
+        // Gmail (and Google Workspace aliases) ignore dots in the local part,
+        // so "p.ol.ly.lu9.3@gmail.com" and "polly.lu93@gmail.com" are the
+        // same inbox. Heavily-dotted addresses are a common bot pattern for
+        // registering many "unique" accounts that all land in one mailbox.
+        $local  = strstr( $email, '@', true );
+        $domain = strtolower( (string) substr( strrchr( $email, '@' ), 1 ) );
+        if ( in_array( $domain, array( 'gmail.com', 'googlemail.com' ), true ) && false !== $local && substr_count( $local, '.' ) >= 4 ) {
+            $reasons[] = 'Heavily-dotted Gmail address (bot pattern)';
+        }
+
+        return $reasons;
+    }
+
     /** Identify likely spam users based on common patterns. */
     private function get_spam_candidates(): array {
-        global $wpdb;
-
-        // URL-like username patterns: contains a dot + common TLD or starts with www
         $users = get_users( array(
             'number'  => -1,
             'fields'  => array( 'ID', 'user_login', 'user_email', 'user_registered' ),
@@ -8588,20 +8621,8 @@ jQuery(function($){
         ) );
 
         $spam = array();
-        $url_pattern = '/\.(com|uk|net|org|io|in|co|info|biz|xyz|top|site|online|store|shop|blogspot|wordpress|ru|cn|cc)\b/i';
-        $crypto_pattern = '/\b(bitcoin|coinbase|binance|crypto|nft|token|invest|forex|trading|wallet|usdt|btc|eth)\b/i';
-
         foreach ( $users as $u ) {
-            $reasons = array();
-            if ( preg_match( $url_pattern, $u->user_login ) )          $reasons[] = 'URL as username';
-            if ( preg_match( '#https?://#i', $u->user_login ) )         $reasons[] = 'URL as username';
-            if ( str_starts_with( strtolower( $u->user_login ), 'www.' ) ) $reasons[] = 'URL as username';
-            if ( preg_match( $crypto_pattern, $u->user_login ) )        $reasons[] = 'Crypto/spam keyword';
-            if ( preg_match( $crypto_pattern, $u->user_email ) )        $reasons[] = 'Crypto/spam keyword in email';
-            if ( strlen( $u->user_login ) > 40 )                        $reasons[] = 'Unusually long username';
-            // Username looks like random chars (8+ consonants in a row)
-            if ( preg_match( '/[bcdfghjklmnpqrstvwxyz]{8,}/i', $u->user_login ) ) $reasons[] = 'Random-looking username';
-
+            $reasons = $this->detect_spam_signup_reasons( $u->user_login, $u->user_email );
             if ( $reasons ) {
                 $spam[] = array(
                     'id'         => $u->ID,
@@ -8803,7 +8824,7 @@ jQuery(function($){
             <ul style="list-style:disc;margin-left:24px;">
                 <li><strong>New accounts</strong> are created with the original password (so members can sign in unchanged), the role from the export, and every profile field from the file.</li>
                 <li><strong>Existing accounts</strong> only get profile fields <em>filled in where currently blank</em> — nothing already saved on this site is overwritten, and passwords/roles are never touched.</li>
-                <li>Corrupted rows (broken CSV escaping), rows with an invalid email, and duplicate emails within the file are skipped and listed in a report — nothing unvalidated is written.</li>
+                <li>Corrupted rows (broken CSV escaping), rows with an invalid email, duplicate emails within the file, and likely-spam signups (scam/crypto usernames, heavily-dotted Gmail addresses, etc.) are skipped and listed in a report — nothing unvalidated or spammy is written.</li>
             </ul>
 
             <div class="card" style="max-width:640px;padding:16px;margin-top:16px;">
@@ -9038,6 +9059,13 @@ jQuery(function($){
                     $reasons[] = 'Duplicate email in file (first seen on row ' . $seen_emails[ $email_lc ] . ')';
                 } else {
                     $seen_emails[ $email_lc ] = $row_num;
+                }
+            }
+
+            if ( empty( $reasons ) ) {
+                $spam_reasons = $this->detect_spam_signup_reasons( $login, $email );
+                if ( $spam_reasons ) {
+                    $reasons[] = 'Likely spam: ' . implode( ', ', $spam_reasons );
                 }
             }
 
