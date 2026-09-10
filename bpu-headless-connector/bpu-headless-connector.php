@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.7.0
+ * Version: 2.8.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -115,6 +115,10 @@ class BPU_Headless_Connector {
         add_action( 'created_bpu_employer',          array( $this, 'employer_term_save_fields' ) );
         add_action( 'edited_bpu_employer',           array( $this, 'employer_term_save_fields' ) );
         add_action( 'admin_enqueue_scripts',         array( $this, 'employer_term_enqueue_media' ) );
+
+        // Newsletter management & sender (SendGrid)
+        add_action( 'init', array( $this, 'maybe_create_newsletter_tables' ) );
+        add_action( 'bpu_send_newsletter_campaign', array( $this, 'process_newsletter_campaign_send' ) );
     }
 
     /**
@@ -1473,6 +1477,65 @@ class BPU_Headless_Connector {
             'methods'             => 'POST',
             'callback'            => array( $this, 'admin_update_email_template' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: Newsletter management & sender
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/audience-counts', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_newsletter_audience_counts' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/settings', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_newsletter_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/settings', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_newsletter_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_newsletter_campaigns' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_create_newsletter_campaign' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns/(?P<id>\d+)', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_newsletter_campaign' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns/(?P<id>\d+)', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_newsletter_campaign' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns/(?P<id>\d+)', array(
+            'methods'             => 'DELETE',
+            'callback'            => array( $this, 'admin_delete_newsletter_campaign' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns/(?P<id>\d+)/test', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_send_newsletter_test' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/campaigns/(?P<id>\d+)/send', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_send_newsletter_campaign' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Public: one-click newsletter unsubscribe
+        register_rest_route( $this->namespace, '/newsletter/unsubscribe', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'newsletter_unsubscribe' ),
+            'permission_callback' => '__return_true',
         ) );
 
         // Admin: Category/Skill Management
@@ -11636,6 +11699,539 @@ jQuery(function($){
         }
 
         return new WP_REST_Response( array( 'success' => true, 'key' => $key ), 200 );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    //  TIER 3: NEWSLETTER MANAGEMENT & SENDER (SendGrid)
+    // ═══════════════════════════════════════════════════════════════
+
+    const NEWSLETTER_DB_VERSION = '1.0';
+    const NEWSLETTER_SEND_BATCH_SIZE = 400;
+
+    /** Creates (or upgrades) the newsletter campaigns table. */
+    public function maybe_create_newsletter_tables() {
+        if ( get_option( 'bpu_newsletter_db_version' ) === self::NEWSLETTER_DB_VERSION ) {
+            return;
+        }
+
+        global $wpdb;
+        $table_name      = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $charset_collate = $wpdb->get_charset_collate();
+
+        $sql = "CREATE TABLE {$table_name} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            subject VARCHAR(255) NOT NULL DEFAULT '',
+            body LONGTEXT NOT NULL,
+            audience VARCHAR(30) NOT NULL DEFAULT 'all',
+            status VARCHAR(20) NOT NULL DEFAULT 'draft',
+            recipient_count INT UNSIGNED NOT NULL DEFAULT 0,
+            sent_count INT UNSIGNED NOT NULL DEFAULT 0,
+            failed_count INT UNSIGNED NOT NULL DEFAULT 0,
+            send_offset INT UNSIGNED NOT NULL DEFAULT 0,
+            created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            sent_at DATETIME NULL,
+            PRIMARY KEY  (id),
+            KEY status (status)
+        ) {$charset_collate};";
+
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        dbDelta( $sql );
+
+        update_option( 'bpu_newsletter_db_version', self::NEWSLETTER_DB_VERSION );
+    }
+
+    /** Segment key => [label, roles[]] used for both counting and querying recipients. */
+    private function get_newsletter_audience_segments() {
+        return array(
+            'all'       => array( 'label' => 'All Members (Free + Pro)', 'roles' => array( 'subscriber', 'bpu_pro' ) ),
+            'free'      => array( 'label' => 'Free Members',             'roles' => array( 'subscriber' ) ),
+            'pro'       => array( 'label' => 'Pro Members',              'roles' => array( 'bpu_pro' ) ),
+            'mentors'   => array( 'label' => 'Mentors',                  'roles' => array( 'mentor' ) ),
+            'employers' => array( 'label' => 'Employers',                'roles' => array( 'bpu_employer' ) ),
+            'everyone'  => array( 'label' => 'Everyone',                 'roles' => array( 'subscriber', 'bpu_pro', 'mentor', 'bpu_employer' ) ),
+        );
+    }
+
+    /** Shared WP_User_Query args for a newsletter segment — excludes anyone who has unsubscribed. */
+    private function newsletter_audience_query_args( string $segment, int $number = -1, int $offset = 0 ): array {
+        $segments = $this->get_newsletter_audience_segments();
+        $roles    = isset( $segments[ $segment ] ) ? $segments[ $segment ]['roles'] : $segments['all']['roles'];
+
+        return array(
+            'role__in'   => $roles,
+            'number'     => $number,
+            'offset'     => $offset,
+            'orderby'    => 'ID',
+            'order'      => 'ASC',
+            'meta_query' => array(
+                'relation' => 'OR',
+                array( 'key' => '_bpu_newsletter_unsubscribed', 'compare' => 'NOT EXISTS' ),
+                array( 'key' => '_bpu_newsletter_unsubscribed', 'value' => '1', 'compare' => '!=' ),
+            ),
+        );
+    }
+
+    /**
+     * Admin: GET /paired/admin/newsletter/audience-counts — recipient counts per segment,
+     * so the composer can show "this will reach N people" before sending.
+     */
+    public function admin_newsletter_audience_counts( WP_REST_Request $request ) {
+        $segments = $this->get_newsletter_audience_segments();
+        $counts   = array();
+
+        foreach ( $segments as $key => $def ) {
+            $query = new WP_User_Query( array_merge(
+                $this->newsletter_audience_query_args( $key ),
+                array( 'count_total' => true, 'fields' => 'ID', 'number' => 1 )
+            ) );
+            $counts[] = array( 'key' => $key, 'label' => $def['label'], 'count' => intval( $query->get_total() ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'segments' => $counts ), 200 );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/settings — SendGrid config (API key returned masked). */
+    public function admin_get_newsletter_settings( WP_REST_Request $request ) {
+        $api_key = get_option( '_bpu_sendgrid_api_key', '' );
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'has_api_key'      => '' !== $api_key,
+            'api_key_preview'  => $api_key ? ( '••••••••' . substr( $api_key, -4 ) ) : '',
+            'from_email'       => get_option( '_bpu_sendgrid_from_email', get_option( 'admin_email' ) ),
+            'from_name'        => get_option( '_bpu_sendgrid_from_name', 'Black Professionals United' ),
+        ), 200 );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/settings — save SendGrid API key + sender identity. */
+    public function admin_update_newsletter_settings( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        if ( isset( $body['api_key'] ) && '' !== trim( (string) $body['api_key'] ) ) {
+            update_option( '_bpu_sendgrid_api_key', sanitize_text_field( $body['api_key'] ) );
+        }
+        if ( isset( $body['from_email'] ) ) {
+            $from_email = sanitize_email( $body['from_email'] );
+            if ( '' !== $from_email && ! is_email( $from_email ) ) {
+                return new WP_Error( 'bpu_invalid_email', __( 'Invalid sender email.', 'bpu' ), array( 'status' => 400 ) );
+            }
+            update_option( '_bpu_sendgrid_from_email', $from_email );
+        }
+        if ( isset( $body['from_name'] ) ) {
+            update_option( '_bpu_sendgrid_from_name', sanitize_text_field( $body['from_name'] ) );
+        }
+
+        return $this->admin_get_newsletter_settings( $request );
+    }
+
+    /** Formats a campaign DB row for API responses. */
+    private function format_newsletter_campaign( $row ) {
+        $segments = $this->get_newsletter_audience_segments();
+        return array(
+            'id'               => intval( $row->id ),
+            'subject'          => $row->subject,
+            'body'             => $row->body,
+            'audience'         => $row->audience,
+            'audience_label'   => $segments[ $row->audience ]['label'] ?? $row->audience,
+            'status'           => $row->status,
+            'recipient_count'  => intval( $row->recipient_count ),
+            'sent_count'       => intval( $row->sent_count ),
+            'failed_count'     => intval( $row->failed_count ),
+            'created_at'       => $row->created_at,
+            'updated_at'       => $row->updated_at,
+            'sent_at'          => $row->sent_at,
+        );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/campaigns — paginated list, newest first. */
+    public function admin_list_newsletter_campaigns( WP_REST_Request $request ) {
+        global $wpdb;
+        $table    = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = max( 1, min( 50, intval( $request->get_param( 'per_page' ) ?: 20 ) ) );
+        $offset   = ( $page - 1 ) * $per_page;
+
+        $total = intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$table}" ) );
+        $rows  = $wpdb->get_results( $wpdb->prepare(
+            "SELECT * FROM {$table} ORDER BY id DESC LIMIT %d OFFSET %d",
+            $per_page,
+            $offset
+        ) );
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'campaigns' => array_map( array( $this, 'format_newsletter_campaign' ), $rows ),
+            'total'     => $total,
+            'page'      => $page,
+            'per_page'  => $per_page,
+        ), 200 );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/campaigns/{id}. */
+    public function admin_get_newsletter_campaign( WP_REST_Request $request ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", intval( $request->get_param( 'id' ) ) ) );
+
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'Campaign not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'campaign' => $this->format_newsletter_campaign( $row ) ), 200 );
+    }
+
+    /** Validates & sanitizes the subject/body/audience fields shared by create + update. */
+    private function sanitize_newsletter_campaign_input( array $body, bool $require_all ) {
+        $out    = array();
+        $errors = array();
+
+        if ( isset( $body['subject'] ) || $require_all ) {
+            $subject = sanitize_text_field( $body['subject'] ?? '' );
+            if ( $require_all && '' === $subject ) {
+                $errors[] = 'Subject is required.';
+            }
+            $out['subject'] = $subject;
+        }
+
+        if ( isset( $body['body'] ) || $require_all ) {
+            $newsletter_body = wp_kses_post( $body['body'] ?? '' );
+            if ( $require_all && '' === trim( $newsletter_body ) ) {
+                $errors[] = 'Email body is required.';
+            }
+            $out['body'] = $newsletter_body;
+        }
+
+        if ( isset( $body['audience'] ) || $require_all ) {
+            $audience = sanitize_key( $body['audience'] ?? 'all' );
+            if ( ! isset( $this->get_newsletter_audience_segments()[ $audience ] ) ) {
+                $errors[] = 'Unknown audience segment.';
+            }
+            $out['audience'] = $audience;
+        }
+
+        return array( $out, $errors );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/campaigns — create a draft campaign. */
+    public function admin_create_newsletter_campaign( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        list( $fields, $errors ) = $this->sanitize_newsletter_campaign_input( $body, true );
+        if ( ! empty( $errors ) ) {
+            return new WP_Error( 'bpu_invalid_campaign', implode( ' ', $errors ), array( 'status' => 400 ) );
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $now   = current_time( 'mysql' );
+
+        $wpdb->insert( $table, array(
+            'subject'    => $fields['subject'],
+            'body'       => $fields['body'],
+            'audience'   => $fields['audience'],
+            'status'     => 'draft',
+            'created_by' => get_current_user_id(),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ) );
+
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $wpdb->insert_id ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'campaign' => $this->format_newsletter_campaign( $row ) ), 201 );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/campaigns/{id} — update a draft (drafts only). */
+    public function admin_update_newsletter_campaign( WP_REST_Request $request ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $id    = intval( $request->get_param( 'id' ) );
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'Campaign not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+        if ( 'draft' !== $row->status ) {
+            return new WP_Error( 'bpu_not_editable', __( 'Only draft campaigns can be edited.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        list( $fields, $errors ) = $this->sanitize_newsletter_campaign_input( $body, false );
+        if ( ! empty( $errors ) ) {
+            return new WP_Error( 'bpu_invalid_campaign', implode( ' ', $errors ), array( 'status' => 400 ) );
+        }
+        if ( empty( $fields ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'campaign' => $this->format_newsletter_campaign( $row ) ), 200 );
+        }
+
+        $fields['updated_at'] = current_time( 'mysql' );
+        $wpdb->update( $table, $fields, array( 'id' => $id ) );
+
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+        return new WP_REST_Response( array( 'success' => true, 'campaign' => $this->format_newsletter_campaign( $row ) ), 200 );
+    }
+
+    /** Admin: DELETE /paired/admin/newsletter/campaigns/{id} — drafts (or failed sends) only. */
+    public function admin_delete_newsletter_campaign( WP_REST_Request $request ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $id    = intval( $request->get_param( 'id' ) );
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'Campaign not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+        if ( ! in_array( $row->status, array( 'draft', 'failed' ), true ) ) {
+            return new WP_Error( 'bpu_not_deletable', __( 'Only draft or failed campaigns can be deleted.', 'bpu' ), array( 'status' => 409 ) );
+        }
+
+        $wpdb->delete( $table, array( 'id' => $id ) );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /** Builds the signed one-click unsubscribe link for a given user. */
+    private function newsletter_unsubscribe_link( int $user_id ): string {
+        $secret = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        $token  = hash_hmac( 'sha256', 'newsletter-unsub-' . $user_id, $secret );
+        return add_query_arg(
+            array( 'uid' => $user_id, 'token' => $token ),
+            rest_url( $this->namespace . '/newsletter/unsubscribe' )
+        );
+    }
+
+    /**
+     * Renders a campaign's stored body into the branded HTML shell, with a
+     * mandatory unsubscribe footer appended (SendGrid substitutes the
+     * {{name}} / {{unsubscribe_link}} tokens per-recipient via
+     * personalizations[].substitutions — every campaign gets an unsubscribe
+     * link regardless of whether the admin's body text mentions one).
+     */
+    private function render_newsletter_html( string $subject, string $body_with_tokens ): string {
+        $content = $this->text_to_html_paragraphs( $body_with_tokens );
+        $content .= '<p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#999;">'
+            . 'You are receiving this because you are a member of Black Professionals United. '
+            . '<a href="{{unsubscribe_link}}" style="color:#999;">Unsubscribe from newsletter emails</a>.'
+            . '</p>';
+        return $this->build_email_html( esc_html( $subject ), $content );
+    }
+
+    /**
+     * Sends one SendGrid API request covering a batch of recipients, using
+     * per-personalization substitutions so {{name}} / {{unsubscribe_link}}
+     * resolve per-recipient without one HTTP call per person.
+     *
+     * @param array $recipients Array of [ 'email' => string, 'name' => string, 'user_id' => int ].
+     * @return array{sent:int, failed:int, error:string}
+     */
+    private function send_newsletter_batch_via_sendgrid( string $api_key, string $from_email, string $from_name, string $subject, string $html_with_tokens, array $recipients ): array {
+        if ( empty( $recipients ) ) {
+            return array( 'sent' => 0, 'failed' => 0, 'error' => '' );
+        }
+
+        $personalizations = array();
+        foreach ( $recipients as $r ) {
+            $personalizations[] = array(
+                'to'            => array( array( 'email' => $r['email'], 'name' => $r['name'] ) ),
+                'substitutions' => array(
+                    '{{name}}'              => $r['name'] ?: 'there',
+                    '{{unsubscribe_link}}'  => $this->newsletter_unsubscribe_link( $r['user_id'] ),
+                ),
+            );
+        }
+
+        $payload = array(
+            'personalizations' => $personalizations,
+            'from'             => array( 'email' => $from_email, 'name' => $from_name ),
+            'subject'          => $subject,
+            'content'          => array(
+                array( 'type' => 'text/html', 'value' => $html_with_tokens ),
+            ),
+        );
+
+        $response = wp_remote_post( 'https://api.sendgrid.com/v3/mail/send', array(
+            'timeout' => 30,
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
+            ),
+            'body'    => wp_json_encode( $payload ),
+        ) );
+
+        if ( is_wp_error( $response ) ) {
+            return array( 'sent' => 0, 'failed' => count( $recipients ), 'error' => $response->get_error_message() );
+        }
+
+        $code = wp_remote_retrieve_response_code( $response );
+        if ( $code >= 200 && $code < 300 ) {
+            return array( 'sent' => count( $recipients ), 'failed' => 0, 'error' => '' );
+        }
+
+        return array(
+            'sent'   => 0,
+            'failed' => count( $recipients ),
+            'error'  => 'SendGrid error ' . $code . ': ' . wp_remote_retrieve_body( $response ),
+        );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/campaigns/{id}/test — send a single preview email. */
+    public function admin_send_newsletter_test( WP_REST_Request $request ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $id    = intval( $request->get_param( 'id' ) );
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'Campaign not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $api_key = get_option( '_bpu_sendgrid_api_key', '' );
+        if ( '' === $api_key ) {
+            return new WP_Error( 'bpu_no_sendgrid_key', __( 'Add a SendGrid API key in Newsletter Settings before sending.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $body      = $request->get_json_params();
+        $to_email  = is_array( $body ) && ! empty( $body['email'] ) ? sanitize_email( $body['email'] ) : wp_get_current_user()->user_email;
+        if ( ! is_email( $to_email ) ) {
+            return new WP_Error( 'bpu_invalid_email', __( 'Invalid test recipient email.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $from_email = get_option( '_bpu_sendgrid_from_email', get_option( 'admin_email' ) );
+        $from_name  = get_option( '_bpu_sendgrid_from_name', 'Black Professionals United' );
+        $html       = $this->render_newsletter_html( $row->subject, $row->body );
+
+        $result = $this->send_newsletter_batch_via_sendgrid(
+            $api_key, $from_email, $from_name, '[TEST] ' . $row->subject, $html,
+            array( array( 'email' => $to_email, 'name' => 'there', 'user_id' => get_current_user_id() ) )
+        );
+
+        if ( $result['sent'] < 1 ) {
+            return new WP_Error( 'bpu_sendgrid_failed', $result['error'] ?: 'SendGrid failed to send the test email.', array( 'status' => 502 ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'sent_to' => $to_email ), 200 );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/campaigns/{id}/send — kicks off (async, batched) sending to the audience. */
+    public function admin_send_newsletter_campaign( WP_REST_Request $request ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $id    = intval( $request->get_param( 'id' ) );
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'Campaign not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+        if ( ! in_array( $row->status, array( 'draft', 'failed' ), true ) ) {
+            return new WP_Error( 'bpu_already_sent', __( 'This campaign has already been sent or is currently sending.', 'bpu' ), array( 'status' => 409 ) );
+        }
+        if ( '' === get_option( '_bpu_sendgrid_api_key', '' ) ) {
+            return new WP_Error( 'bpu_no_sendgrid_key', __( 'Add a SendGrid API key in Newsletter Settings before sending.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $count_query = new WP_User_Query( array_merge(
+            $this->newsletter_audience_query_args( $row->audience ),
+            array( 'count_total' => true, 'fields' => 'ID', 'number' => 1 )
+        ) );
+        $recipient_count = intval( $count_query->get_total() );
+
+        if ( $recipient_count < 1 ) {
+            return new WP_Error( 'bpu_empty_audience', __( 'No recipients in this audience segment.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $wpdb->update( $table, array(
+            'status'          => 'sending',
+            'recipient_count' => $recipient_count,
+            'sent_count'      => 0,
+            'failed_count'    => 0,
+            'send_offset'     => 0,
+            'updated_at'      => current_time( 'mysql' ),
+        ), array( 'id' => $id ) );
+
+        // Fire the first batch immediately (in-request) so small campaigns finish
+        // without waiting on WP-Cron's next trigger, then hand remaining batches to cron.
+        $this->process_newsletter_campaign_send( $id );
+
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+        return new WP_REST_Response( array( 'success' => true, 'campaign' => $this->format_newsletter_campaign( $row ) ), 200 );
+    }
+
+    /**
+     * Cron worker (also invoked once synchronously on send) — sends one batch of
+     * NEWSLETTER_SEND_BATCH_SIZE recipients and reschedules itself if more remain.
+     */
+    public function process_newsletter_campaign_send( $campaign_id ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $id    = intval( $campaign_id );
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+
+        if ( ! $row || 'sending' !== $row->status ) {
+            return;
+        }
+
+        $api_key = get_option( '_bpu_sendgrid_api_key', '' );
+        if ( '' === $api_key ) {
+            $wpdb->update( $table, array( 'status' => 'failed', 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $id ) );
+            return;
+        }
+
+        $query = new WP_User_Query( $this->newsletter_audience_query_args( $row->audience, self::NEWSLETTER_SEND_BATCH_SIZE, intval( $row->send_offset ) ) );
+        $users = $query->get_results();
+
+        if ( empty( $users ) ) {
+            $wpdb->update( $table, array( 'status' => 'sent', 'sent_at' => current_time( 'mysql' ), 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $id ) );
+            return;
+        }
+
+        $recipients = array();
+        foreach ( $users as $u ) {
+            $recipients[] = array( 'email' => $u->user_email, 'name' => $u->display_name, 'user_id' => $u->ID );
+        }
+
+        $from_email = get_option( '_bpu_sendgrid_from_email', get_option( 'admin_email' ) );
+        $from_name  = get_option( '_bpu_sendgrid_from_name', 'Black Professionals United' );
+        $html       = $this->render_newsletter_html( $row->subject, $row->body );
+
+        $result = $this->send_newsletter_batch_via_sendgrid( $api_key, $from_email, $from_name, $row->subject, $html, $recipients );
+
+        $wpdb->update( $table, array(
+            'sent_count'   => intval( $row->sent_count ) + $result['sent'],
+            'failed_count' => intval( $row->failed_count ) + $result['failed'],
+            'send_offset'  => intval( $row->send_offset ) + count( $users ),
+            'updated_at'   => current_time( 'mysql' ),
+        ), array( 'id' => $id ) );
+
+        if ( count( $users ) === self::NEWSLETTER_SEND_BATCH_SIZE ) {
+            // More recipients left — hand off to cron rather than looping in-request.
+            wp_schedule_single_event( time() + 5, 'bpu_send_newsletter_campaign', array( $id ) );
+        } else {
+            $wpdb->update( $table, array( 'status' => 'sent', 'sent_at' => current_time( 'mysql' ), 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $id ) );
+        }
+    }
+
+    /** Public: GET /newsletter/unsubscribe?uid=&token= — one-click unsubscribe from newsletter emails. */
+    public function newsletter_unsubscribe( WP_REST_Request $request ) {
+        $user_id = intval( $request->get_param( 'uid' ) );
+        $token   = (string) $request->get_param( 'token' );
+        $secret  = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        $expected = hash_hmac( 'sha256', 'newsletter-unsub-' . $user_id, $secret );
+
+        if ( ! $user_id || ! $token || ! hash_equals( $expected, $token ) ) {
+            wp_die( esc_html__( 'This unsubscribe link is invalid or has expired.', 'bpu' ), '', array( 'response' => 400 ) );
+        }
+
+        update_user_meta( $user_id, '_bpu_newsletter_unsubscribed', '1' );
+
+        wp_die(
+            esc_html__( "You've been unsubscribed from BPU newsletter emails. You'll still receive account and transactional emails.", 'bpu' ),
+            esc_html__( 'Unsubscribed', 'bpu' ),
+            array( 'response' => 200 )
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════

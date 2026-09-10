@@ -190,6 +190,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 <div className="dash-nav-section">
                                     <div className="dash-nav-label">Platform</div>
                                     <NavLink href="/admin/email-templates" icon="messages" label="Email Templates" active={isActive('/admin/email-templates')} onClick={close} />
+                                    <NavLink href="/admin/newsletters" icon="messages" label="Newsletters" active={isActive('/admin/newsletters')} onClick={close} />
                                     <NavLink href="/admin/team" icon="profile" label="Team" active={isActive('/admin/team')} onClick={close} />
                                     <NavLink href="/admin/platform-settings" icon="settings" label="Settings" active={isActive('/admin/platform-settings')} onClick={close} />
                                 </div>
