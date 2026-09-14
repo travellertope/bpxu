@@ -1579,6 +1579,16 @@ class BPU_Headless_Connector {
         ) );
 
         // Admin: MailPoet import (campaigns + lists/subscribers, read directly from wp_mailpoet_* tables)
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/mailpoet/settings', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_mailpoet_db_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/mailpoet/settings', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_mailpoet_db_settings' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
         register_rest_route( $this->namespace, '/paired/admin/newsletter/mailpoet/status', array(
             'methods'             => 'GET',
             'callback'            => array( $this, 'admin_mailpoet_status' ),
@@ -12709,31 +12719,157 @@ jQuery(function($){
         return new WP_REST_Response( array( 'success' => true, 'imported' => $imported, 'skipped' => $skipped ), 200 );
     }
 
-    /** Admin: GET /paired/admin/newsletter/mailpoet/status — detects MailPoet's tables and reports counts. */
-    public function admin_mailpoet_status( WP_REST_Request $request ) {
-        global $wpdb;
-        $newsletters_table = $wpdb->prefix . 'mailpoet_newsletters';
-        $segments_table     = $wpdb->prefix . 'mailpoet_segments';
-        $subscribers_table  = $wpdb->prefix . 'mailpoet_subscribers';
+    /**
+     * Admin: GET /paired/admin/newsletter/mailpoet/settings — external MailPoet DB config
+     * (used when MailPoet lives in a separate WordPress install / database, e.g. a
+     * "/mailer/" subdirectory site, rather than this plugin's own site). Password masked.
+     */
+    public function admin_get_mailpoet_db_settings( WP_REST_Request $request ) {
+        $host = get_option( '_bpu_mailpoet_db_host', '' );
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'configured'   => '' !== $host,
+            'db_host'      => $host,
+            'db_name'      => get_option( '_bpu_mailpoet_db_name', '' ),
+            'db_user'      => get_option( '_bpu_mailpoet_db_user', '' ),
+            'has_password' => '' !== get_option( '_bpu_mailpoet_db_pass', '' ),
+            'db_prefix'    => get_option( '_bpu_mailpoet_db_prefix', 'wp_' ),
+        ), 200 );
+    }
 
-        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $newsletters_table ) ) !== $newsletters_table ) {
-            return new WP_REST_Response( array( 'success' => true, 'available' => false ), 200 );
+    /**
+     * Admin: POST /paired/admin/newsletter/mailpoet/settings — save (or clear, by posting an
+     * empty db_host) the external MailPoet database connection details.
+     */
+    public function admin_update_mailpoet_db_settings( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        if ( isset( $body['db_host'] ) ) update_option( '_bpu_mailpoet_db_host', sanitize_text_field( $body['db_host'] ) );
+        if ( isset( $body['db_name'] ) ) update_option( '_bpu_mailpoet_db_name', sanitize_text_field( $body['db_name'] ) );
+        if ( isset( $body['db_user'] ) ) update_option( '_bpu_mailpoet_db_user', sanitize_text_field( $body['db_user'] ) );
+        if ( isset( $body['db_password'] ) && '' !== trim( (string) $body['db_password'] ) ) {
+            update_option( '_bpu_mailpoet_db_pass', (string) $body['db_password'] );
+        }
+        if ( isset( $body['db_prefix'] ) ) {
+            $prefix = preg_replace( '/[^A-Za-z0-9_]/', '', (string) $body['db_prefix'] );
+            update_option( '_bpu_mailpoet_db_prefix', '' !== $prefix ? $prefix : 'wp_' );
         }
 
-        $newsletter_count = intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL" ) );
-        $segment_count    = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $segments_table ) ) === $segments_table
-            ? intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$segments_table} WHERE deleted_at IS NULL" ) )
+        return $this->admin_get_mailpoet_db_settings( $request );
+    }
+
+    /**
+     * Resolves the database to read MailPoet tables from: the external DB configured in
+     * settings when present (connected directly via mysqli, bypassing wpdb's fatal-on-failure
+     * bail() behaviour so a bad config degrades to a REST error instead of crashing the
+     * request), otherwise this site's own $wpdb. Cached per-request.
+     *
+     * @return array{external:bool, mysqli:?mysqli, wpdb:?wpdb, prefix:string, error:string}
+     */
+    private function get_mailpoet_db(): array {
+        static $resolved = null;
+        if ( null !== $resolved ) {
+            return $resolved;
+        }
+
+        $host   = trim( (string) get_option( '_bpu_mailpoet_db_host', '' ) );
+        $name   = trim( (string) get_option( '_bpu_mailpoet_db_name', '' ) );
+        $user   = trim( (string) get_option( '_bpu_mailpoet_db_user', '' ) );
+        $pass   = (string) get_option( '_bpu_mailpoet_db_pass', '' );
+        $prefix = get_option( '_bpu_mailpoet_db_prefix', 'wp_' ) ?: 'wp_';
+
+        if ( '' === $host || '' === $name || '' === $user ) {
+            global $wpdb;
+            $resolved = array( 'external' => false, 'mysqli' => null, 'wpdb' => $wpdb, 'prefix' => $wpdb->prefix, 'error' => '' );
+            return $resolved;
+        }
+
+        $port = 3306;
+        if ( false !== strpos( $host, ':' ) ) {
+            list( $host, $port_str ) = explode( ':', $host, 2 );
+            $port = intval( $port_str ) ?: 3306;
+        }
+
+        $mysqli = @mysqli_connect( $host, $user, $pass, $name, $port );
+        if ( ! $mysqli ) {
+            $resolved = array(
+                'external' => true, 'mysqli' => null, 'wpdb' => null, 'prefix' => $prefix,
+                'error'    => 'Could not connect to the MailPoet database: ' . mysqli_connect_error(),
+            );
+            return $resolved;
+        }
+
+        $resolved = array( 'external' => true, 'mysqli' => $mysqli, 'wpdb' => null, 'prefix' => $prefix, 'error' => '' );
+        return $resolved;
+    }
+
+    /** Escapes a value for interpolation into a MailPoet-DB query, whichever connection type is in use. */
+    private function mp_esc( array $conn, string $value ): string {
+        return $conn['external'] ? mysqli_real_escape_string( $conn['mysqli'], $value ) : esc_sql( $value );
+    }
+
+    /** Runs a query against the MailPoet DB and returns a single scalar value (or null). */
+    private function mp_get_var( array $conn, string $sql ) {
+        if ( $conn['external'] ) {
+            $result = mysqli_query( $conn['mysqli'], $sql );
+            if ( ! $result ) return null;
+            $row = mysqli_fetch_row( $result );
+            return $row ? $row[0] : null;
+        }
+        return $conn['wpdb']->get_var( $sql );
+    }
+
+    /** Runs a query against the MailPoet DB and returns all result rows as objects. */
+    private function mp_get_results( array $conn, string $sql ): array {
+        if ( $conn['external'] ) {
+            $result = mysqli_query( $conn['mysqli'], $sql );
+            if ( ! $result ) return array();
+            $rows = array();
+            while ( $row = mysqli_fetch_object( $result ) ) {
+                $rows[] = $row;
+            }
+            return $rows;
+        }
+        return (array) $conn['wpdb']->get_results( $sql );
+    }
+
+    /** True if the given table exists on the MailPoet connection. */
+    private function mp_table_exists( array $conn, string $table ): bool {
+        return $this->mp_get_var( $conn, "SHOW TABLES LIKE '" . $this->mp_esc( $conn, $table ) . "'" ) === $table;
+    }
+
+    /** Admin: GET /paired/admin/newsletter/mailpoet/status — detects MailPoet's tables and reports counts. */
+    public function admin_mailpoet_status( WP_REST_Request $request ) {
+        $conn = $this->get_mailpoet_db();
+        if ( $conn['error'] ) {
+            return new WP_Error( 'bpu_mailpoet_db_error', $conn['error'], array( 'status' => 502 ) );
+        }
+
+        $prefix             = $conn['prefix'];
+        $newsletters_table  = $prefix . 'mailpoet_newsletters';
+        $segments_table     = $prefix . 'mailpoet_segments';
+        $subscribers_table  = $prefix . 'mailpoet_subscribers';
+
+        if ( ! $this->mp_table_exists( $conn, $newsletters_table ) ) {
+            return new WP_REST_Response( array( 'success' => true, 'available' => false, 'using_external_db' => $conn['external'] ), 200 );
+        }
+
+        $newsletter_count = intval( $this->mp_get_var( $conn, "SELECT COUNT(*) FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL" ) );
+        $segment_count    = $this->mp_table_exists( $conn, $segments_table )
+            ? intval( $this->mp_get_var( $conn, "SELECT COUNT(*) FROM {$segments_table} WHERE deleted_at IS NULL" ) )
             : 0;
-        $subscriber_count = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $subscribers_table ) ) === $subscribers_table
-            ? intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$subscribers_table} WHERE deleted_at IS NULL" ) )
+        $subscriber_count = $this->mp_table_exists( $conn, $subscribers_table )
+            ? intval( $this->mp_get_var( $conn, "SELECT COUNT(*) FROM {$subscribers_table} WHERE deleted_at IS NULL" ) )
             : 0;
 
         return new WP_REST_Response( array(
-            'success'          => true,
-            'available'        => true,
-            'newsletter_count' => $newsletter_count,
-            'segment_count'    => $segment_count,
-            'subscriber_count' => $subscriber_count,
+            'success'           => true,
+            'available'         => true,
+            'using_external_db' => $conn['external'],
+            'newsletter_count'  => $newsletter_count,
+            'segment_count'     => $segment_count,
+            'subscriber_count'  => $subscriber_count,
         ), 200 );
     }
 
@@ -12774,10 +12910,15 @@ jQuery(function($){
 
     /** Admin: POST /paired/admin/newsletter/mailpoet/import-campaigns — imports MailPoet newsletters as drafts. */
     public function admin_mailpoet_import_campaigns( WP_REST_Request $request ) {
-        global $wpdb;
-        $newsletters_table = $wpdb->prefix . 'mailpoet_newsletters';
-        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $newsletters_table ) ) !== $newsletters_table ) {
-            return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found on this site.', 'bpu' ), array( 'status' => 404 ) );
+        $conn = $this->get_mailpoet_db();
+        if ( $conn['error'] ) {
+            return new WP_Error( 'bpu_mailpoet_db_error', $conn['error'], array( 'status' => 502 ) );
+        }
+
+        $prefix            = $conn['prefix'];
+        $newsletters_table = $prefix . 'mailpoet_newsletters';
+        if ( ! $this->mp_table_exists( $conn, $newsletters_table ) ) {
+            return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
         $body = $request->get_json_params();
@@ -12785,11 +12926,11 @@ jQuery(function($){
 
         $sql = "SELECT id, subject, body FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL";
         if ( ! empty( $ids ) ) {
-            $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-            $sql .= $wpdb->prepare( " AND id IN ({$placeholders})", $ids );
+            $sql .= ' AND id IN (' . implode( ',', array_map( 'intval', $ids ) ) . ')';
         }
-        $rows = $wpdb->get_results( $sql );
+        $rows = $this->mp_get_results( $conn, $sql );
 
+        global $wpdb;
         $table    = $wpdb->prefix . 'bpu_newsletter_campaigns';
         $now      = current_time( 'mysql' );
         $imported = array();
@@ -12816,13 +12957,18 @@ jQuery(function($){
      * (as custom lists) and their subscribed members, matching existing subscribers by email.
      */
     public function admin_mailpoet_import_lists( WP_REST_Request $request ) {
-        global $wpdb;
-        $segments_table    = $wpdb->prefix . 'mailpoet_segments';
-        $subscribers_table = $wpdb->prefix . 'mailpoet_subscribers';
-        $link_table_mp     = $wpdb->prefix . 'mailpoet_subscriber_segment';
+        $conn = $this->get_mailpoet_db();
+        if ( $conn['error'] ) {
+            return new WP_Error( 'bpu_mailpoet_db_error', $conn['error'], array( 'status' => 502 ) );
+        }
 
-        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $segments_table ) ) !== $segments_table ) {
-            return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found on this site.', 'bpu' ), array( 'status' => 404 ) );
+        $prefix             = $conn['prefix'];
+        $segments_table     = $prefix . 'mailpoet_segments';
+        $subscribers_table  = $prefix . 'mailpoet_subscribers';
+        $link_table_mp      = $prefix . 'mailpoet_subscriber_segment';
+
+        if ( ! $this->mp_table_exists( $conn, $segments_table ) ) {
+            return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
         $body = $request->get_json_params();
@@ -12830,11 +12976,11 @@ jQuery(function($){
 
         $sql = "SELECT id, name FROM {$segments_table} WHERE deleted_at IS NULL AND type = 'default'";
         if ( ! empty( $ids ) ) {
-            $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
-            $sql .= $wpdb->prepare( " AND id IN ({$placeholders})", $ids );
+            $sql .= ' AND id IN (' . implode( ',', array_map( 'intval', $ids ) ) . ')';
         }
-        $mp_segments = $wpdb->get_results( $sql );
+        $mp_segments = $this->mp_get_results( $conn, $sql );
 
+        global $wpdb;
         $lists_table = $wpdb->prefix . 'bpu_newsletter_lists';
         $link_table  = $wpdb->prefix . 'bpu_newsletter_list_subscribers';
         $now         = current_time( 'mysql' );
@@ -12854,12 +13000,12 @@ jQuery(function($){
                 $list_id = intval( $wpdb->insert_id );
             }
 
-            $mp_subscribers = $wpdb->get_results( $wpdb->prepare(
-                "SELECT s.email, s.first_name, s.last_name FROM {$subscribers_table} s
-                 INNER JOIN {$link_table_mp} ls ON ls.subscriber_id = s.id
-                 WHERE ls.segment_id = %d AND s.status = 'subscribed' AND s.deleted_at IS NULL",
-                intval( $seg->id )
-            ) );
+            $seg_id         = intval( $seg->id );
+            $mp_subscribers = $this->mp_get_results( $conn, "
+                SELECT s.email, s.first_name, s.last_name FROM {$subscribers_table} s
+                INNER JOIN {$link_table_mp} ls ON ls.subscriber_id = s.id
+                WHERE ls.segment_id = {$seg_id} AND s.status = 'subscribed' AND s.deleted_at IS NULL
+            " );
 
             $count = 0;
             foreach ( $mp_subscribers as $mp_sub ) {
