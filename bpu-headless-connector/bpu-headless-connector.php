@@ -1531,6 +1531,70 @@ class BPU_Headless_Connector {
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
 
+        // Admin: Newsletter list management (custom lists, à la MailPoet)
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_newsletter_lists' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_create_newsletter_list' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_get_newsletter_list' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_newsletter_list' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)', array(
+            'methods'             => 'DELETE',
+            'callback'            => array( $this, 'admin_delete_newsletter_list' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)/subscribers', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_newsletter_list_subscribers' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)/subscribers', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_add_newsletter_list_subscriber' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)/subscribers/(?P<sub_id>\d+)', array(
+            'methods'             => 'DELETE',
+            'callback'            => array( $this, 'admin_remove_newsletter_list_subscriber' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/lists/(?P<id>\d+)/import-csv', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_import_newsletter_list_csv' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // Admin: MailPoet import (campaigns + lists/subscribers, read directly from wp_mailpoet_* tables)
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/mailpoet/status', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_mailpoet_status' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/mailpoet/import-campaigns', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_mailpoet_import_campaigns' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/paired/admin/newsletter/mailpoet/import-lists', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_mailpoet_import_lists' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
         // Public: one-click newsletter unsubscribe
         register_rest_route( $this->namespace, '/newsletter/unsubscribe', array(
             'methods'             => 'GET',
@@ -11705,20 +11769,20 @@ jQuery(function($){
     //  TIER 3: NEWSLETTER MANAGEMENT & SENDER (SendGrid)
     // ═══════════════════════════════════════════════════════════════
 
-    const NEWSLETTER_DB_VERSION = '1.0';
+    const NEWSLETTER_DB_VERSION = '2.0';
     const NEWSLETTER_SEND_BATCH_SIZE = 400;
 
-    /** Creates (or upgrades) the newsletter campaigns table. */
+    /** Creates (or upgrades) the newsletter campaigns, lists, and subscribers tables. */
     public function maybe_create_newsletter_tables() {
         if ( get_option( 'bpu_newsletter_db_version' ) === self::NEWSLETTER_DB_VERSION ) {
             return;
         }
 
         global $wpdb;
-        $table_name      = $wpdb->prefix . 'bpu_newsletter_campaigns';
         $charset_collate = $wpdb->get_charset_collate();
 
-        $sql = "CREATE TABLE {$table_name} (
+        $campaigns_table = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $sql = "CREATE TABLE {$campaigns_table} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             subject VARCHAR(255) NOT NULL DEFAULT '',
             body LONGTEXT NOT NULL,
@@ -11734,6 +11798,41 @@ jQuery(function($){
             sent_at DATETIME NULL,
             PRIMARY KEY  (id),
             KEY status (status)
+        ) {$charset_collate};";
+
+        $lists_table = $wpdb->prefix . 'bpu_newsletter_lists';
+        $sql .= "CREATE TABLE {$lists_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            name VARCHAR(190) NOT NULL DEFAULT '',
+            description VARCHAR(500) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id)
+        ) {$charset_collate};";
+
+        $subscribers_table = $wpdb->prefix . 'bpu_newsletter_subscribers';
+        $sql .= "CREATE TABLE {$subscribers_table} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            email VARCHAR(190) NOT NULL,
+            first_name VARCHAR(100) NOT NULL DEFAULT '',
+            last_name VARCHAR(100) NOT NULL DEFAULT '',
+            wp_user_id BIGINT UNSIGNED NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'subscribed',
+            source VARCHAR(30) NOT NULL DEFAULT 'manual',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY email (email),
+            KEY status (status)
+        ) {$charset_collate};";
+
+        $list_subscribers_table = $wpdb->prefix . 'bpu_newsletter_list_subscribers';
+        $sql .= "CREATE TABLE {$list_subscribers_table} (
+            list_id BIGINT UNSIGNED NOT NULL,
+            subscriber_id BIGINT UNSIGNED NOT NULL,
+            added_at DATETIME NOT NULL,
+            PRIMARY KEY  (list_id, subscriber_id),
+            KEY subscriber_id (subscriber_id)
         ) {$charset_collate};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -11773,20 +11872,89 @@ jQuery(function($){
         );
     }
 
+    /** True when an audience key refers to a custom list ("list_<id>") rather than a fixed role segment. */
+    private function is_newsletter_list_audience( string $audience ): bool {
+        return 1 === preg_match( '/^list_(\d+)$/', $audience );
+    }
+
+    private function newsletter_list_id_from_audience( string $audience ): int {
+        return preg_match( '/^list_(\d+)$/', $audience, $m ) ? intval( $m[1] ) : 0;
+    }
+
+    /** Recipient count for any audience — a fixed role segment or a custom list. */
+    private function get_newsletter_recipient_count( string $audience ): int {
+        if ( $this->is_newsletter_list_audience( $audience ) ) {
+            global $wpdb;
+            $list_id = $this->newsletter_list_id_from_audience( $audience );
+            return intval( $wpdb->get_var( $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}bpu_newsletter_list_subscribers l
+                 INNER JOIN {$wpdb->prefix}bpu_newsletter_subscribers s ON s.id = l.subscriber_id
+                 WHERE l.list_id = %d AND s.status = 'subscribed'",
+                $list_id
+            ) ) );
+        }
+
+        $query = new WP_User_Query( array_merge(
+            $this->newsletter_audience_query_args( $audience ),
+            array( 'count_total' => true, 'fields' => 'ID', 'number' => 1 )
+        ) );
+        return intval( $query->get_total() );
+    }
+
     /**
-     * Admin: GET /paired/admin/newsletter/audience-counts — recipient counts per segment,
-     * so the composer can show "this will reach N people" before sending.
+     * One batch of recipients for any audience type.
+     *
+     * @return array<int, array{email:string, name:string, user_id:int, subscriber_id:int}>
+     */
+    private function get_newsletter_recipients_batch( string $audience, int $limit, int $offset ): array {
+        if ( $this->is_newsletter_list_audience( $audience ) ) {
+            global $wpdb;
+            $list_id = $this->newsletter_list_id_from_audience( $audience );
+            $rows    = $wpdb->get_results( $wpdb->prepare(
+                "SELECT s.* FROM {$wpdb->prefix}bpu_newsletter_list_subscribers l
+                 INNER JOIN {$wpdb->prefix}bpu_newsletter_subscribers s ON s.id = l.subscriber_id
+                 WHERE l.list_id = %d AND s.status = 'subscribed'
+                 ORDER BY s.id ASC LIMIT %d OFFSET %d",
+                $list_id, $limit, $offset
+            ) );
+
+            $recipients = array();
+            foreach ( $rows as $r ) {
+                $recipients[] = array(
+                    'email'         => $r->email,
+                    'name'          => trim( $r->first_name . ' ' . $r->last_name ) ?: $r->email,
+                    'user_id'       => $r->wp_user_id ? intval( $r->wp_user_id ) : 0,
+                    'subscriber_id' => intval( $r->id ),
+                );
+            }
+            return $recipients;
+        }
+
+        $query      = new WP_User_Query( $this->newsletter_audience_query_args( $audience, $limit, $offset ) );
+        $recipients = array();
+        foreach ( $query->get_results() as $u ) {
+            $recipients[] = array( 'email' => $u->user_email, 'name' => $u->display_name, 'user_id' => $u->ID, 'subscriber_id' => 0 );
+        }
+        return $recipients;
+    }
+
+    /**
+     * Admin: GET /paired/admin/newsletter/audience-counts — recipient counts per segment
+     * and per custom list, so the composer can show "this will reach N people" before sending.
      */
     public function admin_newsletter_audience_counts( WP_REST_Request $request ) {
         $segments = $this->get_newsletter_audience_segments();
         $counts   = array();
 
         foreach ( $segments as $key => $def ) {
-            $query = new WP_User_Query( array_merge(
-                $this->newsletter_audience_query_args( $key ),
-                array( 'count_total' => true, 'fields' => 'ID', 'number' => 1 )
-            ) );
-            $counts[] = array( 'key' => $key, 'label' => $def['label'], 'count' => intval( $query->get_total() ) );
+            $counts[] = array( 'key' => $key, 'label' => $def['label'], 'count' => $this->get_newsletter_recipient_count( $key ) );
+        }
+
+        global $wpdb;
+        $lists = $wpdb->get_results( "SELECT id, name FROM {$wpdb->prefix}bpu_newsletter_lists ORDER BY name ASC" );
+        foreach ( $lists as $list ) {
+            $audience_key = 'list_' . intval( $list->id );
+            $counts[] = array( 'key' => $audience_key, 'label' => 'List: ' . $list->name, 'count' => $this->get_newsletter_recipient_count( $audience_key ) );
         }
 
         return new WP_REST_Response( array( 'success' => true, 'segments' => $counts ), 200 );
@@ -11830,12 +11998,19 @@ jQuery(function($){
     /** Formats a campaign DB row for API responses. */
     private function format_newsletter_campaign( $row ) {
         $segments = $this->get_newsletter_audience_segments();
+        $label    = $segments[ $row->audience ]['label'] ?? null;
+        if ( null === $label && $this->is_newsletter_list_audience( $row->audience ) ) {
+            global $wpdb;
+            $list_id = $this->newsletter_list_id_from_audience( $row->audience );
+            $name    = $wpdb->get_var( $wpdb->prepare( "SELECT name FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", $list_id ) );
+            $label   = $name ? 'List: ' . $name : null;
+        }
         return array(
             'id'               => intval( $row->id ),
             'subject'          => $row->subject,
             'body'             => $row->body,
             'audience'         => $row->audience,
-            'audience_label'   => $segments[ $row->audience ]['label'] ?? $row->audience,
+            'audience_label'   => $label ?? $row->audience,
             'status'           => $row->status,
             'recipient_count'  => intval( $row->recipient_count ),
             'sent_count'       => intval( $row->sent_count ),
@@ -11906,7 +12081,13 @@ jQuery(function($){
 
         if ( isset( $body['audience'] ) || $require_all ) {
             $audience = sanitize_key( $body['audience'] ?? 'all' );
-            if ( ! isset( $this->get_newsletter_audience_segments()[ $audience ] ) ) {
+            $known    = isset( $this->get_newsletter_audience_segments()[ $audience ] );
+            if ( ! $known && $this->is_newsletter_list_audience( $audience ) ) {
+                global $wpdb;
+                $list_id = $this->newsletter_list_id_from_audience( $audience );
+                $known   = (bool) $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", $list_id ) );
+            }
+            if ( ! $known ) {
                 $errors[] = 'Unknown audience segment.';
             }
             $out['audience'] = $audience;
@@ -12004,6 +12185,16 @@ jQuery(function($){
         );
     }
 
+    /** Builds the signed one-click unsubscribe link for a custom-list subscriber (not necessarily a WP user). */
+    private function newsletter_subscriber_unsubscribe_link( int $subscriber_id ): string {
+        $secret = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        $token  = hash_hmac( 'sha256', 'newsletter-unsub-sub-' . $subscriber_id, $secret );
+        return add_query_arg(
+            array( 'sid' => $subscriber_id, 'token' => $token ),
+            rest_url( $this->namespace . '/newsletter/unsubscribe' )
+        );
+    }
+
     /**
      * Renders a campaign's stored body into the branded HTML shell, with a
      * mandatory unsubscribe footer appended (SendGrid substitutes the
@@ -12012,7 +12203,9 @@ jQuery(function($){
      * link regardless of whether the admin's body text mentions one).
      */
     private function render_newsletter_html( string $subject, string $body_with_tokens ): string {
-        $content = $this->text_to_html_paragraphs( $body_with_tokens );
+        // The composer's rich-text editor stores sanitized HTML directly (wp_kses_post
+        // on save), so unlike other plain-text email templates this is used as-is.
+        $content = $body_with_tokens;
         $content .= '<p style="margin:24px 0 0;padding-top:16px;border-top:1px solid #eee;font-size:12px;color:#999;">'
             . 'You are receiving this because you are a member of Black Professionals United. '
             . '<a href="{{unsubscribe_link}}" style="color:#999;">Unsubscribe from newsletter emails</a>.'
@@ -12039,7 +12232,9 @@ jQuery(function($){
                 'to'            => array( array( 'email' => $r['email'], 'name' => $r['name'] ) ),
                 'substitutions' => array(
                     '{{name}}'              => $r['name'] ?: 'there',
-                    '{{unsubscribe_link}}'  => $this->newsletter_unsubscribe_link( $r['user_id'] ),
+                    '{{unsubscribe_link}}'  => ! empty( $r['subscriber_id'] )
+                        ? $this->newsletter_subscriber_unsubscribe_link( intval( $r['subscriber_id'] ) )
+                        : $this->newsletter_unsubscribe_link( intval( $r['user_id'] ) ),
                 ),
             );
         }
@@ -12133,11 +12328,7 @@ jQuery(function($){
             return new WP_Error( 'bpu_no_sendgrid_key', __( 'Add a SendGrid API key in Newsletter Settings before sending.', 'bpu' ), array( 'status' => 400 ) );
         }
 
-        $count_query = new WP_User_Query( array_merge(
-            $this->newsletter_audience_query_args( $row->audience ),
-            array( 'count_total' => true, 'fields' => 'ID', 'number' => 1 )
-        ) );
-        $recipient_count = intval( $count_query->get_total() );
+        $recipient_count = $this->get_newsletter_recipient_count( $row->audience );
 
         if ( $recipient_count < 1 ) {
             return new WP_Error( 'bpu_empty_audience', __( 'No recipients in this audience segment.', 'bpu' ), array( 'status' => 400 ) );
@@ -12180,17 +12371,11 @@ jQuery(function($){
             return;
         }
 
-        $query = new WP_User_Query( $this->newsletter_audience_query_args( $row->audience, self::NEWSLETTER_SEND_BATCH_SIZE, intval( $row->send_offset ) ) );
-        $users = $query->get_results();
+        $recipients = $this->get_newsletter_recipients_batch( $row->audience, self::NEWSLETTER_SEND_BATCH_SIZE, intval( $row->send_offset ) );
 
-        if ( empty( $users ) ) {
+        if ( empty( $recipients ) ) {
             $wpdb->update( $table, array( 'status' => 'sent', 'sent_at' => current_time( 'mysql' ), 'updated_at' => current_time( 'mysql' ) ), array( 'id' => $id ) );
             return;
-        }
-
-        $recipients = array();
-        foreach ( $users as $u ) {
-            $recipients[] = array( 'email' => $u->user_email, 'name' => $u->display_name, 'user_id' => $u->ID );
         }
 
         $from_email = get_option( '_bpu_sendgrid_from_email', get_option( 'admin_email' ) );
@@ -12202,11 +12387,11 @@ jQuery(function($){
         $wpdb->update( $table, array(
             'sent_count'   => intval( $row->sent_count ) + $result['sent'],
             'failed_count' => intval( $row->failed_count ) + $result['failed'],
-            'send_offset'  => intval( $row->send_offset ) + count( $users ),
+            'send_offset'  => intval( $row->send_offset ) + count( $recipients ),
             'updated_at'   => current_time( 'mysql' ),
         ), array( 'id' => $id ) );
 
-        if ( count( $users ) === self::NEWSLETTER_SEND_BATCH_SIZE ) {
+        if ( count( $recipients ) === self::NEWSLETTER_SEND_BATCH_SIZE ) {
             // More recipients left — hand off to cron rather than looping in-request.
             wp_schedule_single_event( time() + 5, 'bpu_send_newsletter_campaign', array( $id ) );
         } else {
@@ -12214,11 +12399,33 @@ jQuery(function($){
         }
     }
 
-    /** Public: GET /newsletter/unsubscribe?uid=&token= — one-click unsubscribe from newsletter emails. */
+    /** Public: GET /newsletter/unsubscribe?uid=&token= (WP users) or ?sid=&token= (custom-list subscribers). */
     public function newsletter_unsubscribe( WP_REST_Request $request ) {
-        $user_id = intval( $request->get_param( 'uid' ) );
-        $token   = (string) $request->get_param( 'token' );
-        $secret  = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        $secret = defined( 'BPU_JWT_SECRET' ) ? BPU_JWT_SECRET : AUTH_SALT;
+        $token  = (string) $request->get_param( 'token' );
+
+        $subscriber_id = intval( $request->get_param( 'sid' ) );
+        if ( $subscriber_id ) {
+            $expected = hash_hmac( 'sha256', 'newsletter-unsub-sub-' . $subscriber_id, $secret );
+            if ( ! $token || ! hash_equals( $expected, $token ) ) {
+                wp_die( esc_html__( 'This unsubscribe link is invalid or has expired.', 'bpu' ), '', array( 'response' => 400 ) );
+            }
+
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->prefix . 'bpu_newsletter_subscribers',
+                array( 'status' => 'unsubscribed', 'updated_at' => current_time( 'mysql' ) ),
+                array( 'id' => $subscriber_id )
+            );
+
+            wp_die(
+                esc_html__( "You've been unsubscribed from this mailing list.", 'bpu' ),
+                esc_html__( 'Unsubscribed', 'bpu' ),
+                array( 'response' => 200 )
+            );
+        }
+
+        $user_id  = intval( $request->get_param( 'uid' ) );
         $expected = hash_hmac( 'sha256', 'newsletter-unsub-' . $user_id, $secret );
 
         if ( ! $user_id || ! $token || ! hash_equals( $expected, $token ) ) {
@@ -12232,6 +12439,445 @@ jQuery(function($){
             esc_html__( 'Unsubscribed', 'bpu' ),
             array( 'response' => 200 )
         );
+    }
+
+    /** Formats a custom list row for API responses, including live subscriber count. */
+    private function format_newsletter_list( $row ) {
+        global $wpdb;
+        $count = intval( $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}bpu_newsletter_list_subscribers WHERE list_id = %d",
+            $row->id
+        ) ) );
+        return array(
+            'id'               => intval( $row->id ),
+            'name'             => $row->name,
+            'description'      => $row->description,
+            'subscriber_count' => $count,
+            'created_at'       => $row->created_at,
+            'updated_at'       => $row->updated_at,
+        );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/lists */
+    public function admin_list_newsletter_lists( WP_REST_Request $request ) {
+        global $wpdb;
+        $rows = $wpdb->get_results( "SELECT * FROM {$wpdb->prefix}bpu_newsletter_lists ORDER BY name ASC" );
+        return new WP_REST_Response( array( 'success' => true, 'lists' => array_map( array( $this, 'format_newsletter_list' ), $rows ) ), 200 );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/lists — create a custom list. */
+    public function admin_create_newsletter_list( WP_REST_Request $request ) {
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+        $name = sanitize_text_field( $body['name'] ?? '' );
+        if ( '' === $name ) {
+            return new WP_Error( 'bpu_invalid_list', __( 'List name is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_lists';
+        $now   = current_time( 'mysql' );
+        $wpdb->insert( $table, array(
+            'name'        => $name,
+            'description' => sanitize_text_field( $body['description'] ?? '' ),
+            'created_at'  => $now,
+            'updated_at'  => $now,
+        ) );
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $wpdb->insert_id ) );
+        return new WP_REST_Response( array( 'success' => true, 'list' => $this->format_newsletter_list( $row ) ), 201 );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/lists/{id} */
+    public function admin_get_newsletter_list( WP_REST_Request $request ) {
+        global $wpdb;
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", intval( $request->get_param( 'id' ) ) ) );
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'List not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+        return new WP_REST_Response( array( 'success' => true, 'list' => $this->format_newsletter_list( $row ) ), 200 );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/lists/{id} — rename/edit a list. */
+    public function admin_update_newsletter_list( WP_REST_Request $request ) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'bpu_newsletter_lists';
+        $id    = intval( $request->get_param( 'id' ) );
+        $row   = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'List not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+        $fields = array();
+        if ( isset( $body['name'] ) ) {
+            $name = sanitize_text_field( $body['name'] );
+            if ( '' === $name ) {
+                return new WP_Error( 'bpu_invalid_list', __( 'List name is required.', 'bpu' ), array( 'status' => 400 ) );
+            }
+            $fields['name'] = $name;
+        }
+        if ( isset( $body['description'] ) ) {
+            $fields['description'] = sanitize_text_field( $body['description'] );
+        }
+        if ( ! empty( $fields ) ) {
+            $fields['updated_at'] = current_time( 'mysql' );
+            $wpdb->update( $table, $fields, array( 'id' => $id ) );
+            $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE id = %d", $id ) );
+        }
+        return new WP_REST_Response( array( 'success' => true, 'list' => $this->format_newsletter_list( $row ) ), 200 );
+    }
+
+    /** Admin: DELETE /paired/admin/newsletter/lists/{id} */
+    public function admin_delete_newsletter_list( WP_REST_Request $request ) {
+        global $wpdb;
+        $id  = intval( $request->get_param( 'id' ) );
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", $id ) );
+        if ( ! $row ) {
+            return new WP_Error( 'bpu_not_found', __( 'List not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $wpdb->delete( $wpdb->prefix . 'bpu_newsletter_list_subscribers', array( 'list_id' => $id ) );
+        $wpdb->delete( $wpdb->prefix . 'bpu_newsletter_lists', array( 'id' => $id ) );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /** Formats a subscriber row for API responses. */
+    private function format_newsletter_subscriber( $row ) {
+        return array(
+            'id'         => intval( $row->id ),
+            'email'      => $row->email,
+            'first_name' => $row->first_name,
+            'last_name'  => $row->last_name,
+            'name'       => trim( $row->first_name . ' ' . $row->last_name ),
+            'wp_user_id' => $row->wp_user_id ? intval( $row->wp_user_id ) : null,
+            'status'     => $row->status,
+            'source'     => $row->source,
+            'created_at' => $row->created_at,
+        );
+    }
+
+    /** Finds-or-creates a subscriber row by email (updating name/source if provided). Returns the subscriber id. */
+    private function upsert_newsletter_subscriber( string $email, string $first_name = '', string $last_name = '', string $source = 'manual', ?int $wp_user_id = null ): int {
+        global $wpdb;
+        $table    = $wpdb->prefix . 'bpu_newsletter_subscribers';
+        $email    = sanitize_email( $email );
+        $existing = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$table} WHERE email = %s", $email ) );
+        $now      = current_time( 'mysql' );
+
+        if ( $existing ) {
+            $fields = array( 'updated_at' => $now );
+            if ( '' !== $first_name ) $fields['first_name'] = $first_name;
+            if ( '' !== $last_name ) $fields['last_name'] = $last_name;
+            if ( $wp_user_id ) $fields['wp_user_id'] = $wp_user_id;
+            $wpdb->update( $table, $fields, array( 'id' => $existing->id ) );
+            return intval( $existing->id );
+        }
+
+        $wpdb->insert( $table, array(
+            'email'      => $email,
+            'first_name' => $first_name,
+            'last_name'  => $last_name,
+            'wp_user_id' => $wp_user_id,
+            'status'     => 'subscribed',
+            'source'     => $source,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ) );
+        return intval( $wpdb->insert_id );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/lists/{id}/subscribers — paginated. */
+    public function admin_list_newsletter_list_subscribers( WP_REST_Request $request ) {
+        global $wpdb;
+        $list_id = intval( $request->get_param( 'id' ) );
+        if ( ! $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", $list_id ) ) ) {
+            return new WP_Error( 'bpu_not_found', __( 'List not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $page     = max( 1, intval( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = max( 1, min( 100, intval( $request->get_param( 'per_page' ) ?: 50 ) ) );
+        $offset   = ( $page - 1 ) * $per_page;
+
+        $total = intval( $wpdb->get_var( $wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}bpu_newsletter_list_subscribers WHERE list_id = %d", $list_id
+        ) ) );
+        $rows = $wpdb->get_results( $wpdb->prepare(
+            "SELECT s.* FROM {$wpdb->prefix}bpu_newsletter_subscribers s
+             INNER JOIN {$wpdb->prefix}bpu_newsletter_list_subscribers l ON l.subscriber_id = s.id
+             WHERE l.list_id = %d ORDER BY s.email ASC LIMIT %d OFFSET %d",
+            $list_id, $per_page, $offset
+        ) );
+
+        return new WP_REST_Response( array(
+            'success'     => true,
+            'subscribers' => array_map( array( $this, 'format_newsletter_subscriber' ), $rows ),
+            'total'       => $total,
+            'page'        => $page,
+            'per_page'    => $per_page,
+        ), 200 );
+    }
+
+    /** Admin: POST /paired/admin/newsletter/lists/{id}/subscribers — add one subscriber by email. */
+    public function admin_add_newsletter_list_subscriber( WP_REST_Request $request ) {
+        global $wpdb;
+        $list_id = intval( $request->get_param( 'id' ) );
+        if ( ! $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", $list_id ) ) ) {
+            return new WP_Error( 'bpu_not_found', __( 'List not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body  = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+        $email = sanitize_email( $body['email'] ?? '' );
+        if ( ! is_email( $email ) ) {
+            return new WP_Error( 'bpu_invalid_email', __( 'A valid email is required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $subscriber_id = $this->upsert_newsletter_subscriber(
+            $email,
+            sanitize_text_field( $body['first_name'] ?? '' ),
+            sanitize_text_field( $body['last_name'] ?? '' ),
+            'manual'
+        );
+
+        $wpdb->query( $wpdb->prepare(
+            "INSERT IGNORE INTO {$wpdb->prefix}bpu_newsletter_list_subscribers (list_id, subscriber_id, added_at) VALUES (%d, %d, %s)",
+            $list_id, $subscriber_id, current_time( 'mysql' )
+        ) );
+
+        $row = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}bpu_newsletter_subscribers WHERE id = %d", $subscriber_id ) );
+        return new WP_REST_Response( array( 'success' => true, 'subscriber' => $this->format_newsletter_subscriber( $row ) ), 201 );
+    }
+
+    /** Admin: DELETE /paired/admin/newsletter/lists/{id}/subscribers/{sub_id} — removes from this list only. */
+    public function admin_remove_newsletter_list_subscriber( WP_REST_Request $request ) {
+        global $wpdb;
+        $wpdb->delete( $wpdb->prefix . 'bpu_newsletter_list_subscribers', array(
+            'list_id'       => intval( $request->get_param( 'id' ) ),
+            'subscriber_id' => intval( $request->get_param( 'sub_id' ) ),
+        ) );
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * Admin: POST /paired/admin/newsletter/lists/{id}/import-csv — bulk-adds subscribers from CSV text.
+     * Expects { csv: "email,first_name,last_name\n..." }; a header row is auto-detected and skipped.
+     */
+    public function admin_import_newsletter_list_csv( WP_REST_Request $request ) {
+        global $wpdb;
+        $list_id = intval( $request->get_param( 'id' ) );
+        if ( ! $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}bpu_newsletter_lists WHERE id = %d", $list_id ) ) ) {
+            return new WP_Error( 'bpu_not_found', __( 'List not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params();
+        $csv  = is_array( $body ) ? (string) ( $body['csv'] ?? '' ) : '';
+        if ( '' === trim( $csv ) ) {
+            return new WP_Error( 'bpu_empty_csv', __( 'No CSV content provided.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $lines    = preg_split( "/\r\n|\r|\n/", trim( $csv ) );
+        $imported = 0;
+        $skipped  = 0;
+
+        foreach ( $lines as $i => $line ) {
+            if ( '' === trim( $line ) ) continue;
+            $cols  = str_getcsv( $line );
+            $email = sanitize_email( trim( $cols[0] ?? '' ) );
+
+            if ( 0 === $i && ! is_email( $email ) ) {
+                continue; // header row
+            }
+            if ( ! is_email( $email ) ) {
+                $skipped++;
+                continue;
+            }
+
+            $subscriber_id = $this->upsert_newsletter_subscriber(
+                $email,
+                sanitize_text_field( trim( $cols[1] ?? '' ) ),
+                sanitize_text_field( trim( $cols[2] ?? '' ) ),
+                'csv_import'
+            );
+            $wpdb->query( $wpdb->prepare(
+                "INSERT IGNORE INTO {$wpdb->prefix}bpu_newsletter_list_subscribers (list_id, subscriber_id, added_at) VALUES (%d, %d, %s)",
+                $list_id, $subscriber_id, current_time( 'mysql' )
+            ) );
+            $imported++;
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'imported' => $imported, 'skipped' => $skipped ), 200 );
+    }
+
+    /** Admin: GET /paired/admin/newsletter/mailpoet/status — detects MailPoet's tables and reports counts. */
+    public function admin_mailpoet_status( WP_REST_Request $request ) {
+        global $wpdb;
+        $newsletters_table = $wpdb->prefix . 'mailpoet_newsletters';
+        $segments_table     = $wpdb->prefix . 'mailpoet_segments';
+        $subscribers_table  = $wpdb->prefix . 'mailpoet_subscribers';
+
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $newsletters_table ) ) !== $newsletters_table ) {
+            return new WP_REST_Response( array( 'success' => true, 'available' => false ), 200 );
+        }
+
+        $newsletter_count = intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL" ) );
+        $segment_count    = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $segments_table ) ) === $segments_table
+            ? intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$segments_table} WHERE deleted_at IS NULL" ) )
+            : 0;
+        $subscriber_count = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $subscribers_table ) ) === $subscribers_table
+            ? intval( $wpdb->get_var( "SELECT COUNT(*) FROM {$subscribers_table} WHERE deleted_at IS NULL" ) )
+            : 0;
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'available'        => true,
+            'newsletter_count' => $newsletter_count,
+            'segment_count'    => $segment_count,
+            'subscriber_count' => $subscriber_count,
+        ), 200 );
+    }
+
+    /**
+     * Best-effort text extraction from a MailPoet newsletter's block-JSON body, turned
+     * into simple HTML paragraphs. MailPoet doesn't persist a single canonical rendered
+     * HTML string for a newsletter, so this recreates readable content for the admin to
+     * refine in the rich-text editor rather than attempting pixel-perfect layout recovery.
+     */
+    private function mailpoet_body_json_to_html( string $body_json ): string {
+        $data = json_decode( $body_json, true );
+        if ( ! is_array( $data ) ) {
+            return $this->text_to_html_paragraphs( $body_json );
+        }
+
+        $texts = array();
+        $walk  = function ( $node ) use ( &$walk, &$texts ) {
+            if ( ! is_array( $node ) ) return;
+            if ( isset( $node['type'] ) && 'text' === $node['type'] && ! empty( $node['text'] ) ) {
+                $texts[] = wp_kses_post( $node['text'] );
+            }
+            foreach ( $node as $value ) {
+                if ( is_array( $value ) ) $walk( $value );
+            }
+        };
+        $walk( $data );
+
+        if ( empty( $texts ) ) {
+            return '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#333;">(No importable content found for this newsletter — MailPoet\'s block layout isn\'t fully supported by this import. Please edit this draft.)</p>';
+        }
+
+        $html = '';
+        foreach ( $texts as $text ) {
+            $html .= '<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#333;">' . $text . '</p>';
+        }
+        return $html;
+    }
+
+    /** Admin: POST /paired/admin/newsletter/mailpoet/import-campaigns — imports MailPoet newsletters as drafts. */
+    public function admin_mailpoet_import_campaigns( WP_REST_Request $request ) {
+        global $wpdb;
+        $newsletters_table = $wpdb->prefix . 'mailpoet_newsletters';
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $newsletters_table ) ) !== $newsletters_table ) {
+            return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found on this site.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params();
+        $ids  = is_array( $body ) && ! empty( $body['ids'] ) ? array_map( 'intval', (array) $body['ids'] ) : array();
+
+        $sql = "SELECT id, subject, body FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL";
+        if ( ! empty( $ids ) ) {
+            $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+            $sql .= $wpdb->prepare( " AND id IN ({$placeholders})", $ids );
+        }
+        $rows = $wpdb->get_results( $sql );
+
+        $table    = $wpdb->prefix . 'bpu_newsletter_campaigns';
+        $now      = current_time( 'mysql' );
+        $imported = array();
+
+        foreach ( $rows as $row ) {
+            $html_body = $this->mailpoet_body_json_to_html( (string) $row->body );
+            $wpdb->insert( $table, array(
+                'subject'    => sanitize_text_field( $row->subject ?: '(Imported from MailPoet)' ),
+                'body'       => wp_kses_post( $html_body ),
+                'audience'   => 'all',
+                'status'     => 'draft',
+                'created_by' => get_current_user_id(),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ) );
+            $imported[] = $wpdb->insert_id;
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'imported_count' => count( $imported ), 'campaign_ids' => $imported ), 200 );
+    }
+
+    /**
+     * Admin: POST /paired/admin/newsletter/mailpoet/import-lists — imports MailPoet segments
+     * (as custom lists) and their subscribed members, matching existing subscribers by email.
+     */
+    public function admin_mailpoet_import_lists( WP_REST_Request $request ) {
+        global $wpdb;
+        $segments_table    = $wpdb->prefix . 'mailpoet_segments';
+        $subscribers_table = $wpdb->prefix . 'mailpoet_subscribers';
+        $link_table_mp     = $wpdb->prefix . 'mailpoet_subscriber_segment';
+
+        if ( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $segments_table ) ) !== $segments_table ) {
+            return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found on this site.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        $body = $request->get_json_params();
+        $ids  = is_array( $body ) && ! empty( $body['ids'] ) ? array_map( 'intval', (array) $body['ids'] ) : array();
+
+        $sql = "SELECT id, name FROM {$segments_table} WHERE deleted_at IS NULL AND type = 'default'";
+        if ( ! empty( $ids ) ) {
+            $placeholders = implode( ',', array_fill( 0, count( $ids ), '%d' ) );
+            $sql .= $wpdb->prepare( " AND id IN ({$placeholders})", $ids );
+        }
+        $mp_segments = $wpdb->get_results( $sql );
+
+        $lists_table = $wpdb->prefix . 'bpu_newsletter_lists';
+        $link_table  = $wpdb->prefix . 'bpu_newsletter_list_subscribers';
+        $now         = current_time( 'mysql' );
+        $summary     = array();
+
+        foreach ( $mp_segments as $seg ) {
+            $existing_list_id = $wpdb->get_var( $wpdb->prepare( "SELECT id FROM {$lists_table} WHERE name = %s", $seg->name ) );
+            if ( $existing_list_id ) {
+                $list_id = intval( $existing_list_id );
+            } else {
+                $wpdb->insert( $lists_table, array(
+                    'name'        => sanitize_text_field( $seg->name ),
+                    'description' => 'Imported from MailPoet',
+                    'created_at'  => $now,
+                    'updated_at'  => $now,
+                ) );
+                $list_id = intval( $wpdb->insert_id );
+            }
+
+            $mp_subscribers = $wpdb->get_results( $wpdb->prepare(
+                "SELECT s.email, s.first_name, s.last_name FROM {$subscribers_table} s
+                 INNER JOIN {$link_table_mp} ls ON ls.subscriber_id = s.id
+                 WHERE ls.segment_id = %d AND s.status = 'subscribed' AND s.deleted_at IS NULL",
+                intval( $seg->id )
+            ) );
+
+            $count = 0;
+            foreach ( $mp_subscribers as $mp_sub ) {
+                if ( ! is_email( $mp_sub->email ) ) continue;
+                $subscriber_id = $this->upsert_newsletter_subscriber(
+                    $mp_sub->email, (string) $mp_sub->first_name, (string) $mp_sub->last_name, 'mailpoet_import'
+                );
+                $wpdb->query( $wpdb->prepare(
+                    "INSERT IGNORE INTO {$link_table} (list_id, subscriber_id, added_at) VALUES (%d, %d, %s)",
+                    $list_id, $subscriber_id, $now
+                ) );
+                $count++;
+            }
+
+            $summary[] = array( 'list_id' => $list_id, 'name' => $seg->name, 'subscribers_imported' => $count );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'lists' => $summary ), 200 );
     }
 
     // ═══════════════════════════════════════════════════════════════
