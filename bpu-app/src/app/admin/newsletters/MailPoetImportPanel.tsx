@@ -2,10 +2,20 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
+interface NewsletterBreakdownRow {
+    type: string;
+    not_deleted: boolean;
+    count: number;
+}
+
 interface MailPoetStatus {
     available: boolean;
     using_external_db?: boolean;
+    resolved_database?: string;
+    resolved_host?: string;
     newsletter_count?: number;
+    newsletter_total?: number;
+    newsletter_breakdown?: NewsletterBreakdownRow[];
     segment_count?: number;
     subscriber_count?: number;
 }
@@ -128,19 +138,21 @@ export default function MailPoetImportPanel() {
         }
     }
 
-    async function handleImportCampaigns() {
-        if (!confirm('Import all MailPoet newsletters as new draft campaigns here? This does not delete anything from MailPoet.')) return;
+    async function handleImportCampaigns(types?: string[], includeDeleted?: boolean) {
+        const label = types ? `all "${types.join(', ')}" newsletters` : 'all standard MailPoet newsletters';
+        if (!confirm(`Import ${label} as new draft campaigns here? This does not delete anything from MailPoet.`)) return;
         setImportingCampaigns(true);
         setCampaignsResult('');
         try {
             const res = await fetch('/api/paired/admin/newsletter/mailpoet/import-campaigns', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({}),
+                body: JSON.stringify({ ...(types ? { types } : {}), ...(includeDeleted ? { include_deleted: true } : {}) }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || 'Import failed.');
             setCampaignsResult(`Imported ${data.imported_count} campaign${data.imported_count !== 1 ? 's' : ''} as drafts. Open the Campaigns tab to review and edit them before sending — MailPoet's block layouts are converted to plain paragraphs, so formatting may need touching up.`);
+            await fetchStatus();
         } catch (e) {
             setCampaignsResult(e instanceof Error ? e.message : 'Import failed.');
         } finally {
@@ -247,36 +259,77 @@ export default function MailPoetImportPanel() {
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                    <div className="card card-p space-y-3">
-                        <h2 className="text-lg font-bold">Import Campaigns</h2>
-                        <p className="text-sm text-text-3">
-                            Found <strong>{status.newsletter_count}</strong> MailPoet newsletter{status.newsletter_count !== 1 ? 's' : ''}.
-                            Importing creates a draft campaign here for each one, so you can review, edit with the rich-text editor,
-                            and send from this tool.
+                <div className="space-y-5">
+                    {(status.resolved_database || status.resolved_host) && (
+                        <p className="text-xs text-text-3">
+                            Connected to database <code>{status.resolved_database}</code>
+                            {status.resolved_host ? <> on host <code>{status.resolved_host}</code></> : null} — check this matches the{' '}
+                            <code>/mailer/</code> install&apos;s <code>wp-config.php</code> if the numbers below look wrong.
                         </p>
-                        <button onClick={handleImportCampaigns} disabled={importingCampaigns || !status.newsletter_count} className="btn btn-purple">
-                            {importingCampaigns ? 'Importing...' : `Import ${status.newsletter_count || 0} Campaign${status.newsletter_count !== 1 ? 's' : ''}`}
-                        </button>
-                        {campaignsResult && (
-                            <div className="alert alert-green text-sm">{campaignsResult}</div>
-                        )}
+                    )}
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <div className="card card-p space-y-3">
+                            <h2 className="text-lg font-bold">Import Campaigns</h2>
+                            <p className="text-sm text-text-3">
+                                Found <strong>{status.newsletter_count}</strong> MailPoet newsletter{status.newsletter_count !== 1 ? 's' : ''} of type &quot;standard&quot;.
+                                Importing creates a draft campaign here for each one, so you can review, edit with the rich-text editor,
+                                and send from this tool.
+                            </p>
+                            <button onClick={() => handleImportCampaigns()} disabled={importingCampaigns || !status.newsletter_count} className="btn btn-purple">
+                                {importingCampaigns ? 'Importing...' : `Import ${status.newsletter_count || 0} Campaign${status.newsletter_count !== 1 ? 's' : ''}`}
+                            </button>
+                            {campaignsResult && (
+                                <div className="alert alert-green text-sm">{campaignsResult}</div>
+                            )}
+                        </div>
+
+                        <div className="card card-p space-y-3">
+                            <h2 className="text-lg font-bold">Import Lists &amp; Subscribers</h2>
+                            <p className="text-sm text-text-3">
+                                Found <strong>{status.segment_count}</strong> MailPoet list{status.segment_count !== 1 ? 's' : ''} and{' '}
+                                <strong>{status.subscriber_count}</strong> subscriber{status.subscriber_count !== 1 ? 's' : ''} total.
+                                Importing creates a matching custom list here for each MailPoet list, with its subscribed members added.
+                            </p>
+                            <button onClick={handleImportLists} disabled={importingLists || !status.segment_count} className="btn btn-purple">
+                                {importingLists ? 'Importing...' : `Import ${status.segment_count || 0} List${status.segment_count !== 1 ? 's' : ''}`}
+                            </button>
+                            {listsResult && (
+                                <div className="alert alert-green text-sm">{listsResult}</div>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="card card-p space-y-3">
-                        <h2 className="text-lg font-bold">Import Lists &amp; Subscribers</h2>
-                        <p className="text-sm text-text-3">
-                            Found <strong>{status.segment_count}</strong> MailPoet list{status.segment_count !== 1 ? 's' : ''} and{' '}
-                            <strong>{status.subscriber_count}</strong> subscriber{status.subscriber_count !== 1 ? 's' : ''} total.
-                            Importing creates a matching custom list here for each MailPoet list, with its subscribed members added.
-                        </p>
-                        <button onClick={handleImportLists} disabled={importingLists || !status.segment_count} className="btn btn-purple">
-                            {importingLists ? 'Importing...' : `Import ${status.segment_count || 0} List${status.segment_count !== 1 ? 's' : ''}`}
-                        </button>
-                        {listsResult && (
-                            <div className="alert alert-green text-sm">{listsResult}</div>
-                        )}
-                    </div>
+                    {status.newsletter_count === 0 && (status.newsletter_total || 0) > 0 && (
+                        <div className="card card-p space-y-3" style={{ borderColor: 'var(--warn, #d97706)' }}>
+                            <h2 className="text-lg font-bold">
+                                Found {status.newsletter_total} newsletter{status.newsletter_total !== 1 ? 's' : ''} — none matched &quot;standard&quot;
+                            </h2>
+                            <p className="text-sm text-text-3">
+                                MailPoet stores newsletters under several types (standard campaigns, automatic emails, post notifications,
+                                welcome emails, etc.), and some may be soft-deleted. Here&apos;s what was actually found — pick which to import:
+                            </p>
+                            <div className="space-y-1">
+                                {(status.newsletter_breakdown || []).map((row, i) => (
+                                    <div key={i} className="flex items-center justify-between gap-2 py-1.5" style={{ borderBottom: '1px solid var(--border)' }}>
+                                        <p className="text-sm">
+                                            Type &quot;<strong>{row.type}</strong>&quot; — {row.not_deleted ? 'active' : 'deleted'}
+                                        </p>
+                                        <div className="flex items-center gap-2">
+                                            <span className="badge badge-gray">{row.count}</span>
+                                            <button
+                                                onClick={() => handleImportCampaigns([row.type], !row.not_deleted)}
+                                                disabled={importingCampaigns}
+                                                className="btn btn-outline btn-sm text-xs"
+                                            >
+                                                Import
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

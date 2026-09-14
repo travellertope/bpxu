@@ -12851,8 +12851,19 @@ jQuery(function($){
         $segments_table     = $prefix . 'mailpoet_segments';
         $subscribers_table  = $prefix . 'mailpoet_subscribers';
 
+        // Which physical database/host this connection actually landed on — printed in the
+        // UI so a "same numbers as before" report can be told apart from "genuinely still 0".
+        $resolved_database = (string) $this->mp_get_var( $conn, 'SELECT DATABASE()' );
+        $resolved_host     = (string) $this->mp_get_var( $conn, "SELECT @@hostname" );
+
         if ( ! $this->mp_table_exists( $conn, $newsletters_table ) ) {
-            return new WP_REST_Response( array( 'success' => true, 'available' => false, 'using_external_db' => $conn['external'] ), 200 );
+            return new WP_REST_Response( array(
+                'success'            => true,
+                'available'          => false,
+                'using_external_db'  => $conn['external'],
+                'resolved_database'  => $resolved_database,
+                'resolved_host'      => $resolved_host,
+            ), 200 );
         }
 
         $newsletter_count = intval( $this->mp_get_var( $conn, "SELECT COUNT(*) FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL" ) );
@@ -12863,13 +12874,37 @@ jQuery(function($){
             ? intval( $this->mp_get_var( $conn, "SELECT COUNT(*) FROM {$subscribers_table} WHERE deleted_at IS NULL" ) )
             : 0;
 
+        // Diagnostic: an unfiltered breakdown of the newsletters table, so a "0 found" can be
+        // told apart from "found some, but none match type=standard/deleted_at IS NULL".
+        $newsletter_total     = intval( $this->mp_get_var( $conn, "SELECT COUNT(*) FROM {$newsletters_table}" ) );
+        $newsletter_breakdown = array();
+        if ( $newsletter_total > 0 && 0 === $newsletter_count ) {
+            $breakdown_rows = $this->mp_get_results( $conn, "
+                SELECT type, (deleted_at IS NULL) AS not_deleted, COUNT(*) AS cnt
+                FROM {$newsletters_table}
+                GROUP BY type, not_deleted
+                ORDER BY cnt DESC
+            " );
+            foreach ( $breakdown_rows as $row ) {
+                $newsletter_breakdown[] = array(
+                    'type'        => $row->type,
+                    'not_deleted' => (bool) intval( $row->not_deleted ),
+                    'count'       => intval( $row->cnt ),
+                );
+            }
+        }
+
         return new WP_REST_Response( array(
-            'success'           => true,
-            'available'         => true,
-            'using_external_db' => $conn['external'],
-            'newsletter_count'  => $newsletter_count,
-            'segment_count'     => $segment_count,
-            'subscriber_count'  => $subscriber_count,
+            'success'              => true,
+            'available'            => true,
+            'using_external_db'    => $conn['external'],
+            'resolved_database'    => $resolved_database,
+            'resolved_host'        => $resolved_host,
+            'newsletter_count'     => $newsletter_count,
+            'newsletter_total'     => $newsletter_total,
+            'newsletter_breakdown' => $newsletter_breakdown,
+            'segment_count'        => $segment_count,
+            'subscriber_count'     => $subscriber_count,
         ), 200 );
     }
 
@@ -12921,10 +12956,20 @@ jQuery(function($){
             return new WP_Error( 'bpu_mailpoet_unavailable', __( 'MailPoet tables were not found.', 'bpu' ), array( 'status' => 404 ) );
         }
 
-        $body = $request->get_json_params();
-        $ids  = is_array( $body ) && ! empty( $body['ids'] ) ? array_map( 'intval', (array) $body['ids'] ) : array();
+        $body            = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+        $ids             = ! empty( $body['ids'] ) ? array_map( 'intval', (array) $body['ids'] ) : array();
+        $types           = ! empty( $body['types'] ) ? array_map( 'sanitize_key', (array) $body['types'] ) : array( 'standard' );
+        $include_deleted = ! empty( $body['include_deleted'] );
 
-        $sql = "SELECT id, subject, body FROM {$newsletters_table} WHERE type = 'standard' AND deleted_at IS NULL";
+        $type_list = implode( ',', array_map( function ( $t ) use ( $conn ) {
+            return "'" . $this->mp_esc( $conn, $t ) . "'";
+        }, $types ) );
+
+        $sql = "SELECT id, subject, body FROM {$newsletters_table} WHERE type IN ({$type_list})";
+        if ( ! $include_deleted ) {
+            $sql .= ' AND deleted_at IS NULL';
+        }
         if ( ! empty( $ids ) ) {
             $sql .= ' AND id IN (' . implode( ',', array_map( 'intval', $ids ) ) . ')';
         }
