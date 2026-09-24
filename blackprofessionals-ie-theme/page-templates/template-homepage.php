@@ -17,17 +17,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 get_header();
 
-$post_id = get_the_ID();
+$post_id        = get_the_ID();
+$hero_image     = bpu_ie_field( 'home_hero_image', $post_id );
+$has_hero_image = ! empty( $hero_image['url'] );
 ?>
 
-<header class="hero">
+<header class="hero<?php echo $has_hero_image ? ' hero--has-image' : ''; ?>"
+        <?php if ( $has_hero_image ) : ?>style="background-image:url('<?php echo esc_url( $hero_image['url'] ); ?>')"<?php endif; ?>>
     <div class="container">
-        <?php $eyebrow = bpu_ie_field( 'home_hero_eyebrow', $post_id ); ?>
-        <?php if ( $eyebrow ) : ?>
-            <span class="hero-eyebrow"><?php echo esc_html( $eyebrow ); ?></span>
-        <?php endif; ?>
         <h1><?php echo esc_html( bpu_ie_field( 'home_hero_heading', $post_id, 'Black Professionals Ireland' ) ); ?></h1>
-        <p class="hero-sub"><?php echo esc_html( bpu_ie_field( 'home_hero_subtext', $post_id, 'We are the fastest-growing network of Black professionals and students across Ireland and we exist to support our members and the business community.' ) ); ?></p>
+        <p class="hero-sub"><?php echo esc_html( bpu_ie_field( 'home_hero_text', $post_id, 'We are the fastest-growing network of Black professionals and students across Ireland and we exist to support our members and the business community.' ) ); ?></p>
         <div class="hero-actions">
             <?php $cta_link = bpu_ie_field( 'home_hero_cta_link', $post_id ); ?>
             <a class="btn btn-primary" href="<?php echo esc_url( $cta_link ?: '#' ); ?>">

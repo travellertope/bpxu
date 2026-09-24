@@ -106,6 +106,7 @@ function bpu_ie_register_acf_fields() {
             array( 'key' => 'field_bpuie_home_text', 'label' => 'Intro Text', 'name' => 'home_hero_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'We are the fastest-growing network of Black professionals and students across Ireland and we exist to support our members and the business community.' ),
             array( 'key' => 'field_bpuie_home_cta_text', 'label' => 'Button Text', 'name' => 'home_hero_cta_text', 'type' => 'text', 'default_value' => 'Sign Up' ),
             array( 'key' => 'field_bpuie_home_cta_link', 'label' => 'Button Link', 'name' => 'home_hero_cta_link', 'type' => 'url' ),
+            array( 'key' => 'field_bpuie_home_hero_image', 'label' => 'Hero Background Image', 'name' => 'home_hero_image', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'medium', 'instructions' => 'Optional. Fills the hero with this image and adds a dark navy overlay so the text remains readable.' ),
 
             array( 'key' => 'field_bpuie_home_tab_members', 'label' => 'For Our Members', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_members_heading', 'label' => 'Section Heading', 'name' => 'members_heading', 'type' => 'text', 'default_value' => 'For Our Members' ),

@@ -11,10 +11,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 get_header();
 
-$post_id = get_the_ID();
+$post_id        = get_the_ID();
+$hero_image     = bpu_ie_field( 'home_hero_image', $post_id );
+$has_hero_image = ! empty( $hero_image['url'] );
 ?>
 
-<header class="hero">
+<header class="hero<?php echo $has_hero_image ? ' hero--has-image' : ''; ?>"
+        <?php if ( $has_hero_image ) : ?>style="background-image:url('<?php echo esc_url( $hero_image['url'] ); ?>')"<?php endif; ?>>
     <div class="container">
         <h1><?php echo esc_html( bpu_ie_field( 'home_hero_heading', $post_id, 'Black Professionals Ireland' ) ); ?></h1>
         <p class="hero-sub"><?php echo esc_html( bpu_ie_field( 'home_hero_text', $post_id ) ); ?></p>
