@@ -50,7 +50,6 @@ if ( $about_heading || $about_text ) :
 <section class="section section-alt" id="about">
     <div class="container">
         <?php if ( $about_heading ) : ?>
-            <p class="section-eyebrow"><?php echo esc_html( bpu_ie_field( 'home_about_eyebrow', $post_id, 'Our Story' ) ); ?></p>
             <h2 class="section-title"><?php echo esc_html( $about_heading ); ?></h2>
         <?php endif; ?>
         <?php if ( $about_text ) : ?>
