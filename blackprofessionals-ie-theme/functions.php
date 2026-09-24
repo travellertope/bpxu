@@ -85,8 +85,24 @@ function bpu_ie_fallback_nav( $args ) {
         <li><a href="#members"><?php esc_html_e( 'Members', 'bpu-ireland' ); ?></a></li>
         <li><a href="#partners"><?php esc_html_e( 'Partners', 'bpu-ireland' ); ?></a></li>
         <li><a href="#ambassadorship"><?php esc_html_e( 'Ambassadorship', 'bpu-ireland' ); ?></a></li>
-        <li><a href="#info"><?php esc_html_e( 'Info', 'bpu-ireland' ); ?></a></li>
     </ul>
+    <?php
+}
+
+/**
+ * Default footer nav shown when no Footer Menu is assigned in WP admin.
+ *
+ * @param array $args wp_nav_menu() args passed by WordPress.
+ */
+function bpu_ie_fallback_footer_nav( $args ) {
+    ?>
+    <nav class="footer-nav">
+        <ul class="menu">
+            <li><a href="#"><?php esc_html_e( 'Imprint', 'bpu-ireland' ); ?></a></li>
+            <li><a href="#"><?php esc_html_e( 'Privacy Policy', 'bpu-ireland' ); ?></a></li>
+            <li><a href="#"><?php esc_html_e( 'Contact', 'bpu-ireland' ); ?></a></li>
+        </ul>
+    </nav>
     <?php
 }
 

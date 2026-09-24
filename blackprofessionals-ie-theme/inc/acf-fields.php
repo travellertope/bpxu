@@ -126,6 +126,8 @@ function bpu_ie_register_acf_fields() {
                     array( 'title' => 'Interview Prep', 'description' => 'Be equipped with the tools and knowledge to excel in interviews and stand out as a top candidate in the competitive job market. Our members are offered a personalised approach to cater to your specific needs and career aspirations.' ),
                 ),
             ),
+            array( 'key' => 'field_bpuie_members_cta_text', 'label' => 'CTA Button Text', 'name' => 'members_cta_text', 'type' => 'text', 'default_value' => 'Become a Member' ),
+            array( 'key' => 'field_bpuie_members_cta_link', 'label' => 'CTA Button Link', 'name' => 'members_cta_link', 'type' => 'url' ),
 
             array( 'key' => 'field_bpuie_home_tab_partners', 'label' => 'For Our Partners', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_partners_intro_heading', 'label' => 'Intro Heading', 'name' => 'partners_intro_heading', 'type' => 'text', 'default_value' => 'Partnership with Black Professionals Ireland' ),
@@ -156,14 +158,6 @@ function bpu_ie_register_acf_fields() {
             array( 'key' => 'field_bpuie_ambassador_cta_text', 'label' => 'Button Text', 'name' => 'ambassador_cta_text', 'type' => 'text', 'default_value' => 'Become an Ambassador' ),
             array( 'key' => 'field_bpuie_ambassador_cta_link', 'label' => 'Button Link', 'name' => 'ambassador_cta_link', 'type' => 'url' ),
 
-            array( 'key' => 'field_bpuie_home_tab_info', 'label' => 'Info Teasers', 'type' => 'tab', 'placement' => 'top' ),
-            array( 'key' => 'field_bpuie_info_members_heading', 'label' => 'Members Teaser Heading', 'name' => 'info_members_heading', 'type' => 'text', 'default_value' => 'Information for Members' ),
-            array( 'key' => 'field_bpuie_info_members_text', 'label' => 'Members Teaser Text', 'name' => 'info_members_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Discover a community that understands your unique journey as a Black student or professional in Ireland.' ),
-            array( 'key' => 'field_bpuie_info_members_link', 'label' => 'Members Teaser Link', 'name' => 'info_members_link', 'type' => 'url' ),
-            array( 'key' => 'field_bpuie_info_partners_heading', 'label' => 'Partners Teaser Heading', 'name' => 'info_partners_heading', 'type' => 'text', 'default_value' => 'Information for Partners' ),
-            array( 'key' => 'field_bpuie_info_partners_text', 'label' => 'Partners Teaser Text', 'name' => 'info_partners_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'We are committed to fostering meaningful partnerships that drive diversity, equity, and inclusion in the professional setting.' ),
-            array( 'key' => 'field_bpuie_info_partners_link', 'label' => 'Partners Teaser Link', 'name' => 'info_partners_link', 'type' => 'url' ),
-            array( 'key' => 'field_bpuie_home_closing_image', 'label' => 'Closing Image (optional)', 'name' => 'home_closing_image', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
         ),
         'location' => array(
             array( array( 'param' => 'page_type',     'operator' => '==', 'value' => 'front_page' ) ),

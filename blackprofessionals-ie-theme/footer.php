@@ -3,8 +3,8 @@
 <footer class="site-footer">
     <div class="container">
         <div class="footer-legal">
-            <p class="footer-org-name"><?php echo esc_html( bpu_ie_option( 'org_legal_name', 'Black Professionals Europe e. V.' ) ); ?></p>
-            <?php $address = bpu_ie_option( 'contact_address' ); ?>
+            <p class="footer-org-name"><?php echo esc_html( bpu_ie_option( 'org_legal_name', 'Black Professionals Ireland' ) ); ?></p>
+            <?php $address = bpu_ie_option( 'contact_address', "Am Fährweg 114\n41468 Neuss" ); ?>
             <?php if ( $address ) : ?>
                 <p class="footer-address"><?php echo wp_kses_post( nl2br( esc_html( $address ) ) ); ?></p>
             <?php endif; ?>
@@ -12,12 +12,12 @@
 
         <?php
         wp_nav_menu( array(
-            'theme_location' => 'footer',
-            'container'      => 'nav',
+            'theme_location'  => 'footer',
+            'container'       => 'nav',
             'container_class' => 'footer-nav',
-            'menu_class'     => 'menu',
-            'fallback_cb'    => false,
-            'depth'          => 1,
+            'menu_class'      => 'menu',
+            'fallback_cb'     => 'bpu_ie_fallback_footer_nav',
+            'depth'           => 1,
         ) );
         ?>
 
@@ -26,7 +26,7 @@
         </div>
 
         <div class="footer-bottom">
-            <span>&copy; <?php echo esc_html( date_i18n( 'Y' ) ); ?> <?php echo esc_html( bpu_ie_option( 'org_legal_name', get_bloginfo( 'name' ) ) ); ?>. <?php esc_html_e( 'All rights reserved.', 'bpu-ireland' ); ?></span>
+            <span>&copy; <?php echo esc_html( date_i18n( 'Y' ) ); ?> <?php echo esc_html( bpu_ie_option( 'org_legal_name', 'Black Professionals Ireland' ) ); ?>. <?php esc_html_e( 'All rights reserved.', 'bpu-ireland' ); ?></span>
         </div>
     </div>
 </footer>

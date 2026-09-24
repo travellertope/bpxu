@@ -79,9 +79,6 @@ function bpu_ie_hero( $eyebrow = '', $heading = '', $subtext = '' ) {
     ?>
     <header class="hero">
         <div class="container">
-            <?php if ( $eyebrow ) : ?>
-                <span class="hero-eyebrow"><?php echo esc_html( $eyebrow ); ?></span>
-            <?php endif; ?>
             <?php if ( $heading ) : ?>
                 <h1><?php echo wp_kses_post( $heading ); ?></h1>
             <?php endif; ?>

@@ -87,6 +87,12 @@ if ( $about_heading || $about_text ) :
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
+        <?php $members_cta_link = bpu_ie_field( 'members_cta_link', $post_id ); ?>
+        <p style="text-align:center; margin-top:2.5rem;">
+            <a class="btn btn-primary" href="<?php echo esc_url( $members_cta_link ?: '#' ); ?>">
+                <?php echo esc_html( bpu_ie_field( 'members_cta_text', $post_id, 'Become a Member' ) ); ?>
+            </a>
+        </p>
     </div>
 </section>
 
@@ -109,13 +115,11 @@ if ( $about_heading || $about_text ) :
         <?php endif; ?>
 
         <?php $partners_cta_link = bpu_ie_field( 'partners_cta_link', $post_id ); ?>
-        <?php if ( $partners_cta_link ) : ?>
-            <p style="text-align:center; margin-top:2.5rem;">
-                <a class="btn btn-primary" href="<?php echo esc_url( $partners_cta_link ); ?>">
-                    <?php echo esc_html( bpu_ie_field( 'partners_cta_text', $post_id, 'Become a Partner' ) ); ?>
-                </a>
-            </p>
-        <?php endif; ?>
+        <p style="text-align:center; margin-top:2.5rem;">
+            <a class="btn btn-primary" href="<?php echo esc_url( $partners_cta_link ?: '#' ); ?>">
+                <?php echo esc_html( bpu_ie_field( 'partners_cta_text', $post_id, 'Become a Partner' ) ); ?>
+            </a>
+        </p>
     </div>
 </section>
 
@@ -126,42 +130,10 @@ if ( $about_heading || $about_text ) :
             <h3 style="color:#fff;"><?php echo esc_html( bpu_ie_field( 'ambassador_subheading', $post_id ) ); ?></h3>
             <p><?php echo esc_html( bpu_ie_field( 'ambassador_text', $post_id ) ); ?></p>
             <?php $ambassador_link = bpu_ie_field( 'ambassador_cta_link', $post_id ); ?>
-            <?php if ( $ambassador_link ) : ?>
-                <a class="btn btn-primary" href="<?php echo esc_url( $ambassador_link ); ?>">
-                    <?php echo esc_html( bpu_ie_field( 'ambassador_cta_text', $post_id, 'Become an Ambassador' ) ); ?>
-                </a>
-            <?php endif; ?>
+            <a class="btn btn-primary" href="<?php echo esc_url( $ambassador_link ?: '#' ); ?>">
+                <?php echo esc_html( bpu_ie_field( 'ambassador_cta_text', $post_id, 'Become an Ambassador' ) ); ?>
+            </a>
         </div>
-    </div>
-</section>
-
-<section class="section section-alt" id="info">
-    <div class="container">
-        <div class="info-teasers">
-            <div class="info-teaser">
-                <h3><?php echo esc_html( bpu_ie_field( 'info_members_heading', $post_id, 'Information for Members' ) ); ?></h3>
-                <p><?php echo esc_html( bpu_ie_field( 'info_members_text', $post_id ) ); ?></p>
-                <?php $info_members_link = bpu_ie_field( 'info_members_link', $post_id ); ?>
-                <?php if ( $info_members_link ) : ?>
-                    <a href="<?php echo esc_url( $info_members_link ); ?>"><?php esc_html_e( 'Learn more', 'bpu-ireland' ); ?> &rarr;</a>
-                <?php endif; ?>
-            </div>
-            <div class="info-teaser">
-                <h3><?php echo esc_html( bpu_ie_field( 'info_partners_heading', $post_id, 'Information for Partners' ) ); ?></h3>
-                <p><?php echo esc_html( bpu_ie_field( 'info_partners_text', $post_id ) ); ?></p>
-                <?php $info_partners_link = bpu_ie_field( 'info_partners_link', $post_id ); ?>
-                <?php if ( $info_partners_link ) : ?>
-                    <a href="<?php echo esc_url( $info_partners_link ); ?>"><?php esc_html_e( 'Learn more', 'bpu-ireland' ); ?> &rarr;</a>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <?php $closing_image = bpu_ie_field( 'home_closing_image', $post_id ); ?>
-        <?php if ( ! empty( $closing_image['url'] ) ) : ?>
-            <div class="home-closing-image">
-                <img src="<?php echo esc_url( $closing_image['url'] ); ?>" alt="<?php echo esc_attr( $closing_image['alt'] ?? '' ); ?>">
-            </div>
-        <?php endif; ?>
     </div>
 </section>
 
