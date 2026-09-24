@@ -164,7 +164,41 @@ function bpu_ie_register_acf_fields() {
             array( 'key' => 'field_bpuie_info_partners_link', 'label' => 'Partners Teaser Link', 'name' => 'info_partners_link', 'type' => 'url' ),
             array( 'key' => 'field_bpuie_home_closing_image', 'label' => 'Closing Image (optional)', 'name' => 'home_closing_image', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
         ),
-        'location' => array( array( array( 'param' => 'page_type', 'operator' => '==', 'value' => 'front_page' ) ) ),
+        'location' => array(
+            array( array( 'param' => 'page_type',     'operator' => '==', 'value' => 'front_page' ) ),
+            array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-homepage.php' ) ),
+        ),
+    ) );
+
+    /* ==========================================================
+     * HOME — extra fields for the Homepage page template
+     * (hero eyebrow/secondary CTA + About section not on front-page.php)
+     * ========================================================== */
+    acf_add_local_field_group( array(
+        'key'    => 'group_bpu_ie_homepage_extra',
+        'title'  => 'Homepage — Extra Fields',
+        'fields' => array(
+            array( 'key' => 'field_bpuie_hp_tab_hero', 'label' => 'Hero', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_hp_hero_eyebrow',       'label' => 'Eyebrow Text',           'name' => 'home_hero_eyebrow',       'type' => 'text', 'default_value' => 'Welcome' ),
+            array( 'key' => 'field_bpuie_hp_hero_subtext',       'label' => 'Hero Subtext',            'name' => 'home_hero_subtext',       'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_hp_hero_secondary_text', 'label' => 'Secondary Button Text',  'name' => 'home_hero_secondary_text', 'type' => 'text',     'default_value' => 'Learn More' ),
+            array( 'key' => 'field_bpuie_hp_hero_secondary_link', 'label' => 'Secondary Button Link',  'name' => 'home_hero_secondary_link', 'type' => 'url' ),
+
+            array( 'key' => 'field_bpuie_hp_tab_about', 'label' => 'About Section', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_hp_about_eyebrow', 'label' => 'Eyebrow', 'name' => 'home_about_eyebrow', 'type' => 'text', 'default_value' => 'Our Story' ),
+            array( 'key' => 'field_bpuie_hp_about_heading', 'label' => 'Heading', 'name' => 'home_about_heading', 'type' => 'text', 'default_value' => 'Black Professionals Europe' ),
+            array(
+                'key'           => 'field_bpuie_hp_about_text',
+                'label'         => 'Body Text',
+                'name'          => 'home_about_text',
+                'type'          => 'textarea',
+                'rows'          => 5,
+                'default_value' => 'Our journey began in 2016 with Edinburgh Black Professionals, a networking platform supporting Black professionals. We\'ve since expanded to become Black Professionals Scotland, spanning the entire country with thousands of members boasting expertise in Tech, Finance, Art, and more. Furthermore, we have also fostered partnerships with businesses and organisations across Scotland.' . "\n\n" . 'Today, we proudly extend our reach to the rest of Europe as Black Professionals Europe driven by our commitment to addressing the unique obstacles faced by Black professionals on the continent and creating a safe space for our members to share their experiences, seek support and connect. In the background, we are growing our membership across Europe and working toward an early 2024 launch. We are truly excited about what is coming and invite you to come on the journey with us.',
+            ),
+            array( 'key' => 'field_bpuie_hp_about_link_text', 'label' => 'Link Text', 'name' => 'home_about_link_text', 'type' => 'text', 'default_value' => 'Read Our Story' ),
+            array( 'key' => 'field_bpuie_hp_about_link',      'label' => 'Link URL',  'name' => 'home_about_link',      'type' => 'url' ),
+        ),
+        'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-homepage.php' ) ) ),
     ) );
 
     /* ==========================================================
