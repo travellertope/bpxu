@@ -30,6 +30,33 @@ $has_hero_image = ! empty( $hero_image['url'] );
     </div>
 </header>
 
+<?php
+$about_heading = bpu_ie_field( 'home_about_heading', $post_id, 'Black Professionals Europe' );
+$about_text    = bpu_ie_field( 'home_about_text', $post_id, 'Our journey began in 2016 with Edinburgh Black Professionals, a networking platform supporting Black professionals. We\'ve since expanded to become Black Professionals Scotland, spanning the entire country with thousands of members boasting expertise in Tech, Finance, Art, and more. Furthermore, we have also fostered partnerships with businesses and organisations across Scotland.' . "\n\n" . 'Today, we proudly extend our reach to the rest of Europe as Black Professionals Europe driven by our commitment to addressing the unique obstacles faced by Black professionals on the continent and creating a safe space for our members to share their experiences, seek support and connect. In the background, we are growing our membership across Europe and working toward an early 2024 launch. We are truly excited about what is coming and invite you to come on the journey with us.' );
+if ( $about_heading || $about_text ) :
+?>
+<section class="section section-alt" id="about">
+    <div class="container">
+        <?php if ( $about_heading ) : ?>
+            <h2 class="section-title"><?php echo esc_html( $about_heading ); ?></h2>
+        <?php endif; ?>
+        <?php if ( $about_text ) : ?>
+            <div class="section-sub" style="max-width:820px; text-align:left; margin:0 auto 2rem;">
+                <?php echo wp_kses_post( wpautop( $about_text ) ); ?>
+            </div>
+        <?php endif; ?>
+        <?php $about_link = bpu_ie_field( 'home_about_link', $post_id ); ?>
+        <?php if ( $about_link ) : ?>
+            <p style="text-align:center;">
+                <a class="btn btn-ghost" href="<?php echo esc_url( $about_link ); ?>">
+                    <?php echo esc_html( bpu_ie_field( 'home_about_link_text', $post_id, 'Read Our Story' ) ); ?>
+                </a>
+            </p>
+        <?php endif; ?>
+    </div>
+</section>
+<?php endif; ?>
+
 <section class="section" id="members">
     <div class="container">
         <h2 class="section-title"><?php echo esc_html( bpu_ie_field( 'members_heading', $post_id, 'For Our Members' ) ); ?></h2>
