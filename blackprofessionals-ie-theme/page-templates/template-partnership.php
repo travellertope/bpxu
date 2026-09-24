@@ -31,9 +31,9 @@ bpu_ie_hero(
 
 <?php
 bpu_ie_cta_band(
-    bpu_ie_field( 'partnership_cta_heading', $post_id, 'Ready to take the next step?' ),
-    bpu_ie_field( 'partnership_cta_text', $post_id ),
-    bpu_ie_field( 'partnership_cta_button_text', $post_id, 'Get in Touch' ),
+    bpu_ie_field( 'partnership_cta_heading', $post_id, 'Ready to partner with us?' ),
+    bpu_ie_field( 'partnership_cta_text', $post_id, 'Join organisations committed to diversity, equity, and inclusion — and gain access to Ireland\'s most dynamic network of Black professionals.' ),
+    bpu_ie_field( 'partnership_cta_button_text', $post_id, 'Become a Partner' ),
     bpu_ie_field( 'partnership_cta_button_link', $post_id )
 );
 

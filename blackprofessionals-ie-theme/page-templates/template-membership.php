@@ -31,9 +31,9 @@ bpu_ie_hero(
 
 <?php
 bpu_ie_cta_band(
-    bpu_ie_field( 'membership_cta_heading', $post_id, 'Ready to take the next step?' ),
-    bpu_ie_field( 'membership_cta_text', $post_id ),
-    bpu_ie_field( 'membership_cta_button_text', $post_id, 'Get in Touch' ),
+    bpu_ie_field( 'membership_cta_heading', $post_id, 'Ready to join us?' ),
+    bpu_ie_field( 'membership_cta_text', $post_id, 'Become part of the fastest-growing network of Black professionals and students across Ireland.' ),
+    bpu_ie_field( 'membership_cta_button_text', $post_id, 'Sign Up Now' ),
     bpu_ie_field( 'membership_cta_button_link', $post_id )
 );
 
