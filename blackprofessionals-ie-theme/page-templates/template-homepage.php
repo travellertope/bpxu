@@ -53,7 +53,9 @@ if ( $about_heading || $about_text ) :
             <h2 class="section-title"><?php echo esc_html( $about_heading ); ?></h2>
         <?php endif; ?>
         <?php if ( $about_text ) : ?>
-            <p class="section-sub" style="max-width:820px;"><?php echo esc_html( $about_text ); ?></p>
+            <div class="section-sub" style="max-width:820px; text-align:left; margin:0 auto 2rem;">
+                <?php echo wp_kses_post( wpautop( $about_text ) ); ?>
+            </div>
         <?php endif; ?>
         <?php $about_link = bpu_ie_field( 'home_about_link', $post_id ); ?>
         <?php if ( $about_link ) : ?>
