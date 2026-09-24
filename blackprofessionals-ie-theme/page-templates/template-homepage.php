@@ -43,8 +43,8 @@ $has_hero_image = ! empty( $hero_image['url'] );
 </header>
 
 <?php
-$about_heading = bpu_ie_field( 'home_about_heading', $post_id );
-$about_text    = bpu_ie_field( 'home_about_text', $post_id );
+$about_heading = bpu_ie_field( 'home_about_heading', $post_id, 'Black Professionals Europe' );
+$about_text    = bpu_ie_field( 'home_about_text', $post_id, 'Our journey began in 2016 with Edinburgh Black Professionals, a networking platform supporting Black professionals. We\'ve since expanded to become Black Professionals Scotland, spanning the entire country with thousands of members boasting expertise in Tech, Finance, Art, and more. Furthermore, we have also fostered partnerships with businesses and organisations across Scotland.' . "\n\n" . 'Today, we proudly extend our reach to the rest of Europe as Black Professionals Europe driven by our commitment to addressing the unique obstacles faced by Black professionals on the continent and creating a safe space for our members to share their experiences, seek support and connect. In the background, we are growing our membership across Europe and working toward an early 2024 launch. We are truly excited about what is coming and invite you to come on the journey with us.' );
 if ( $about_heading || $about_text ) :
 ?>
 <section class="section section-alt" id="about">
