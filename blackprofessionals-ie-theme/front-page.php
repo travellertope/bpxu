@@ -64,7 +64,6 @@ $has_hero_image = ! empty( $hero_image['url'] );
         <h2 class="section-title"><?php echo esc_html( bpu_ie_field( 'partners_intro_heading', $post_id, 'Partnership with Black Professionals Ireland' ) ); ?></h2>
         <p class="section-sub"><?php echo esc_html( bpu_ie_field( 'partners_intro_text', $post_id ) ); ?></p>
 
-        <h3 class="section-title" style="margin-top:2.5rem;"><?php echo esc_html( bpu_ie_field( 'partners_heading', $post_id, 'For Our Partners' ) ); ?></h3>
         <?php $partners_cards = bpu_ie_field( 'partners_cards', $post_id ); ?>
         <?php if ( ! empty( $partners_cards ) ) : ?>
             <div class="card-grid">
