@@ -16,7 +16,7 @@ $hero_image     = bpu_ie_field( 'home_hero_image', $post_id );
 $has_hero_image = ! empty( $hero_image['url'] );
 ?>
 
-<header class="hero<?php echo $has_hero_image ? ' hero--has-image' : ''; ?>"
+<header id="hero" class="hero<?php echo $has_hero_image ? ' hero--has-image' : ''; ?>"
         <?php if ( $has_hero_image ) : ?>style="background-image:url('<?php echo esc_url( $hero_image['url'] ); ?>')"<?php endif; ?>>
     <div class="container">
         <h1><?php echo esc_html( bpu_ie_field( 'home_hero_heading', $post_id, 'Black Professionals Ireland' ) ); ?></h1>
@@ -98,7 +98,7 @@ $has_hero_image = ! empty( $hero_image['url'] );
     </div>
 </section>
 
-<section class="section section-alt">
+<section class="section section-alt" id="info">
     <div class="container">
         <div class="info-teasers">
             <div class="info-teaser">

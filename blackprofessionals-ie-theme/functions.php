@@ -72,6 +72,25 @@ function bpu_ie_acf_notice() {
 add_action( 'admin_notices', 'bpu_ie_acf_notice' );
 
 /**
+ * Default anchor-based nav shown when no Primary Menu is assigned in WP admin.
+ * Once an editor creates and assigns a menu to the "Primary Menu" location this
+ * function is never called — wp_nav_menu() uses the real menu instead.
+ *
+ * @param array $args wp_nav_menu() args passed by WordPress.
+ */
+function bpu_ie_fallback_nav( $args ) {
+    ?>
+    <ul class="menu">
+        <li><a href="#about"><?php esc_html_e( 'Our Story', 'bpu-ireland' ); ?></a></li>
+        <li><a href="#members"><?php esc_html_e( 'Members', 'bpu-ireland' ); ?></a></li>
+        <li><a href="#partners"><?php esc_html_e( 'Partners', 'bpu-ireland' ); ?></a></li>
+        <li><a href="#ambassadorship"><?php esc_html_e( 'Ambassadorship', 'bpu-ireland' ); ?></a></li>
+        <li><a href="#info"><?php esc_html_e( 'Info', 'bpu-ireland' ); ?></a></li>
+    </ul>
+    <?php
+}
+
+/**
  * Fallback content width.
  */
 if ( ! isset( $content_width ) ) {

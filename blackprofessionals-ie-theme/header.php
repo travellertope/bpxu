@@ -38,7 +38,7 @@ if ( ! defined( 'ABSPATH' ) ) {
                 'theme_location' => 'primary',
                 'container'      => false,
                 'menu_class'     => 'menu',
-                'fallback_cb'    => false,
+                'fallback_cb'    => 'bpu_ie_fallback_nav',
             ) );
             ?>
         </nav>
