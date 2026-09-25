@@ -300,9 +300,14 @@ function bpu_ie_register_acf_fields() {
         'key'    => 'group_bpu_ie_our_team',
         'title'  => 'Our Team Page Content',
         'fields' => array(
-            array( 'key' => 'field_bpuie_team_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'team_hero_eyebrow', 'type' => 'text', 'default_value' => 'Our Team' ),
-            array( 'key' => 'field_bpuie_team_heading', 'label' => 'Heading', 'name' => 'team_hero_heading', 'type' => 'text', 'default_value' => 'Board Members' ),
-            array( 'key' => 'field_bpuie_team_subtext', 'label' => 'Subtext', 'name' => 'team_hero_subtext', 'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_team_tab_hero', 'label' => 'Hero', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_team_heading', 'label' => 'Heading', 'name' => 'team_hero_heading', 'type' => 'text', 'default_value' => 'Meet the Team' ),
+            array( 'key' => 'field_bpuie_team_subtext', 'label' => 'Hero Subtext', 'name' => 'team_hero_subtext', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Black Professionals Ireland is led by a dedicated group of professionals who are passionate about building an equitable future for the Black community across Ireland.' ),
+
+            array( 'key' => 'field_bpuie_team_tab_intro', 'label' => 'Intro', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_team_intro_text', 'label' => 'Intro Text', 'name' => 'team_intro_text', 'type' => 'textarea', 'rows' => 3, 'default_value' => 'Our board and leadership team bring diverse backgrounds in technology, finance, law, and the arts. Together, they steer our programmes, partnerships, and community initiatives to create lasting impact for Black professionals in Ireland.' ),
+
+            array( 'key' => 'field_bpuie_team_tab_members', 'label' => 'Team Members', 'type' => 'tab', 'placement' => 'top' ),
             array(
                 'key' => 'field_bpuie_team_members', 'label' => 'Team Members', 'name' => 'team_members', 'type' => 'repeater', 'layout' => 'block', 'button_label' => 'Add Team Member',
                 'sub_fields' => array(
@@ -322,6 +327,12 @@ function bpu_ie_register_acf_fields() {
                     array( 'name' => 'Esther Bornefeld', 'role' => 'Operations & Programs' ),
                 ),
             ),
+
+            array( 'key' => 'field_bpuie_team_tab_cta', 'label' => 'CTA Band', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_team_cta_heading', 'label' => 'CTA Heading', 'name' => 'team_cta_heading', 'type' => 'text', 'default_value' => 'Want to get involved?' ),
+            array( 'key' => 'field_bpuie_team_cta_text', 'label' => 'CTA Description', 'name' => 'team_cta_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'There are many ways to contribute — from volunteering and mentoring to becoming an ambassador for Black Professionals Ireland.' ),
+            array( 'key' => 'field_bpuie_team_cta_btn_text', 'label' => 'Button Text', 'name' => 'team_cta_button_text', 'type' => 'text', 'default_value' => 'Become an Ambassador' ),
+            array( 'key' => 'field_bpuie_team_cta_btn_link', 'label' => 'Button Link', 'name' => 'team_cta_button_link', 'type' => 'url' ),
         ),
         'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-our-team.php' ) ) ),
     ) );
