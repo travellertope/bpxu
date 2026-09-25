@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'BPU_IE_VERSION', '1.0.0' );
+define( 'BPU_IE_VERSION', '1.0.1' );
 define( 'BPU_IE_DIR', get_template_directory() );
 define( 'BPU_IE_URI', get_template_directory_uri() );
 
