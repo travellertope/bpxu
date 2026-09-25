@@ -216,6 +216,13 @@ p { margin: 0 0 1rem; color: var(--text-2); }
 .hero-sub { max-width: 620px; margin: 0 auto 2rem; font-size: 1.1rem; }
 .hero-actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; }
 
+/* Navy inner-page hero */
+.hero--navy { background: var(--navy); }
+.hero--navy h1,
+.hero--navy h2,
+.hero--navy p { color: #fff; }
+.hero--navy .hero-sub { color: rgba(255,255,255,0.82); }
+
 /* Hero with background image + overlay */
 .hero--has-image {
   background-color: var(--navy-dark);
@@ -279,6 +286,55 @@ p { margin: 0 0 1rem; color: var(--text-2); }
 .card ul { margin-top: 0.8rem; }
 .card ul li { position: relative; padding-left: 1.4rem; margin-bottom: 0.5rem; color: var(--text-2); font-size: 0.95rem; }
 .card ul li::before { content: '→'; position: absolute; left: 0; color: var(--red); font-weight: bold; }
+
+/* Two-column card grid (force 2 cols on wider screens) */
+@media (min-width: 640px) {
+  .card-grid.two-col { grid-template-columns: 1fr 1fr; }
+}
+
+/* Card label (replaces h3 inside story cards) */
+.card-label {
+  display: block; font-size: 0.72rem; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.14em;
+  color: var(--red); margin-bottom: 0.75rem;
+}
+
+/* Accent-top card — navy top border stripe */
+.card--accent-top { border-top: 4px solid var(--navy); }
+
+/* Problem card — red left border */
+.card--problem { border-left: 4px solid var(--red); }
+
+/* Solution card — navy left border */
+.card--solution { border-left: 4px solid var(--navy); }
+
+/* Card bullets (inside problem card) */
+.card-bullets { margin: 0.5rem 0 0; }
+.card-bullets li {
+  position: relative; padding-left: 1.4rem; margin-bottom: 0.6rem;
+  color: var(--text-2); font-size: 0.95rem;
+}
+.card-bullets li::before { content: '→'; position: absolute; left: 0; color: var(--red); font-weight: bold; }
+
+/* Story prose block */
+.story-prose {
+  max-width: 780px; margin: 0 auto; text-align: center;
+  font-size: 1.05rem; line-height: 1.8; color: var(--text-2);
+}
+.story-prose p { margin-bottom: 1.4rem; }
+
+/* Impact list */
+.impact-list { max-width: 820px; margin: 2.5rem auto 0; display: flex; flex-direction: column; gap: 1.4rem; }
+.impact-item {
+  display: flex; gap: 1.2rem; align-items: flex-start;
+  background: var(--navy-light); border-radius: 10px; padding: 1.4rem 1.6rem;
+}
+.impact-dot {
+  flex-shrink: 0; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--red); margin-top: 0.35rem;
+}
+.impact-item div { color: var(--text-2); line-height: 1.7; }
+.impact-item div p { margin: 0; color: inherit; }
 
 /* Team grid */
 .team-grid {
