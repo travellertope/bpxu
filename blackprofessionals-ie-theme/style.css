@@ -228,7 +228,7 @@ p { margin: 0 0 1rem; color: var(--text-2); }
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.62);
+  background: rgba(0, 0, 0, 0.78);
   z-index: 0;
 }
 .hero--has-image .container { position: relative; z-index: 1; color: #fff; }
