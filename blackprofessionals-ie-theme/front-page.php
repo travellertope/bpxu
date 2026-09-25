@@ -41,11 +41,11 @@ if ( $about_heading || $about_text ) :
             <h2 class="section-title"><?php echo esc_html( $about_heading ); ?></h2>
         <?php endif; ?>
         <?php if ( $about_text ) : ?>
-            <div class="section-sub" style="max-width:820px; text-align:left; margin:0 auto 2rem;">
+            <div class="section-sub" style="max-width:820px; text-align:center; margin:0 auto 2rem;">
                 <?php echo wp_kses_post( wpautop( $about_text ) ); ?>
             </div>
         <?php endif; ?>
-        <?php $about_link = bpu_ie_field( 'home_about_link', $post_id ); ?>
+        <?php $about_link = bpu_ie_field( 'home_about_link', $post_id, home_url( '/about/' ) ); ?>
         <?php if ( $about_link ) : ?>
             <p style="text-align:center;">
                 <a class="btn btn-ghost" href="<?php echo esc_url( $about_link ); ?>">
@@ -77,7 +77,7 @@ if ( $about_heading || $about_text ) :
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
-        <?php $members_cta_link = bpu_ie_field( 'members_cta_link', $post_id ); ?>
+        <?php $members_cta_link = bpu_ie_field( 'members_cta_link', $post_id, home_url( '/membership/' ) ); ?>
         <p style="text-align:center; margin-top:2.5rem;">
             <a class="btn btn-primary" href="<?php echo esc_url( $members_cta_link ?: '#' ); ?>">
                 <?php echo esc_html( bpu_ie_field( 'members_cta_text', $post_id, 'Become a Member' ) ); ?>
@@ -103,7 +103,7 @@ if ( $about_heading || $about_text ) :
             </div>
         <?php endif; ?>
 
-        <?php $partners_cta_link = bpu_ie_field( 'partners_cta_link', $post_id ); ?>
+        <?php $partners_cta_link = bpu_ie_field( 'partners_cta_link', $post_id, home_url( '/partnership/' ) ); ?>
         <p style="text-align:center; margin-top:2.5rem;">
             <a class="btn btn-primary" href="<?php echo esc_url( $partners_cta_link ?: '#' ); ?>">
                 <?php echo esc_html( bpu_ie_field( 'partners_cta_text', $post_id, 'Become a Partner' ) ); ?>
@@ -118,7 +118,7 @@ if ( $about_heading || $about_text ) :
             <h2><?php echo esc_html( bpu_ie_field( 'ambassador_heading', $post_id, 'Ambassadorship' ) ); ?></h2>
             <h3 style="color:#fff;"><?php echo esc_html( bpu_ie_field( 'ambassador_subheading', $post_id ) ); ?></h3>
             <p><?php echo esc_html( bpu_ie_field( 'ambassador_text', $post_id ) ); ?></p>
-            <?php $ambassador_link = bpu_ie_field( 'ambassador_cta_link', $post_id ); ?>
+            <?php $ambassador_link = bpu_ie_field( 'ambassador_cta_link', $post_id, home_url( '/ambassadorship/' ) ); ?>
             <a class="btn btn-primary" href="<?php echo esc_url( $ambassador_link ?: '#' ); ?>">
                 <?php echo esc_html( bpu_ie_field( 'ambassador_cta_text', $post_id, 'Become an Ambassador' ) ); ?>
             </a>

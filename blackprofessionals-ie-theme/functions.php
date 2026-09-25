@@ -81,10 +81,10 @@ add_action( 'admin_notices', 'bpu_ie_acf_notice' );
 function bpu_ie_fallback_nav( $args ) {
     ?>
     <ul class="menu">
-        <li><a href="#about"><?php esc_html_e( 'Our Story', 'bpu-ireland' ); ?></a></li>
-        <li><a href="#members"><?php esc_html_e( 'Members', 'bpu-ireland' ); ?></a></li>
-        <li><a href="#partners"><?php esc_html_e( 'Partners', 'bpu-ireland' ); ?></a></li>
-        <li><a href="#ambassadorship"><?php esc_html_e( 'Ambassadorship', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>"><?php esc_html_e( 'Our Story', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/membership/' ) ); ?>"><?php esc_html_e( 'Members', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/partnership/' ) ); ?>"><?php esc_html_e( 'Partners', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/ambassadorship/' ) ); ?>"><?php esc_html_e( 'Ambassadorship', 'bpu-ireland' ); ?></a></li>
     </ul>
     <?php
 }
@@ -98,9 +98,9 @@ function bpu_ie_fallback_footer_nav( $args ) {
     ?>
     <nav class="footer-nav">
         <ul class="menu">
-            <li><a href="#"><?php esc_html_e( 'Imprint', 'bpu-ireland' ); ?></a></li>
-            <li><a href="#"><?php esc_html_e( 'Privacy Policy', 'bpu-ireland' ); ?></a></li>
-            <li><a href="#"><?php esc_html_e( 'Contact', 'bpu-ireland' ); ?></a></li>
+            <li><a href="<?php echo esc_url( home_url( '/imprint/' ) ); ?>"><?php esc_html_e( 'Imprint', 'bpu-ireland' ); ?></a></li>
+            <li><a href="<?php echo esc_url( home_url( '/privacy/' ) ); ?>"><?php esc_html_e( 'Privacy Policy', 'bpu-ireland' ); ?></a></li>
+            <li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>"><?php esc_html_e( 'Contact', 'bpu-ireland' ); ?></a></li>
         </ul>
     </nav>
     <?php
