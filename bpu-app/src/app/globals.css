@@ -564,6 +564,15 @@ body {
   100% { transform: translateX(-50%); }
 }
 
+/* ── Members carousel ── */
+.members-carousel {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.members-carousel::-webkit-scrollbar { display: none; }
+.scroll-snap-align-start { scroll-snap-align: start; }
+
 /* ── Hero portrait carousel ── */
 .photo-carousel-col {
   /* fade-in at top only — bottom meets the stats bar directly */
