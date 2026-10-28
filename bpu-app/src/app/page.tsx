@@ -153,7 +153,7 @@ export default function HomePage() {
       </nav>
 
       {/* ── Hero ── */}
-      <header className="pt-32 pb-16 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto min-h-[90vh] flex flex-col justify-center">
+      <header className="pt-32 pb-0 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
           {/* Text */}
@@ -190,8 +190,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Portrait carousel – infinite vertical scroll, two offset columns */}
-          <div className="relative grid grid-cols-2 gap-4 h-[500px] sm:h-[600px]">
+          {/* Portrait carousel – fills viewport height so images meet the stats bar */}
+          <div className="relative grid grid-cols-2 gap-4 h-[calc(100vh-8rem)] min-h-[500px]">
             {/* Left column */}
             <div className="overflow-hidden photo-carousel-col">
               <div className="photo-col-inner">
@@ -224,49 +224,27 @@ export default function HomePage() {
         </div>
       </header>
 
-      {/* ── Metrics Marquee ── */}
-      <section ref={marqueeRef} className="bg-hp-dark text-white border-brutal-b py-6 relative overflow-hidden">
-        <div className="marquee-container">
-          <div className="marquee-content flex gap-16 font-black text-4xl uppercase tracking-tighter items-center">
-            {/* Set 1 */}
-            <div className="flex items-center gap-4">
-              <UsersThree weight="fill" className="text-hp-accent" size={36} />
+      {/* ── Metrics bar – static single row ── */}
+      <section ref={marqueeRef} className="bg-hp-dark text-white border-brutal-b py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-y-6 gap-x-6 font-black text-2xl sm:text-3xl lg:text-4xl uppercase tracking-tighter">
+            <div className="flex items-center gap-3">
+              <UsersThree weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
               <span>{members.toLocaleString()}+ Members</span>
             </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            <div className="flex items-center gap-4">
-              <Buildings weight="fill" className="text-hp-accent" size={36} />
+            <div className="w-2 h-2 bg-white rounded-full hidden lg:block flex-shrink-0" />
+            <div className="flex items-center gap-3">
+              <Buildings weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
               <span>{partners.toLocaleString()}+ Corporate Partners</span>
             </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            <div className="flex items-center gap-4">
-              <Briefcase weight="fill" className="text-hp-accent" size={36} />
+            <div className="w-2 h-2 bg-white rounded-full hidden lg:block flex-shrink-0" />
+            <div className="flex items-center gap-3">
+              <Briefcase weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
               <span>{placements.toLocaleString()}+ Work Placements</span>
             </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            <div className="flex items-center gap-4">
-              <MagnifyingGlass weight="fill" className="text-hp-accent" size={36} />
-              <span>{vacancies.toLocaleString()}+ Vacancies</span>
-            </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            {/* Set 2 — duplicate for seamless loop */}
-            <div className="flex items-center gap-4">
-              <UsersThree weight="fill" className="text-hp-accent" size={36} />
-              <span>{members.toLocaleString()}+ Members</span>
-            </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            <div className="flex items-center gap-4">
-              <Buildings weight="fill" className="text-hp-accent" size={36} />
-              <span>{partners.toLocaleString()}+ Corporate Partners</span>
-            </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            <div className="flex items-center gap-4">
-              <Briefcase weight="fill" className="text-hp-accent" size={36} />
-              <span>{placements.toLocaleString()}+ Work Placements</span>
-            </div>
-            <div className="w-3 h-3 bg-white rounded-full flex-shrink-0" />
-            <div className="flex items-center gap-4">
-              <MagnifyingGlass weight="fill" className="text-hp-accent" size={36} />
+            <div className="w-2 h-2 bg-white rounded-full hidden lg:block flex-shrink-0" />
+            <div className="flex items-center gap-3">
+              <MagnifyingGlass weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
               <span>{vacancies.toLocaleString()}+ Vacancies</span>
             </div>
           </div>

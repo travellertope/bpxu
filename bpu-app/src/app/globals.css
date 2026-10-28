@@ -566,8 +566,9 @@ body {
 
 /* ── Hero portrait carousel ── */
 .photo-carousel-col {
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
-  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  /* fade-in at top only — bottom meets the stats bar directly */
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%);
 }
 .photo-col-inner {
   display: flex;
