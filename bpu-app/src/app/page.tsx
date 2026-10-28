@@ -98,16 +98,9 @@ export default function HomePage() {
           <div className="flex justify-between h-20 items-center">
 
             {/* Logo */}
-            <div className="flex-shrink-0 flex items-center gap-2">
-              <div className="w-8 h-8 bg-hp-dark rounded-full flex items-center justify-center text-hp-bg font-bold">
-                B
-              </div>
-              <span className="font-black text-xl tracking-tight leading-none">
-                BLACK<br />PROFESSIONALS
-              </span>
-              <span className="ml-2 text-xs font-bold bg-hp-dark text-white px-2 py-1 rounded-full uppercase tracking-wider hidden sm:block">
-                UK
-              </span>
+            <div className="flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/bpu-logo.png" alt="Black Professionals UK" className="h-12 w-auto" />
             </div>
 
             {/* Desktop nav */}
@@ -565,13 +558,11 @@ export default function HomePage() {
 
             {/* Brand */}
             <div className="lg:col-span-1">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-hp-dark font-black text-xl">
-                  B
+              <div className="mb-6">
+                <div className="inline-block bg-white rounded-xl px-3 py-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/bpu-logo.png" alt="Black Professionals UK" className="h-10 w-auto" />
                 </div>
-                <span className="font-black text-xl tracking-tight leading-none">
-                  BLACK<br />PROFESSIONALS UK
-                </span>
               </div>
               <p className="text-gray-400 font-medium text-sm mb-6">
                 Equipping professionals. Meeting inclusion ambitions. Dismantling barriers.

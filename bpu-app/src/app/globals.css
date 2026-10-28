@@ -41,13 +41,13 @@
   --color-purple:      var(--purple);
   --color-purple-dark: var(--purple-dark);
 
-  /* Homepage (web.blackprofessionals.uk) design tokens */
+  /* Homepage (web.blackprofessionals.uk) design tokens — BPU brand palette */
   --color-hp-bg:     #F4F4F0;
-  --color-hp-dark:   #0F0F0F;
-  --color-hp-accent: #D9381E;
+  --color-hp-dark:   #001478;
+  --color-hp-accent: #C8102E;
 
-  --shadow-brutal:    6px 6px 0px 0px rgba(15,15,15,1);
-  --shadow-brutal-sm: 3px 3px 0px 0px rgba(15,15,15,1);
+  --shadow-brutal:    6px 6px 0px 0px rgba(0,20,120,1);
+  --shadow-brutal-sm: 3px 3px 0px 0px rgba(0,20,120,1);
 }
 
 /* ─────────────────────────────────────────
@@ -539,15 +539,15 @@ body {
 /* ─────────────────────────────────────────
    HOMEPAGE — neobrutalist utilities
 ───────────────────────────────────────── */
-.border-brutal   { border: 3px solid #0F0F0F; }
-.border-brutal-b { border-bottom: 3px solid #0F0F0F; }
+.border-brutal   { border: 3px solid #001478; }
+.border-brutal-b { border-bottom: 3px solid #001478; }
 
 .interactive-card {
   transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 .interactive-card:hover {
   transform: translate(-4px, -4px);
-  box-shadow: 10px 10px 0px 0px rgba(15,15,15,1);
+  box-shadow: 10px 10px 0px 0px rgba(0,20,120,1);
 }
 
 .marquee-container { overflow: hidden; width: 100%; }
