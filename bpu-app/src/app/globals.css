@@ -40,6 +40,14 @@
   --color-brand-dark:  var(--brand-dark);
   --color-purple:      var(--purple);
   --color-purple-dark: var(--purple-dark);
+
+  /* Homepage (web.blackprofessionals.uk) design tokens */
+  --color-hp-bg:     #F4F4F0;
+  --color-hp-dark:   #0F0F0F;
+  --color-hp-accent: #D9381E;
+
+  --shadow-brutal:    6px 6px 0px 0px rgba(15,15,15,1);
+  --shadow-brutal-sm: 3px 3px 0px 0px rgba(15,15,15,1);
 }
 
 /* ─────────────────────────────────────────
@@ -527,3 +535,25 @@ body {
 }
 .job-description code { padding: 1px 5px; }
 .job-description pre { padding: 12px 16px; overflow-x: auto; }
+
+/* ─────────────────────────────────────────
+   HOMEPAGE — neobrutalist utilities
+───────────────────────────────────────── */
+.border-brutal   { border: 3px solid #0F0F0F; }
+.border-brutal-b { border-bottom: 3px solid #0F0F0F; }
+
+.interactive-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.interactive-card:hover {
+  transform: translate(-4px, -4px);
+  box-shadow: 10px 10px 0px 0px rgba(15,15,15,1);
+}
+
+.marquee-container { overflow: hidden; white-space: nowrap; width: 100%; }
+.marquee-content   { display: inline-block; animation: marquee 25s linear infinite; }
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
