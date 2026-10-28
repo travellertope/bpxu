@@ -285,7 +285,7 @@ export default function HomePage() {
 
         <div
           id="members-carousel"
-          className="flex gap-6 overflow-x-auto scroll-snap-x-mandatory px-4 sm:px-6 lg:px-8 pb-4 members-carousel"
+          className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
           {[
             { name: 'Lawrence Dada',      role: 'Process and FA Engineer' },
