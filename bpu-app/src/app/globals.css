@@ -550,8 +550,14 @@ body {
   box-shadow: 10px 10px 0px 0px rgba(15,15,15,1);
 }
 
-.marquee-container { overflow: hidden; white-space: nowrap; width: 100%; }
-.marquee-content   { display: inline-block; animation: marquee 25s linear infinite; }
+.marquee-container { overflow: hidden; width: 100%; }
+.marquee-content {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 4rem;
+  animation: marquee 25s linear infinite;
+}
 
 @keyframes marquee {
   0%   { transform: translateX(0); }

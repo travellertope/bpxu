@@ -510,12 +510,16 @@ export default function HomePage() {
             Proudly partnering with industry leaders to create actionable change.
           </p>
 
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 mb-16">
-            {['BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'WALTER SCOTT', 'ADDLESHAW GODDARD'].map(p => (
-              <div key={p} className="text-2xl font-black text-gray-400 hover:text-black transition-colors cursor-pointer">
-                {p}
-              </div>
-            ))}
+          {/* Auto-scrolling single-row carousel */}
+          <div className="marquee-container mb-16">
+            <div className="marquee-content">
+              {['BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard',
+                'BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard'].map((p, i) => (
+                <span key={i} className="text-2xl font-black text-gray-400 hover:text-black transition-colors cursor-pointer px-12 whitespace-nowrap">
+                  {p}
+                </span>
+              ))}
+            </div>
           </div>
 
           <a
