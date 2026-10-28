@@ -157,7 +157,7 @@ export default function HomePage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
           {/* Text */}
-          <div className="space-y-8 z-10">
+          <div className="space-y-8 z-10 pb-16">
             <div className="inline-flex items-center gap-2 border-brutal rounded-full px-4 py-2 bg-white shadow-brutal-sm">
               <div className="w-3 h-3 bg-hp-accent rounded-full animate-pulse" />
               <span className="font-bold text-sm uppercase tracking-wider">Glasgow HQ • UK Wide</span>
@@ -227,24 +227,21 @@ export default function HomePage() {
       {/* ── Metrics bar – static single row ── */}
       <section ref={marqueeRef} className="bg-hp-dark text-white border-brutal-b py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-y-6 gap-x-6 font-black text-2xl sm:text-3xl lg:text-4xl uppercase tracking-tighter">
-            <div className="flex items-center gap-3">
-              <UsersThree weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
+          <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-4 gap-x-4 font-black text-xl sm:text-2xl lg:text-2xl uppercase tracking-tighter">
+            <div className="flex items-center gap-2">
+              <UsersThree weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
               <span>{members.toLocaleString()}+ Members</span>
             </div>
-            <div className="w-2 h-2 bg-white rounded-full hidden lg:block flex-shrink-0" />
-            <div className="flex items-center gap-3">
-              <Buildings weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
+            <div className="flex items-center gap-2">
+              <Buildings weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
               <span>{partners.toLocaleString()}+ Corporate Partners</span>
             </div>
-            <div className="w-2 h-2 bg-white rounded-full hidden lg:block flex-shrink-0" />
-            <div className="flex items-center gap-3">
-              <Briefcase weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
+            <div className="flex items-center gap-2">
+              <Briefcase weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
               <span>{placements.toLocaleString()}+ Work Placements</span>
             </div>
-            <div className="w-2 h-2 bg-white rounded-full hidden lg:block flex-shrink-0" />
-            <div className="flex items-center gap-3">
-              <MagnifyingGlass weight="fill" className="text-hp-accent flex-shrink-0" size={32} />
+            <div className="flex items-center gap-2">
+              <MagnifyingGlass weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
               <span>{vacancies.toLocaleString()}+ Vacancies</span>
             </div>
           </div>
