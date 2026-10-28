@@ -9,6 +9,32 @@ import {
   LinkedinLogo, TwitterLogo, InstagramLogo,
 } from '@phosphor-icons/react';
 
+/* ─── hero photo data ─── */
+const HERO_PHOTOS = [
+  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+1',  alt: 'Member portrait 1',  tall: true  },
+  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Event+1',     alt: 'BPU event 1',        tall: false },
+  { src: 'https://placehold.co/400x600/1A1A1A/FFFFFF?text=Portrait+2',  alt: 'Member portrait 2',  tall: true  },
+  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Workshop+1',  alt: 'Workshop 1',         tall: false },
+  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+3',  alt: 'Member portrait 3',  tall: true  },
+  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Event+2',     alt: 'BPU event 2',        tall: false },
+  { src: 'https://placehold.co/400x600/2D2D2D/FFFFFF?text=Portrait+4',  alt: 'Member portrait 4',  tall: true  },
+  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Networking',  alt: 'Networking',         tall: false },
+  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+5',  alt: 'Member portrait 5',  tall: true  },
+  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Conference',  alt: 'Conference',         tall: false },
+  { src: 'https://placehold.co/400x600/1A1A1A/FFFFFF?text=Portrait+6',  alt: 'Member portrait 6',  tall: true  },
+  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Awards',      alt: 'Award night',        tall: false },
+  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+7',  alt: 'Member portrait 7',  tall: true  },
+  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Event+3',     alt: 'BPU event 3',        tall: false },
+  { src: 'https://placehold.co/400x600/2D2D2D/FFFFFF?text=Portrait+8',  alt: 'Member portrait 8',  tall: true  },
+  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Workshop+2',  alt: 'Workshop 2',         tall: false },
+  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+9',  alt: 'Member portrait 9',  tall: true  },
+  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Panel',       alt: 'Panel discussion',   tall: false },
+  { src: 'https://placehold.co/400x600/1A1A1A/FFFFFF?text=Portrait+10', alt: 'Member portrait 10', tall: true  },
+  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Mentoring',   alt: 'Mentoring session',  tall: false },
+];
+const heroLeft  = HERO_PHOTOS.filter((_, i) => i % 2 === 0); // starts tall
+const heroRight = HERO_PHOTOS.filter((_, i) => i % 2 === 1); // starts short
+
 /* ─── counter hook ─── */
 function useCounter(target: number, active: boolean) {
   const [val, setVal] = useState(0);
@@ -72,16 +98,9 @@ export default function HomePage() {
           <div className="flex justify-between h-20 items-center">
 
             {/* Logo */}
-            <div className="flex-shrink-0 flex items-center gap-2">
-              <div className="w-8 h-8 bg-hp-dark rounded-full flex items-center justify-center text-hp-bg font-bold">
-                B
-              </div>
-              <span className="font-black text-xl tracking-tight leading-none">
-                BLACK<br />PROFESSIONALS
-              </span>
-              <span className="ml-2 text-xs font-bold bg-hp-dark text-white px-2 py-1 rounded-full uppercase tracking-wider hidden sm:block">
-                UK
-              </span>
+            <div className="flex-shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/images/bpu-logo.png" alt="Black Professionals UK" className="h-12 w-auto" />
             </div>
 
             {/* Desktop nav */}
@@ -146,7 +165,7 @@ export default function HomePage() {
 
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-[0.9] tracking-tighter">
               INCLUDE.<br />
-              COLLABORATE.<br />
+              <span className="block text-4xl sm:text-5xl lg:text-6xl leading-[0.9]">COLLABORATE.</span>
               <span className="text-hp-accent">GROW.</span>
             </h1>
 
@@ -171,42 +190,34 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Portrait grid */}
+          {/* Portrait carousel – infinite vertical scroll, two offset columns */}
           <div className="relative grid grid-cols-2 gap-4 h-[500px] sm:h-[600px]">
-            <div className="col-span-1 flex flex-col gap-4">
-              <div className="h-2/3 bg-gray-200 rounded-2xl border-brutal shadow-brutal overflow-hidden relative interactive-card group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="https://placehold.co/400x600/0F0F0F/FFFFFF?text=Authentic+Portrait+1"
-                  alt="Member portrait"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                />
-              </div>
-              <div className="h-1/3 bg-gray-200 rounded-2xl border-brutal shadow-brutal overflow-hidden relative interactive-card group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="https://placehold.co/400x300/D9381E/FFFFFF?text=Action+Shot"
-                  alt="Networking"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                />
+            {/* Left column */}
+            <div className="overflow-hidden photo-carousel-col">
+              <div className="photo-col-inner">
+                {[...heroLeft, ...heroLeft].map((p, i) => (
+                  <div
+                    key={i}
+                    className={`flex-shrink-0 ${p.tall ? 'aspect-[2/3]' : 'aspect-[3/2]'} bg-gray-200 rounded-2xl border-brutal shadow-brutal overflow-hidden group`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.src} alt={p.alt} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
+                  </div>
+                ))}
               </div>
             </div>
-            <div className="col-span-1 flex flex-col gap-4 pt-12">
-              <div className="h-1/3 bg-gray-200 rounded-2xl border-brutal shadow-brutal overflow-hidden relative interactive-card group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="https://placehold.co/400x300/F4F4F0/0F0F0F?text=Event+Photo"
-                  alt="Event"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                />
-              </div>
-              <div className="h-2/3 bg-gray-200 rounded-2xl border-brutal shadow-brutal overflow-hidden relative interactive-card group">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="https://placehold.co/400x600/0F0F0F/FFFFFF?text=Authentic+Portrait+2"
-                  alt="Member portrait"
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500"
-                />
+            {/* Right column – offset + slightly slower */}
+            <div className="overflow-hidden photo-carousel-col pt-12">
+              <div className="photo-col-inner photo-col-inner-slow">
+                {[...heroRight, ...heroRight].map((p, i) => (
+                  <div
+                    key={i}
+                    className={`flex-shrink-0 ${p.tall ? 'aspect-[2/3]' : 'aspect-[3/2]'} bg-gray-200 rounded-2xl border-brutal shadow-brutal overflow-hidden group`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={p.src} alt={p.alt} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-500" />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -510,12 +521,16 @@ export default function HomePage() {
             Proudly partnering with industry leaders to create actionable change.
           </p>
 
-          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16 mb-16">
-            {['BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'WALTER SCOTT', 'ADDLESHAW GODDARD'].map(p => (
-              <div key={p} className="text-2xl font-black text-gray-400 hover:text-black transition-colors cursor-pointer">
-                {p}
-              </div>
-            ))}
+          {/* Auto-scrolling single-row carousel */}
+          <div className="marquee-container mb-16">
+            <div className="marquee-content">
+              {['BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard',
+                'BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard'].map((p, i) => (
+                <span key={i} className="text-2xl font-black text-gray-400 hover:text-black transition-colors cursor-pointer px-12 whitespace-nowrap">
+                  {p}
+                </span>
+              ))}
+            </div>
           </div>
 
           <a
@@ -543,13 +558,11 @@ export default function HomePage() {
 
             {/* Brand */}
             <div className="lg:col-span-1">
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center text-hp-dark font-black text-xl">
-                  B
+              <div className="mb-6">
+                <div className="inline-block bg-white rounded-xl px-3 py-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/images/bpu-logo.png" alt="Black Professionals UK" className="h-10 w-auto" />
                 </div>
-                <span className="font-black text-xl tracking-tight leading-none">
-                  BLACK<br />PROFESSIONALS UK
-                </span>
               </div>
               <p className="text-gray-400 font-medium text-sm mb-6">
                 Equipping professionals. Meeting inclusion ambitions. Dismantling barriers.
