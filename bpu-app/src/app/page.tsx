@@ -249,40 +249,69 @@ export default function HomePage() {
       </section>
 
       {/* ── Featured Members ── */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-brutal-b">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
+      <section className="py-20 border-brutal-b">
+        <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
           <div>
             <h2 className="text-4xl lg:text-5xl font-black uppercase tracking-tight">The Network</h2>
             <p className="text-xl mt-2 font-medium">Highlighting the talent driving the UK forward.</p>
           </div>
-          <a
-            href="/members"
-            className="bg-white text-hp-dark px-6 py-3 rounded-xl border-brutal shadow-brutal-sm hover:shadow-brutal transition-all font-bold uppercase text-sm interactive-card"
-          >
-            View All Members
-          </a>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                document.getElementById('members-carousel')?.scrollBy({ left: -320, behavior: 'smooth' });
+              }}
+              className="w-12 h-12 rounded-xl border-brutal shadow-brutal-sm bg-white flex items-center justify-center hover:bg-hp-dark hover:text-white transition-colors font-black text-xl interactive-card"
+              aria-label="Previous members"
+            >
+              ←
+            </button>
+            <button
+              onClick={() => {
+                document.getElementById('members-carousel')?.scrollBy({ left: 320, behavior: 'smooth' });
+              }}
+              className="w-12 h-12 rounded-xl border-brutal shadow-brutal-sm bg-white flex items-center justify-center hover:bg-hp-dark hover:text-white transition-colors font-black text-xl interactive-card"
+              aria-label="Next members"
+            >
+              →
+            </button>
+            <a
+              href="/members"
+              className="bg-white text-hp-dark px-6 py-3 rounded-xl border-brutal shadow-brutal-sm hover:shadow-brutal transition-all font-bold uppercase text-sm interactive-card"
+            >
+              View All Members
+            </a>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div
+          id="members-carousel"
+          className="flex gap-6 overflow-x-auto scroll-snap-x-mandatory px-4 sm:px-6 lg:px-8 pb-4 members-carousel"
+        >
           {[
-            { name: 'Lawrence Dada',    role: 'Process and FA Engineer' },
-            { name: 'Olamide Kosile',   role: 'Cloud Infrastructure Engineer' },
-            { name: 'Augustine Ologun', role: 'Cloud Infrastructure Engineer' },
-            { name: 'Michael David',    role: 'Tech Support' },
+            { name: 'Lawrence Dada',      role: 'Process and FA Engineer' },
+            { name: 'Olamide Kosile',     role: 'Cloud Infrastructure Engineer' },
+            { name: 'Augustine Ologun',   role: 'Cloud Infrastructure Engineer' },
+            { name: 'Michael David',      role: 'Tech Support' },
+            { name: 'Priya Nkosi',        role: 'Senior Product Manager' },
+            { name: 'Tunde Adesanya',     role: 'Financial Analyst' },
+            { name: 'Amara Osei',         role: 'UX Designer' },
+            { name: 'Kofi Mensah',        role: 'Software Engineer' },
           ].map(({ name, role }) => (
-            <div key={name} className="bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card">
-              <div className="aspect-square w-full bg-gray-200 rounded-xl mb-4 overflow-hidden border-2 border-black">
+            <div key={name} className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start">
+              <div className="aspect-square w-full bg-gray-200 rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={`https://placehold.co/400x400/0F0F0F/FFFFFF?text=${encodeURIComponent(name)}`}
+                  src={`https://placehold.co/400x400/001478/FFFFFF?text=${encodeURIComponent(name)}`}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
               </div>
               <h3 className="font-black text-xl leading-tight">{name}</h3>
-              <p className="text-sm font-bold text-gray-600 uppercase mt-1">{role}</p>
+              <p className="text-sm font-bold text-gray-500 uppercase mt-1">{role}</p>
             </div>
           ))}
+          {/* end padding so last card doesn't sit against the edge */}
+          <div className="flex-shrink-0 w-4" />
         </div>
       </section>
 
