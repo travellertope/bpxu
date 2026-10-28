@@ -144,7 +144,7 @@ export default function HomePage() {
               <span className="font-bold text-sm uppercase tracking-wider">Glasgow HQ • UK Wide</span>
             </div>
 
-            <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-[0.9] tracking-tighter">
+            <h1 className="text-5xl sm:text-6xl lg:text-6xl xl:text-7xl font-black leading-[0.9] tracking-tighter">
               INCLUDE.<br />
               COLLABORATE.<br />
               <span className="text-hp-accent">GROW.</span>
