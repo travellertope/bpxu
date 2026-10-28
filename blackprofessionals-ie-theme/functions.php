@@ -7,7 +7,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'BPU_IE_VERSION', '1.0.0' );
+define( 'BPU_IE_VERSION', '1.0.1' );
 define( 'BPU_IE_DIR', get_template_directory() );
 define( 'BPU_IE_URI', get_template_directory_uri() );
 
@@ -70,6 +70,41 @@ function bpu_ie_acf_notice() {
     }
 }
 add_action( 'admin_notices', 'bpu_ie_acf_notice' );
+
+/**
+ * Default anchor-based nav shown when no Primary Menu is assigned in WP admin.
+ * Once an editor creates and assigns a menu to the "Primary Menu" location this
+ * function is never called — wp_nav_menu() uses the real menu instead.
+ *
+ * @param array $args wp_nav_menu() args passed by WordPress.
+ */
+function bpu_ie_fallback_nav( $args ) {
+    ?>
+    <ul class="menu">
+        <li><a href="<?php echo esc_url( home_url( '/about/' ) ); ?>"><?php esc_html_e( 'Our Story', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/membership/' ) ); ?>"><?php esc_html_e( 'Members', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/partnership/' ) ); ?>"><?php esc_html_e( 'Partners', 'bpu-ireland' ); ?></a></li>
+        <li><a href="<?php echo esc_url( home_url( '/ambassadorship/' ) ); ?>"><?php esc_html_e( 'Ambassadorship', 'bpu-ireland' ); ?></a></li>
+    </ul>
+    <?php
+}
+
+/**
+ * Default footer nav shown when no Footer Menu is assigned in WP admin.
+ *
+ * @param array $args wp_nav_menu() args passed by WordPress.
+ */
+function bpu_ie_fallback_footer_nav( $args ) {
+    ?>
+    <nav class="footer-nav">
+        <ul class="menu">
+            <li><a href="<?php echo esc_url( home_url( '/imprint/' ) ); ?>"><?php esc_html_e( 'Imprint', 'bpu-ireland' ); ?></a></li>
+            <li><a href="<?php echo esc_url( home_url( '/privacy/' ) ); ?>"><?php esc_html_e( 'Privacy Policy', 'bpu-ireland' ); ?></a></li>
+            <li><a href="<?php echo esc_url( home_url( '/contact/' ) ); ?>"><?php esc_html_e( 'Contact', 'bpu-ireland' ); ?></a></li>
+        </ul>
+    </nav>
+    <?php
+}
 
 /**
  * Fallback content width.

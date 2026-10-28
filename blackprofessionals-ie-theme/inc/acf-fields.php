@@ -106,6 +106,7 @@ function bpu_ie_register_acf_fields() {
             array( 'key' => 'field_bpuie_home_text', 'label' => 'Intro Text', 'name' => 'home_hero_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'We are the fastest-growing network of Black professionals and students across Ireland and we exist to support our members and the business community.' ),
             array( 'key' => 'field_bpuie_home_cta_text', 'label' => 'Button Text', 'name' => 'home_hero_cta_text', 'type' => 'text', 'default_value' => 'Sign Up' ),
             array( 'key' => 'field_bpuie_home_cta_link', 'label' => 'Button Link', 'name' => 'home_hero_cta_link', 'type' => 'url' ),
+            array( 'key' => 'field_bpuie_home_hero_image', 'label' => 'Hero Background Image', 'name' => 'home_hero_image', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'medium', 'instructions' => 'Optional. Fills the hero with this image and adds a dark navy overlay so the text remains readable.' ),
 
             array( 'key' => 'field_bpuie_home_tab_members', 'label' => 'For Our Members', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_members_heading', 'label' => 'Section Heading', 'name' => 'members_heading', 'type' => 'text', 'default_value' => 'For Our Members' ),
@@ -125,6 +126,8 @@ function bpu_ie_register_acf_fields() {
                     array( 'title' => 'Interview Prep', 'description' => 'Be equipped with the tools and knowledge to excel in interviews and stand out as a top candidate in the competitive job market. Our members are offered a personalised approach to cater to your specific needs and career aspirations.' ),
                 ),
             ),
+            array( 'key' => 'field_bpuie_members_cta_text', 'label' => 'CTA Button Text', 'name' => 'members_cta_text', 'type' => 'text', 'default_value' => 'Become a Member' ),
+            array( 'key' => 'field_bpuie_members_cta_link', 'label' => 'CTA Button Link', 'name' => 'members_cta_link', 'type' => 'url' ),
 
             array( 'key' => 'field_bpuie_home_tab_partners', 'label' => 'For Our Partners', 'type' => 'tab', 'placement' => 'top' ),
             array( 'key' => 'field_bpuie_partners_intro_heading', 'label' => 'Intro Heading', 'name' => 'partners_intro_heading', 'type' => 'text', 'default_value' => 'Partnership with Black Professionals Ireland' ),
@@ -155,16 +158,42 @@ function bpu_ie_register_acf_fields() {
             array( 'key' => 'field_bpuie_ambassador_cta_text', 'label' => 'Button Text', 'name' => 'ambassador_cta_text', 'type' => 'text', 'default_value' => 'Become an Ambassador' ),
             array( 'key' => 'field_bpuie_ambassador_cta_link', 'label' => 'Button Link', 'name' => 'ambassador_cta_link', 'type' => 'url' ),
 
-            array( 'key' => 'field_bpuie_home_tab_info', 'label' => 'Info Teasers', 'type' => 'tab', 'placement' => 'top' ),
-            array( 'key' => 'field_bpuie_info_members_heading', 'label' => 'Members Teaser Heading', 'name' => 'info_members_heading', 'type' => 'text', 'default_value' => 'Information for Members' ),
-            array( 'key' => 'field_bpuie_info_members_text', 'label' => 'Members Teaser Text', 'name' => 'info_members_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Discover a community that understands your unique journey as a Black student or professional in Ireland.' ),
-            array( 'key' => 'field_bpuie_info_members_link', 'label' => 'Members Teaser Link', 'name' => 'info_members_link', 'type' => 'url' ),
-            array( 'key' => 'field_bpuie_info_partners_heading', 'label' => 'Partners Teaser Heading', 'name' => 'info_partners_heading', 'type' => 'text', 'default_value' => 'Information for Partners' ),
-            array( 'key' => 'field_bpuie_info_partners_text', 'label' => 'Partners Teaser Text', 'name' => 'info_partners_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'We are committed to fostering meaningful partnerships that drive diversity, equity, and inclusion in the professional setting.' ),
-            array( 'key' => 'field_bpuie_info_partners_link', 'label' => 'Partners Teaser Link', 'name' => 'info_partners_link', 'type' => 'url' ),
-            array( 'key' => 'field_bpuie_home_closing_image', 'label' => 'Closing Image (optional)', 'name' => 'home_closing_image', 'type' => 'image', 'return_format' => 'array', 'preview_size' => 'large' ),
         ),
-        'location' => array( array( array( 'param' => 'page_type', 'operator' => '==', 'value' => 'front_page' ) ) ),
+        'location' => array(
+            array( array( 'param' => 'page_type',     'operator' => '==', 'value' => 'front_page' ) ),
+            array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-homepage.php' ) ),
+        ),
+    ) );
+
+    /* ==========================================================
+     * HOME — extra fields for the Homepage page template
+     * (hero eyebrow/secondary CTA + About section not on front-page.php)
+     * ========================================================== */
+    acf_add_local_field_group( array(
+        'key'    => 'group_bpu_ie_homepage_extra',
+        'title'  => 'Homepage — Extra Fields',
+        'fields' => array(
+            array( 'key' => 'field_bpuie_hp_tab_hero', 'label' => 'Hero', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_hp_hero_eyebrow',       'label' => 'Eyebrow Text',           'name' => 'home_hero_eyebrow',       'type' => 'text', 'default_value' => 'Welcome' ),
+            array( 'key' => 'field_bpuie_hp_hero_subtext',       'label' => 'Hero Subtext',            'name' => 'home_hero_subtext',       'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_hp_hero_secondary_text', 'label' => 'Secondary Button Text',  'name' => 'home_hero_secondary_text', 'type' => 'text',     'default_value' => 'Learn More' ),
+            array( 'key' => 'field_bpuie_hp_hero_secondary_link', 'label' => 'Secondary Button Link',  'name' => 'home_hero_secondary_link', 'type' => 'url' ),
+
+            array( 'key' => 'field_bpuie_hp_tab_about', 'label' => 'About Section', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_hp_about_eyebrow', 'label' => 'Eyebrow', 'name' => 'home_about_eyebrow', 'type' => 'text', 'default_value' => 'Our Story' ),
+            array( 'key' => 'field_bpuie_hp_about_heading', 'label' => 'Heading', 'name' => 'home_about_heading', 'type' => 'text', 'default_value' => 'Black Professionals Europe' ),
+            array(
+                'key'           => 'field_bpuie_hp_about_text',
+                'label'         => 'Body Text',
+                'name'          => 'home_about_text',
+                'type'          => 'textarea',
+                'rows'          => 5,
+                'default_value' => 'Our journey began in 2016 with Edinburgh Black Professionals, a networking platform supporting Black professionals. We\'ve since expanded to become Black Professionals Scotland, spanning the entire country with thousands of members boasting expertise in Tech, Finance, Art, and more. Furthermore, we have also fostered partnerships with businesses and organisations across Scotland.' . "\n\n" . 'Today, we proudly extend our reach to the rest of Europe as Black Professionals Europe driven by our commitment to addressing the unique obstacles faced by Black professionals on the continent and creating a safe space for our members to share their experiences, seek support and connect. In the background, we are growing our membership across Europe and working toward an early 2024 launch. We are truly excited about what is coming and invite you to come on the journey with us.',
+            ),
+            array( 'key' => 'field_bpuie_hp_about_link_text', 'label' => 'Link Text', 'name' => 'home_about_link_text', 'type' => 'text', 'default_value' => 'Read Our Story' ),
+            array( 'key' => 'field_bpuie_hp_about_link',      'label' => 'Link URL',  'name' => 'home_about_link',      'type' => 'url' ),
+        ),
+        'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-homepage.php' ) ) ),
     ) );
 
     /* ==========================================================
@@ -230,8 +259,36 @@ function bpu_ie_register_acf_fields() {
         'key'    => 'group_bpu_ie_about_hub',
         'title'  => 'About Page Content',
         'fields' => array(
-            array( 'key' => 'field_bpuie_about_hub_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'about_hub_eyebrow', 'type' => 'text', 'default_value' => 'About' ),
-            array( 'key' => 'field_bpuie_about_hub_intro', 'label' => 'Intro Text', 'name' => 'about_hub_intro', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Learn more about our mission, our journey, and the team driving Black Professionals Ireland forward.' ),
+            array( 'key' => 'field_bpuie_about_hub_tab_hero', 'label' => 'Hero', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_about_hub_heading', 'label' => 'Page Heading', 'name' => 'about_hub_heading', 'type' => 'text', 'default_value' => 'Our Story' ),
+            array( 'key' => 'field_bpuie_about_hub_intro', 'label' => 'Hero Intro', 'name' => 'about_hub_intro', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Black Professionals Ireland is a professional network committed to empowering Black professionals and students across Ireland — building community, creating opportunity, and driving systemic change.' ),
+
+            array( 'key' => 'field_bpuie_about_hub_tab_story', 'label' => 'Our Story', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_about_story_text', 'label' => 'Story Text', 'name' => 'about_story_text', 'type' => 'textarea', 'rows' => 5, 'instructions' => 'Leave a blank line between paragraphs — they will render as separate paragraphs.' ),
+
+            array( 'key' => 'field_bpuie_about_hub_tab_purpose', 'label' => 'Purpose & Vision', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_about_pv_heading', 'label' => 'Section Heading', 'name' => 'purpose_vision_heading', 'type' => 'text', 'default_value' => 'Purpose & Vision' ),
+            array( 'key' => 'field_bpuie_about_purpose_heading', 'label' => 'Purpose Card Heading', 'name' => 'purpose_heading', 'type' => 'text', 'default_value' => 'Our Purpose' ),
+            array( 'key' => 'field_bpuie_about_purpose_text', 'label' => 'Purpose Card Text', 'name' => 'purpose_text', 'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_about_vision_heading', 'label' => 'Vision Card Heading', 'name' => 'vision_heading', 'type' => 'text', 'default_value' => 'Our Vision' ),
+            array( 'key' => 'field_bpuie_about_vision_text', 'label' => 'Vision Card Text', 'name' => 'vision_text', 'type' => 'textarea', 'rows' => 2 ),
+
+            array( 'key' => 'field_bpuie_about_hub_tab_why', 'label' => 'Why We Exist', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_about_why_heading', 'label' => 'Section Heading', 'name' => 'why_how_heading', 'type' => 'text', 'default_value' => 'Why We Exist' ),
+            array( 'key' => 'field_bpuie_about_problem_heading', 'label' => 'Challenge Card Heading', 'name' => 'problem_heading', 'type' => 'text', 'default_value' => 'The Challenge' ),
+            array( 'key' => 'field_bpuie_about_problem_text', 'label' => 'Challenge Card Text', 'name' => 'problem_text', 'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_about_solution_heading', 'label' => 'Approach Card Heading', 'name' => 'solution_heading', 'type' => 'text', 'default_value' => 'Our Approach' ),
+            array( 'key' => 'field_bpuie_about_solution_text', 'label' => 'Approach Card Text', 'name' => 'solution_text', 'type' => 'textarea', 'rows' => 2 ),
+
+            array( 'key' => 'field_bpuie_about_hub_tab_impact', 'label' => 'Impact', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_about_impact_heading', 'label' => 'Section Heading', 'name' => 'impact_heading', 'type' => 'text', 'default_value' => 'Our Impact' ),
+            array( 'key' => 'field_bpuie_about_impact_text', 'label' => 'Impact Text', 'name' => 'impact_text', 'type' => 'textarea', 'rows' => 4, 'instructions' => 'Leave a blank line between paragraphs.' ),
+
+            array( 'key' => 'field_bpuie_about_hub_tab_cta', 'label' => 'CTA Band', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_about_cta_heading', 'label' => 'CTA Heading', 'name' => 'about_cta_heading', 'type' => 'text', 'default_value' => 'Join our growing community' ),
+            array( 'key' => 'field_bpuie_about_cta_text', 'label' => 'CTA Description', 'name' => 'about_cta_text', 'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_about_cta_btn_text', 'label' => 'Button Text', 'name' => 'about_cta_button_text', 'type' => 'text', 'default_value' => 'Become a Member' ),
+            array( 'key' => 'field_bpuie_about_cta_btn_link', 'label' => 'Button Link', 'name' => 'about_cta_button_link', 'type' => 'url' ),
         ),
         'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-about.php' ) ) ),
     ) );
@@ -243,9 +300,14 @@ function bpu_ie_register_acf_fields() {
         'key'    => 'group_bpu_ie_our_team',
         'title'  => 'Our Team Page Content',
         'fields' => array(
-            array( 'key' => 'field_bpuie_team_eyebrow', 'label' => 'Eyebrow Text', 'name' => 'team_hero_eyebrow', 'type' => 'text', 'default_value' => 'Our Team' ),
-            array( 'key' => 'field_bpuie_team_heading', 'label' => 'Heading', 'name' => 'team_hero_heading', 'type' => 'text', 'default_value' => 'Board Members' ),
-            array( 'key' => 'field_bpuie_team_subtext', 'label' => 'Subtext', 'name' => 'team_hero_subtext', 'type' => 'textarea', 'rows' => 2 ),
+            array( 'key' => 'field_bpuie_team_tab_hero', 'label' => 'Hero', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_team_heading', 'label' => 'Heading', 'name' => 'team_hero_heading', 'type' => 'text', 'default_value' => 'Meet the Team' ),
+            array( 'key' => 'field_bpuie_team_subtext', 'label' => 'Hero Subtext', 'name' => 'team_hero_subtext', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'Black Professionals Ireland is led by a dedicated group of professionals who are passionate about building an equitable future for the Black community across Ireland.' ),
+
+            array( 'key' => 'field_bpuie_team_tab_intro', 'label' => 'Intro', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_team_intro_text', 'label' => 'Intro Text', 'name' => 'team_intro_text', 'type' => 'textarea', 'rows' => 3, 'default_value' => 'Our board and leadership team bring diverse backgrounds in technology, finance, law, and the arts. Together, they steer our programmes, partnerships, and community initiatives to create lasting impact for Black professionals in Ireland.' ),
+
+            array( 'key' => 'field_bpuie_team_tab_members', 'label' => 'Team Members', 'type' => 'tab', 'placement' => 'top' ),
             array(
                 'key' => 'field_bpuie_team_members', 'label' => 'Team Members', 'name' => 'team_members', 'type' => 'repeater', 'layout' => 'block', 'button_label' => 'Add Team Member',
                 'sub_fields' => array(
@@ -265,6 +327,12 @@ function bpu_ie_register_acf_fields() {
                     array( 'name' => 'Esther Bornefeld', 'role' => 'Operations & Programs' ),
                 ),
             ),
+
+            array( 'key' => 'field_bpuie_team_tab_cta', 'label' => 'CTA Band', 'type' => 'tab', 'placement' => 'top' ),
+            array( 'key' => 'field_bpuie_team_cta_heading', 'label' => 'CTA Heading', 'name' => 'team_cta_heading', 'type' => 'text', 'default_value' => 'Want to get involved?' ),
+            array( 'key' => 'field_bpuie_team_cta_text', 'label' => 'CTA Description', 'name' => 'team_cta_text', 'type' => 'textarea', 'rows' => 2, 'default_value' => 'There are many ways to contribute — from volunteering and mentoring to becoming an ambassador for Black Professionals Ireland.' ),
+            array( 'key' => 'field_bpuie_team_cta_btn_text', 'label' => 'Button Text', 'name' => 'team_cta_button_text', 'type' => 'text', 'default_value' => 'Become an Ambassador' ),
+            array( 'key' => 'field_bpuie_team_cta_btn_link', 'label' => 'Button Link', 'name' => 'team_cta_button_link', 'type' => 'url' ),
         ),
         'location' => array( array( array( 'param' => 'page_template', 'operator' => '==', 'value' => 'page-templates/template-our-team.php' ) ) ),
     ) );

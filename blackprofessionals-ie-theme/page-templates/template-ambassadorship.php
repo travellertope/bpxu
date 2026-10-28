@@ -31,9 +31,9 @@ bpu_ie_hero(
 
 <?php
 bpu_ie_cta_band(
-    bpu_ie_field( 'ambassadorship_cta_heading', $post_id, 'Ready to take the next step?' ),
-    bpu_ie_field( 'ambassadorship_cta_text', $post_id ),
-    bpu_ie_field( 'ambassadorship_cta_button_text', $post_id, 'Get in Touch' ),
+    bpu_ie_field( 'ambassadorship_cta_heading', $post_id, 'Ready to become an Ambassador?' ),
+    bpu_ie_field( 'ambassadorship_cta_text', $post_id, 'Join a growing community of passionate advocates driving change for Black professionals across Ireland.' ),
+    bpu_ie_field( 'ambassadorship_cta_button_text', $post_id, 'Apply Now' ),
     bpu_ie_field( 'ambassadorship_cta_button_link', $post_id )
 );
 

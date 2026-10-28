@@ -79,9 +79,6 @@ function bpu_ie_hero( $eyebrow = '', $heading = '', $subtext = '' ) {
     ?>
     <header class="hero">
         <div class="container">
-            <?php if ( $eyebrow ) : ?>
-                <span class="hero-eyebrow"><?php echo esc_html( $eyebrow ); ?></span>
-            <?php endif; ?>
             <?php if ( $heading ) : ?>
                 <h1><?php echo wp_kses_post( $heading ); ?></h1>
             <?php endif; ?>
@@ -140,9 +137,7 @@ function bpu_ie_cta_band( $heading, $text, $button_text, $button_link ) {
             <div class="cta-band">
                 <?php if ( $heading ) : ?><h2><?php echo esc_html( $heading ); ?></h2><?php endif; ?>
                 <?php if ( $text ) : ?><p><?php echo esc_html( $text ); ?></p><?php endif; ?>
-                <?php if ( $button_link ) : ?>
-                    <a class="btn btn-primary" href="<?php echo esc_url( $button_link ); ?>"><?php echo esc_html( $button_text ?: 'Get in Touch' ); ?></a>
-                <?php endif; ?>
+                <a class="btn btn-primary" href="<?php echo esc_url( $button_link ?: '#' ); ?>"><?php echo esc_html( $button_text ?: 'Get in Touch' ); ?></a>
             </div>
         </div>
     </section>
