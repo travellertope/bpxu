@@ -563,3 +563,20 @@ body {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
+/* ── Hero portrait carousel ── */
+.photo-carousel-col {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 90%, transparent 100%);
+}
+.photo-col-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  animation: scroll-up-photos 32s linear infinite;
+}
+.photo-col-inner-slow { animation-duration: 42s; }
+@keyframes scroll-up-photos {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-50%); }
+}
