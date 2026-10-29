@@ -28,6 +28,25 @@ const CITIES = [
   'Sheffield', 'Leicester', 'Newcastle', 'Brighton', 'Oxford',
 ];
 
+/* ─── partners ─── */
+const PARTNERS = [
+  { name: 'Codebase',                        href: 'https://www.codebase.com/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/03/Codebase.jpg' },
+  { name: 'M&G',                             href: 'https://www.mandg.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/02/m-and-g.png' },
+  { name: 'RSPB',                            href: 'https://www.rspb.org.uk/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/RSPB.jpg' },
+  { name: 'Cairngorms',                      href: 'https://cairngorms.co.uk/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Cairngorms.jpg' },
+  { name: 'Scottish National Investment Bank', href: 'https://www.thebank.scot/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Scottish-National-Investment-Bank.jpg' },
+  { name: 'Barclays',                        href: 'https://www.barclays.co.uk/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Barclays-1.jpg' },
+  { name: 'The Skills Network',              href: 'https://theskillsnetwork.com/',        logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/The-Skills-Network.jpg' },
+  { name: 'BlackRock',                       href: 'https://www.blackrock.com/',           logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/blackrock-1.jpg' },
+  { name: 'Charles River',                   href: 'https://www.criver.com/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/charles_river-1.jpg' },
+  { name: 'BNY',                             href: 'https://www.bny.com/',                 logo: 'https://blackprofessionals.uk/wp-content/uploads/2020/08/bny-log.png' },
+  { name: 'FreeAgent',                       href: 'https://www.freeagent.com/en/',        logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/free-agent-.png' },
+  { name: 'NatWest',                         href: 'https://www.natwest.com/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/07/Natwest.png' },
+  { name: 'Walter Scott',                    href: 'https://www.walterscott.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
+  { name: 'Addleshaw Goddard',               href: 'https://www.addleshawgoddard.com/en/', logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
+  { name: 'Capco',                           href: 'https://www.capco.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
+];
+
 /* ─── hero photo data ─── */
 const HERO_PHOTOS = [
   { src: '/images/hero/bcc26-keynote-full-room.jpg',     alt: 'BCC2026 keynote speaker with packed auditorium', tall: true  },
@@ -536,20 +555,27 @@ function HomePageClient({ posts }: { posts: WpPost[] }) {
           {posts.map((post) => {
             const title = post.title.rendered.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/<[^>]+>/g, '');
             const excerpt = post.excerpt.rendered.replace(/<[^>]+>/g, '').replace(/\[&hellip;\]|\[…\]/g, '…').trim();
-            const category = post._embedded?.['wp:term']?.[0]?.[0]?.name ?? 'Article';
+            const rawCategory = post._embedded?.['wp:term']?.[0]?.[0]?.name ?? 'Article';
+            const category = rawCategory.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/&[a-z]+;/gi, '');
             const image = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
             return (
               <article key={post.id} className="flex flex-col group cursor-pointer">
-                <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-gray-200 rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
+                <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-hp-dark rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
                   <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
                     {category}
                   </div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {image && <img
-                    src={image}
-                    alt={title}
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                  />}
+                  {image ? (
+                    <img
+                      src={image}
+                      alt={title}
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-end p-6">
+                      <span className="text-white/40 font-black text-4xl leading-none uppercase">BPU</span>
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-brutal pl-1">
                       <Play weight="fill" size={24} />
@@ -582,23 +608,7 @@ function HomePageClient({ posts }: { posts: WpPost[] }) {
           {/* Auto-scrolling partner logo marquee */}
           <div className="marquee-container mb-16">
             <div className="marquee-content">
-              {([
-                { name: 'Codebase',                       href: 'https://www.codebase.com/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/03/Codebase.jpg' },
-                { name: 'M&G',                            href: 'https://www.mandg.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/02/m-and-g.png' },
-                { name: 'RSPB',                           href: 'https://www.rspb.org.uk/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/RSPB.jpg' },
-                { name: 'Cairngorms',                     href: 'https://cairngorms.co.uk/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Cairngorms.jpg' },
-                { name: 'Scottish National Investment Bank', href: 'https://www.thebank.scot/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Scottish-National-Investment-Bank.jpg' },
-                { name: 'Barclays',                       href: 'https://www.barclays.co.uk/',           logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Barclays-1.jpg' },
-                { name: 'The Skills Network',             href: 'https://theskillsnetwork.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/The-Skills-Network.jpg' },
-                { name: 'BlackRock',                      href: 'https://www.blackrock.com/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/blackrock-1.jpg' },
-                { name: 'Charles River',                  href: 'https://www.criver.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/charles_river-1.jpg' },
-                { name: 'BNY',                            href: 'https://www.bny.com/',                  logo: 'https://blackprofessionals.uk/wp-content/uploads/2020/08/bny-log.png' },
-                { name: 'FreeAgent',                      href: 'https://www.freeagent.com/en/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/free-agent-.png' },
-                { name: 'NatWest',                        href: 'https://www.natwest.com/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/07/Natwest.png' },
-                { name: 'Walter Scott',                   href: 'https://www.walterscott.com/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
-                { name: 'Addleshaw Goddard',              href: 'https://www.addleshawgoddard.com/en/',  logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
-                { name: 'Capco',                          href: 'https://www.capco.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
-              ] as const).flatMap((p, i, arr) => [p, { ...p, key: `dup-${i}` }]).map((p, i) => (
+              {[...PARTNERS, ...PARTNERS].map((p, i) => (
                 <a
                   key={i}
                   href={p.href}
