@@ -209,7 +209,6 @@ function downloadPassport(m: PublicMemberProfile) {
 export default function MemberProfileClient({ member, username, isOwner, viewer }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState(false);
-  const [showMentorship, setShowMentorship] = useState(false);
   const [showPassport, setShowPassport] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showRecommendation, setShowRecommendation] = useState(false);
@@ -230,10 +229,6 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
   const [connectContext, setConnectContext] = useState('Peer Professional');
   const [connectNote, setConnectNote] = useState('');
   const [connectSubmitting, setConnectSubmitting] = useState(false);
-  const [mentorshipStage, setMentorshipStage] = useState('');
-  const [mentorshipGoal, setMentorshipGoal] = useState('');
-  const [mentorshipSending, setMentorshipSending] = useState(false);
-  const [mentorshipError, setMentorshipError] = useState<string | null>(null);
 
   const openToast = (msg: string) => setToast(msg);
 
@@ -446,23 +441,13 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                       ✉ Message
                     </button>
                     {m.mentorship_status === 'Accepting Mentees' && (
-                      m.is_paired_mentor ? (
-                        <Link
-                          href={`/paired/mentors/${m.id}`}
-                          className="px-5 py-3 text-xs font-bold uppercase rounded-xl flex items-center gap-2"
-                          style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: OCHRE }}
-                        >
-                          🤝 Book via Paired ↗
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() => setShowMentorship(true)}
-                          className="px-5 py-3 text-xs font-bold uppercase rounded-xl flex items-center gap-2"
-                          style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: OCHRE }}
-                        >
-                          🤝 Mentorship
-                        </button>
-                      )
+                      <Link
+                        href={`/paired/mentors/${m.id}`}
+                        className="px-5 py-3 text-xs font-bold uppercase rounded-xl flex items-center gap-2"
+                        style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: OCHRE }}
+                      >
+                        🤝 Book Mentorship ↗
+                      </Link>
                     )}
                   </>
                 )}
@@ -923,76 +908,6 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
             <button type="button" onClick={() => { setShowMessage(false); setMsgError(null); }} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
             <button type="submit" disabled={msgSending} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: msgSending ? 0.7 : 1 }}>
               {msgSending ? 'Sending…' : 'Send ↗'}
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Mentorship modal */}
-      <Modal id="modal-mentorship" open={showMentorship} onClose={() => { setShowMentorship(false); setMentorshipError(null); }}>
-        <ModalHeader title="BPU Mentorship Request" onClose={() => { setShowMentorship(false); setMentorshipError(null); }} />
-        <form
-          onSubmit={async e => {
-            e.preventDefault();
-            setMentorshipSending(true);
-            setMentorshipError(null);
-            try {
-              const res = await fetch('/api/member/mentorship-request', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ to_username: username, career_stage: mentorshipStage, goal: mentorshipGoal }),
-              });
-              const data = await res.json();
-              if (!res.ok) throw new Error(data.error || 'Could not send request.');
-              setShowMentorship(false);
-              setMentorshipStage('');
-              setMentorshipGoal('');
-              openToast(`Mentorship request sent to ${name}! They'll follow up directly.`);
-            } catch (err: unknown) {
-              setMentorshipError(err instanceof Error ? err.message : 'Could not send request.');
-            } finally {
-              setMentorshipSending(false);
-            }
-          }}
-          className="p-6 space-y-4"
-        >
-          <div className="p-3 rounded text-xs font-medium" style={{ background: `${PAPER}80`, border: `1px solid ${BORDER}` }}>
-            You are requesting mentorship from <strong>{name}</strong>. Your request goes directly to them — no committee middleman.
-          </div>
-          <div>
-            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your Career Stage <span style={{ color: OCHRE }}>*</span></label>
-            <select
-              required
-              value={mentorshipStage}
-              onChange={e => setMentorshipStage(e.target.value)}
-              className="w-full p-2.5 rounded font-medium text-xs bg-white focus:outline-none"
-              style={{ border: `3px solid ${BORDER}` }}
-            >
-              <option value="">— Choose Stage —</option>
-              <option value="Student / Recent Graduate">Student / Recent Graduate</option>
-              <option value="Early Career (1–3 Yrs)">Early Career (1–3 Yrs)</option>
-              <option value="Mid-Level (4–7 Yrs)">Mid-Level (4–7 Yrs)</option>
-              <option value="Senior / Leadership">Senior / Leadership</option>
-              <option value="Career Transitioning">Career Transitioning</option>
-            </select>
-          </div>
-          <div>
-            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>What guidance are you seeking? <span style={{ color: OCHRE }}>*</span></label>
-            <textarea
-              required
-              rows={4}
-              value={mentorshipGoal}
-              onChange={e => setMentorshipGoal(e.target.value)}
-              placeholder="Briefly outline what you're looking for and what you hope to achieve…"
-              className="w-full p-2.5 rounded font-medium text-xs focus:outline-none"
-              style={{ border: `3px solid ${BORDER}` }}
-            />
-          </div>
-          {mentorshipError && <p className="text-xs font-bold text-red-600">{mentorshipError}</p>}
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => { setShowMentorship(false); setMentorshipError(null); }} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
-            <button type="submit" disabled={mentorshipSending} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: mentorshipSending ? 0.7 : 1 }}>
-              {mentorshipSending ? 'Sending…' : 'Send Request ↗'}
             </button>
           </div>
         </form>

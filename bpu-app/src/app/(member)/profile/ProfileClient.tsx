@@ -46,6 +46,7 @@ export default function ProfileClient({ user }: Props) {
   const [cvParsedAt] = useState<string>(user.cv_parsed_at || '');
   const [historySaving, setHistorySaving] = useState(false);
   const [historyMsg, setHistoryMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [mentorshipNote, setMentorshipNote] = useState<{ type: 'ok' | 'warn'; text: string; link?: string } | null>(null);
 
   const handleProfileSave = async () => {
     setSaving(true);
@@ -486,14 +487,44 @@ export default function ProfileClient({ user }: Props) {
             <label className="field-label">Mentorship status</label>
             <select
               className="field-input"
-              value={user.mentorship_status || ''}
+              defaultValue={user.mentorship_status || ''}
               onChange={async e => {
                 const val = e.target.value;
-                await fetch('/api/member/profile', {
+                setMentorshipNote(null);
+
+                if (val === 'Accepting Mentees') {
+                  // Require a completed Paired mentor profile
+                  const check = await fetch('/api/paired/mentor/profile');
+                  if (check.status === 401 || check.status === 403) {
+                    setMentorshipNote({
+                      type: 'warn',
+                      text: 'To accept mentees you must first complete your Paired mentor profile.',
+                      link: '/paired/apply',
+                    });
+                    // Reset select visually
+                    (e.target as HTMLSelectElement).value = user.mentorship_status || '';
+                    return;
+                  }
+                }
+
+                const res = await fetch('/api/member/profile', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ mentorship_status: val }),
                 });
+                if (res.ok) {
+                  setMentorshipNote({ type: 'ok', text: 'Mentorship status saved.' });
+                } else {
+                  const data = await res.json().catch(() => ({}));
+                  if (data.requires_paired) {
+                    setMentorshipNote({
+                      type: 'warn',
+                      text: data.error || 'Complete your Paired mentor profile first.',
+                      link: '/paired/apply',
+                    });
+                    (e.target as HTMLSelectElement).value = user.mentorship_status || '';
+                  }
+                }
               }}
             >
               <option value="">Not set</option>
@@ -501,7 +532,17 @@ export default function ProfileClient({ user }: Props) {
               <option value="On Pause">On Pause</option>
               <option value="Not Accepting">Not Accepting</option>
             </select>
-            <p className="text-[11px] text-text-3 mt-1">Controls the badge shown on your public profile. Saves immediately on change.</p>
+            {mentorshipNote && (
+              <p className={`text-[11px] mt-1 font-medium ${mentorshipNote.type === 'warn' ? 'text-amber-700' : 'text-green-700'}`}>
+                {mentorshipNote.text}
+                {mentorshipNote.link && (
+                  <a href={mentorshipNote.link} className="ml-1 underline font-bold">Set up Paired profile →</a>
+                )}
+              </p>
+            )}
+            {!mentorshipNote && (
+              <p className="text-[11px] text-text-3 mt-1">Setting &quot;Accepting Mentees&quot; requires a completed Paired mentor profile. Saves on change.</p>
+            )}
           </div>
         </div>
       </div>

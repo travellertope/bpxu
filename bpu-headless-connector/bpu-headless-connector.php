@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.13.0
+ * Version: 2.14.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -3721,9 +3721,21 @@ Rules:
 
         // Non-ACF user meta fields
         if ( isset( $body['mentorship_status'] ) ) {
-            $valid = array( 'Accepting Mentees', 'On Pause', 'Not Accepting', '' );
+            $valid  = array( 'Accepting Mentees', 'On Pause', 'Not Accepting', '' );
             $status = sanitize_text_field( (string) $body['mentorship_status'] );
             if ( in_array( $status, $valid, true ) ) {
+                // 'Accepting Mentees' requires the user to have a Paired mentor profile
+                if ( $status === 'Accepting Mentees' ) {
+                    $current_user = get_userdata( $user_id );
+                    if ( ! $current_user || ! in_array( 'mentor', (array) $current_user->roles, true ) ) {
+                        return new WP_REST_Response( array(
+                            'success'         => false,
+                            'error'           => 'You must complete your Paired mentor profile before accepting mentees.',
+                            'requires_paired' => true,
+                            'redirect'        => '/paired/apply',
+                        ), 400 );
+                    }
+                }
                 update_user_meta( $user_id, '_bpu_mentorship_status', $status );
             }
         }
