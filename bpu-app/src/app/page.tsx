@@ -555,20 +555,27 @@ function HomePageClient({ posts }: { posts: WpPost[] }) {
           {posts.map((post) => {
             const title = post.title.rendered.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/<[^>]+>/g, '');
             const excerpt = post.excerpt.rendered.replace(/<[^>]+>/g, '').replace(/\[&hellip;\]|\[…\]/g, '…').trim();
-            const category = post._embedded?.['wp:term']?.[0]?.[0]?.name ?? 'Article';
+            const rawCategory = post._embedded?.['wp:term']?.[0]?.[0]?.name ?? 'Article';
+            const category = rawCategory.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/&[a-z]+;/gi, '');
             const image = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
             return (
               <article key={post.id} className="flex flex-col group cursor-pointer">
-                <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-gray-200 rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
+                <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-hp-dark rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
                   <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
                     {category}
                   </div>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {image && <img
-                    src={image}
-                    alt={title}
-                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                  />}
+                  {image ? (
+                    <img
+                      src={image}
+                      alt={title}
+                      className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-end p-6">
+                      <span className="text-white/40 font-black text-4xl leading-none uppercase">BPU</span>
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-brutal pl-1">
                       <Play weight="fill" size={24} />
