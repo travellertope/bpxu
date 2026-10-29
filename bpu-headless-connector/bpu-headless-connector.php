@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.9.0
+ * Version: 2.10.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1847,6 +1847,13 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'upload_member_photo' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
+
+        // Work history, education & certifications (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/history', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'update_member_history' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
     }
 
     /**
@@ -3681,6 +3688,59 @@ Rules:
             if ( isset( $body[ $field ] ) ) {
                 update_field( $field, sanitize_textarea_field( (string) $body[ $field ] ), 'user_' . $user_id );
             }
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/history — save work experience, education, certifications manually.
+     */
+    public function update_member_history( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $body    = $request->get_json_params();
+
+        if ( array_key_exists( 'experiences', $body ) ) {
+            $experiences = is_array( $body['experiences'] ) ? array_map( function( $e ) {
+                return array(
+                    'title'       => sanitize_text_field( $e['title']       ?? '' ),
+                    'company'     => sanitize_text_field( $e['company']     ?? '' ),
+                    'start_date'  => sanitize_text_field( $e['start_date']  ?? '' ),
+                    'end_date'    => sanitize_text_field( $e['end_date']    ?? '' ),
+                    'is_current'  => ! empty( $e['is_current'] ),
+                    'description' => sanitize_textarea_field( $e['description'] ?? '' ),
+                );
+            }, $body['experiences'] ) : array();
+            update_user_meta( $user_id, 'bpu_experiences', $experiences );
+        }
+
+        if ( array_key_exists( 'educations', $body ) ) {
+            $educations = is_array( $body['educations'] ) ? array_map( function( $e ) {
+                return array(
+                    'institution'   => sanitize_text_field( $e['institution']   ?? $e['institute'] ?? '' ),
+                    'degree'        => sanitize_text_field( $e['degree']        ?? '' ),
+                    'field_of_study'=> sanitize_text_field( $e['field_of_study']?? $e['field']    ?? '' ),
+                    'start_year'    => sanitize_text_field( $e['start_year']    ?? '' ),
+                    'end_year'      => sanitize_text_field( $e['end_year']      ?? '' ),
+                );
+            }, $body['educations'] ) : array();
+            update_user_meta( $user_id, 'bpu_educations', $educations );
+        }
+
+        if ( array_key_exists( 'certifications', $body ) ) {
+            $certs = is_array( $body['certifications'] ) ? array_map( function( $c ) {
+                return array(
+                    'name'   => sanitize_text_field( $c['name']   ?? '' ),
+                    'issuer' => sanitize_text_field( $c['issuer'] ?? '' ),
+                    'year'   => sanitize_text_field( $c['year']   ?? '' ),
+                );
+            }, $body['certifications'] ) : array();
+            update_user_meta( $user_id, 'bpu_certifications', $certs );
         }
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
