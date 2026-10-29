@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.12.0
+ * Version: 2.13.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1873,6 +1873,12 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/endorse', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'endorse_member_skill' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/member/mentorship-request', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_mentorship_intro_request' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
@@ -3961,6 +3967,85 @@ Rules:
         ), 200 );
     }
 
+    /**
+     * POST /bpu/v1/member/mentorship-request
+     * Send a mentorship intro request to a member who is 'Accepting Mentees'.
+     */
+    public function handle_mentorship_intro_request( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $mentee_id    = intval( $payload['user_id'] );
+        $body         = $request->get_json_params();
+        $to_username  = sanitize_text_field( $body['to_username'] ?? '' );
+        $career_stage = sanitize_text_field( $body['career_stage'] ?? '' );
+        $goal         = sanitize_textarea_field( $body['goal'] ?? '' );
+
+        if ( ! $to_username || ! $career_stage || ! $goal ) {
+            return new WP_Error( 'missing_fields', 'to_username, career_stage and goal are required.', array( 'status' => 400 ) );
+        }
+
+        $mentor_user = get_user_by( 'login', $to_username );
+        if ( ! $mentor_user ) {
+            return new WP_Error( 'not_found', 'Member not found.', array( 'status' => 404 ) );
+        }
+
+        $mentor_id = $mentor_user->ID;
+
+        // Gate: only allow if mentor is 'Accepting Mentees'
+        $status = get_user_meta( $mentor_id, '_bpu_mentorship_status', true );
+        if ( $status !== 'Accepting Mentees' ) {
+            return new WP_Error( 'not_accepting', 'This member is not currently accepting mentorship requests.', array( 'status' => 403 ) );
+        }
+
+        if ( $mentee_id === $mentor_id ) {
+            return new WP_Error( 'self_request', 'You cannot request mentorship from yourself.', array( 'status' => 400 ) );
+        }
+
+        $mentee      = get_userdata( $mentee_id );
+        $mentee_name = $mentee ? ( trim( $mentee->display_name ) ?: $mentee->user_login ) : 'A BPU member';
+        $mentee_email = $mentee ? $mentee->user_email : '';
+
+        // Append to mentor's pending requests
+        $requests = get_user_meta( $mentor_id, '_bpu_mentorship_requests', true );
+        if ( ! is_array( $requests ) ) {
+            $requests = array();
+        }
+        $requests[] = array(
+            'mentee_id'    => $mentee_id,
+            'mentee_name'  => $mentee_name,
+            'mentee_email' => $mentee_email,
+            'career_stage' => $career_stage,
+            'goal'         => $goal,
+            'requested_at' => current_time( 'c' ),
+            'status'       => 'pending',
+        );
+        update_user_meta( $mentor_id, '_bpu_mentorship_requests', $requests );
+
+        // Email to mentor
+        $mentor_name  = trim( $mentor_user->display_name ) ?: $mentor_user->user_login;
+        $mentor_email = $mentor_user->user_email;
+        $subject      = '[BPU] New Mentorship Request from ' . $mentee_name;
+        $message      = "Hi {$mentor_name},\n\n{$mentee_name} has sent you a mentorship request via Black Professionals UK.\n\nCareer Stage: {$career_stage}\n\nWhat they're looking for:\n{$goal}\n\n";
+        if ( $mentee_email ) {
+            $message .= "You can reply directly to {$mentee_name} at: {$mentee_email}\n\n";
+        }
+        $message .= "— The BPU Team\nhttps://web.blackprofessionals.uk";
+
+        wp_mail( $mentor_email, $subject, $message, array( 'Reply-To: ' . $mentee_email ) );
+
+        // Confirmation email to mentee
+        wp_mail(
+            $mentee_email,
+            '[BPU] Your mentorship request has been sent',
+            "Hi {$mentee_name},\n\nYour mentorship request to {$mentor_name} has been sent. They will follow up with you directly.\n\n— The BPU Team"
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'message' => 'Mentorship request sent.' ), 200 );
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  PUBLIC MEMBER PROFILE ENDPOINTS
     // ══════════════════════════════════════════════════════════════
@@ -3995,9 +4080,10 @@ Rules:
         };
 
         // Roles
-        $roles     = (array) $user->roles;
-        $is_pro    = in_array( 'bpu_pro', $roles, true ) || in_array( 'bpu_pro_member', $roles, true );
-        $is_mentor = in_array( 'bpu_mentor', $roles, true );
+        $roles           = (array) $user->roles;
+        $is_pro          = in_array( 'bpu_pro', $roles, true ) || in_array( 'bpu_pro_member', $roles, true );
+        $is_mentor       = in_array( 'bpu_mentor', $roles, true );
+        $is_paired_mentor = in_array( 'mentor', $roles, true ); // Paired-specific role
 
         // Profile photo: custom upload first, then null (let front-end fall back to Gravatar)
         $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
@@ -4038,6 +4124,7 @@ Rules:
             'mentorship_status'       => get_user_meta( $user_id, '_bpu_mentorship_status', true ) ?: null,
             // Membership
             'is_pro'                  => $is_pro,
+            'is_paired_mentor'        => $is_paired_mentor,
             'roles'                   => array_values( $roles ),
             'member_since'            => date( 'Y-m-d', strtotime( $user->user_registered ) ),
         );
