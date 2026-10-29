@@ -90,8 +90,39 @@ function useCounter(target: number, active: boolean) {
   return val;
 }
 
+const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+
+/* Score how well a display_name matches a search name — count shared tokens */
+function nameMatchScore(displayName: string, searchName: string): number {
+  const clean = (s: string) => s.toLowerCase().replace(/\bdr\.?\b/g, '').trim();
+  const tokens = clean(searchName).split(/\s+/).filter(t => t.length > 2);
+  const haystack = clean(displayName);
+  return tokens.filter(t => haystack.includes(t)).length;
+}
+
+/* ─── Static showcase members ─── */
+const STATIC_MEMBERS = [
+  { name: 'Wosilat Zachariah',       role: 'Mental Health Nurse',                  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/e85e2496-aefb-48ec-9092-25cd3f3316b8-Wosilat-Zachariah.jpeg' },
+  { name: 'Edward Enejoh',            role: 'Project Manager / Business Analyst',   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_1918-Edward-Enejoh-scaled.jpeg' },
+  { name: 'Bukola Osuntuyi',          role: 'Tech Business Operations',             img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/photo-output-Olubukola-Osuntuyi.jpeg' },
+  { name: 'Nafisat Ogijo',            role: 'Data Analyst',                         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8373-Nafisat-olamide-Ogijo.jpg' },
+  { name: 'Dr Elizabeth Wuyep',       role: 'Sales and Operations Coordinator',     img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_3097-Elizabeth-scaled.jpeg' },
+  { name: 'Oluwasegun Odumoye',       role: 'Risk Management',                      img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Segun-Landscape-2-Oluwasegun-Odumoye-scaled.jpg' },
+  { name: 'Uchenna Chukwu',           role: 'Product Manager',                      img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/DSCF2795-Prince-Uchenna-Chukwu-scaled.jpg' },
+  { name: 'Chibuikem Ugwu',           role: 'Support Worker',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Snapchat-123564268-ugwu-chibuikem.jpg' },
+  { name: 'Lawrence Dada',            role: 'Process and Flow Assurance Engineer',  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8144-Lawrence-DADA-e1761234517311.jpeg' },
+  { name: 'Olamide Kosile',           role: 'Cloud Infrastructure Engineer',        img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Generated-Image-September-25-2025-6_28PM-Olamide-Kosile.png' },
+  { name: 'Augustine Ologun',         role: 'Cloud Infrastructure Engineer',        img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_2487-Augustine-Ologun.jpeg' },
+  { name: 'Michael David',            role: 'Tech Support',                         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Michael-David-Headshot-David-Michael.png' },
+  { name: 'Ifeanyi Moses A',          role: 'HR – People Engagement Administrator', img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_6336-Moses-Ifeanyi.jpeg' },
+  { name: 'Kelechi Elizabeth Origa',  role: 'Product / Project Manager',            img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_0388-Kelechi-Origa.jpeg' },
+  { name: 'Dr. Ikenna Light Nkwocha', role: 'Volunteer Research Associate',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG-20250106-WA0002-Ikenna-Nkwocha-e1761239259922.jpg' },
+];
+
 export default function HomePageClient() {
   const [posts, setPosts] = useState<WpPost[]>([]);
+  /* name → resolved WP username (populated async after mount) */
+  const [resolvedUsernames, setResolvedUsernames] = useState<Record<string, string>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -106,6 +137,30 @@ export default function HomePageClient() {
       .then(setPosts)
       .catch(() => {});
   }, []);
+
+  /* Resolve each hardcoded member to a WP username via name search */
+  useEffect(() => {
+    const results: Record<string, string> = {};
+    Promise.allSettled(
+      STATIC_MEMBERS.map(({ name }) =>
+        fetch(`${WP_URL}/wp-json/bpu/v1/members?search=${encodeURIComponent(name)}&per_page=5`)
+          .then(r => r.ok ? r.json() : [])
+          .then((candidates: Array<{ username: string; display_name: string }>) => {
+            /* Pick candidate with highest name token overlap, require ≥2 matching tokens */
+            const best = candidates
+              .map(c => ({ username: c.username, score: nameMatchScore(c.display_name, name) }))
+              .filter(c => c.score >= 2)
+              .sort((a, b) => b.score - a.score)[0];
+            if (best) results[name] = best.username;
+          })
+          .catch(() => {}),
+      ),
+    ).then(() => {
+      if (Object.keys(results).length > 0) setResolvedUsernames(results);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -356,36 +411,30 @@ export default function HomePageClient() {
           id="members-carousel"
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
-          {[
-            { name: 'Wosilat Zachariah',        role: 'Mental Health Nurse',                   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/e85e2496-aefb-48ec-9092-25cd3f3316b8-Wosilat-Zachariah.jpeg' },
-            { name: 'Edward Enejoh',             role: 'Project Manager / Business Analyst',    img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_1918-Edward-Enejoh-scaled.jpeg' },
-            { name: 'Bukola Osuntuyi',           role: 'Tech Business Operations',              img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/photo-output-Olubukola-Osuntuyi.jpeg' },
-            { name: 'Nafisat Ogijo',             role: 'Data Analyst',                          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8373-Nafisat-olamide-Ogijo.jpg' },
-            { name: 'Dr Elizabeth Wuyep',        role: 'Sales and Operations Coordinator',      img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_3097-Elizabeth-scaled.jpeg' },
-            { name: 'Oluwasegun Odumoye',        role: 'Risk Management',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Segun-Landscape-2-Oluwasegun-Odumoye-scaled.jpg' },
-            { name: 'Uchenna Chukwu',            role: 'Product Manager',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/DSCF2795-Prince-Uchenna-Chukwu-scaled.jpg' },
-            { name: 'Chibuikem Ugwu',            role: 'Support Worker',                        img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Snapchat-123564268-ugwu-chibuikem.jpg' },
-            { name: 'Lawrence Dada',             role: 'Process and Flow Assurance Engineer',   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8144-Lawrence-DADA-e1761234517311.jpeg' },
-            { name: 'Olamide Kosile',            role: 'Cloud Infrastructure Engineer',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Generated-Image-September-25-2025-6_28PM-Olamide-Kosile.png' },
-            { name: 'Augustine Ologun',          role: 'Cloud Infrastructure Engineer',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_2487-Augustine-Ologun.jpeg' },
-            { name: 'Michael David',             role: 'Tech Support',                          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Michael-David-Headshot-David-Michael.png' },
-            { name: 'Ifeanyi Moses A',           role: 'HR – People Engagement Administrator',  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_6336-Moses-Ifeanyi.jpeg' },
-            { name: 'Kelechi Elizabeth Origa',   role: 'Product / Project Manager',             img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_0388-Kelechi-Origa.jpeg' },
-            { name: 'Dr. Ikenna Light Nkwocha',  role: 'Volunteer Research Associate',          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG-20250106-WA0002-Ikenna-Nkwocha-e1761239259922.jpg' },
-          ].map(({ name, role, img }) => (
-            <div key={name} className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start">
-              <div className="aspect-square w-full bg-gray-200 rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
+          {STATIC_MEMBERS.map(({ name, role, img }) => {
+            const username = resolvedUsernames[name];
+            const href = username
+              ? `/members/${encodeURIComponent(username)}`
+              : `/members?search=${encodeURIComponent(name)}`;
+            return (
+            <a
+              key={name}
+              href={href}
+              className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start"
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div className="aspect-square w-full bg-hp-dark rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img}
-                  alt={name}
-                  className="w-full h-full object-cover"
-                />
+                <img src={img} alt={name} className="w-full h-full object-cover" />
               </div>
-              <h3 className="font-black text-xl leading-tight">{name}</h3>
-              <p className="text-sm font-bold text-gray-500 uppercase mt-1">{role}</p>
-            </div>
-          ))}
+              <h3 className="font-black text-xl leading-tight flex-grow">{name}</h3>
+              <p className="text-sm font-bold text-gray-500 uppercase mt-1 mb-3">{role}</p>
+              <span className="inline-block bg-hp-dark text-white text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border-2 border-hp-dark w-max">
+                View Profile →
+              </span>
+            </a>
+            );
+          })}
           {/* end padding so last card doesn't sit against the edge */}
           <div className="flex-shrink-0 w-4" />
         </div>

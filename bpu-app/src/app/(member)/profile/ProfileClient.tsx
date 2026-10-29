@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { BPUUser, ACFProfile, WorkExperience, Education, Certification } from '@/lib/auth';
 import { BPUApi } from '@/lib/api';
+import PassportCard from './PassportCard';
 
 interface Props {
   user: BPUUser;
@@ -13,6 +14,11 @@ export default function ProfileClient({ user }: Props) {
 
   const [profile, setProfile] = useState<ACFProfile>(user.profile);
   const [editForm, setEditForm] = useState<Partial<ACFProfile>>(profile);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user.photo_url ?? null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [photoDragOver, setPhotoDragOver] = useState(false);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -24,11 +30,22 @@ export default function ProfileClient({ user }: Props) {
   const [smsPrefSaving, setSmsPrefSaving] = useState(false);
   const [smsPrefMsg, setSmsPrefMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
-  const [experiences] = useState<WorkExperience[]>(user.experiences || []);
-  const [educations] = useState<Education[]>(user.educations || []);
-  const [certifications] = useState<Certification[]>(user.certifications || []);
+  // Normalize education keys — CV parser stores 'institute'/'field'; manual edits use 'institution'/'field_of_study'
+  const normalizeEducation = (e: Education): Education => ({
+    institution:    (e as unknown as Record<string, string>).institution ?? (e as unknown as Record<string, string>).institute ?? '',
+    degree:         e.degree ?? '',
+    field_of_study: (e as unknown as Record<string, string>).field_of_study ?? (e as unknown as Record<string, string>).field ?? '',
+    start_year:     e.start_year ?? '',
+    end_year:       e.end_year ?? '',
+  });
+
+  const [experiences, setExperiences] = useState<WorkExperience[]>((user.experiences || []).map(e => ({ ...e })));
+  const [educations, setEducations] = useState<Education[]>((user.educations || []).map(normalizeEducation));
+  const [certifications, setCertifications] = useState<Certification[]>((user.certifications || []).map(c => ({ ...c })));
   const [cvLanguages] = useState<string>(user.languages || '');
   const [cvParsedAt] = useState<string>(user.cv_parsed_at || '');
+  const [historySaving, setHistorySaving] = useState(false);
+  const [historyMsg, setHistoryMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   const handleProfileSave = async () => {
     setSaving(true);
@@ -70,12 +87,75 @@ export default function ProfileClient({ user }: Props) {
     setSmsPrefSaving(false);
   };
 
+  const handleHistorySave = async () => {
+    setHistorySaving(true);
+    setHistoryMsg(null);
+    try {
+      const res = await fetch('/api/member/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ experiences, educations, certifications }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed.');
+      setHistoryMsg({ type: 'ok', text: 'History saved successfully.' });
+    } catch (err: unknown) {
+      setHistoryMsg({ type: 'err', text: err instanceof Error ? err.message : 'Could not save history.' });
+    } finally {
+      setHistorySaving(false);
+    }
+  };
+
+  const handlePhotoUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setPhotoMsg({ type: 'err', text: 'Please select an image file (JPEG, PNG, WebP).' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoMsg({ type: 'err', text: 'Photo must be under 5 MB.' });
+      return;
+    }
+    // Show local preview immediately
+    const localPreview = URL.createObjectURL(file);
+    setPhotoUrl(localPreview);
+    setPhotoUploading(true);
+    setPhotoMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      const res = await fetch('/api/member/photo', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed.');
+      setPhotoUrl(data.photo_url);
+      setPhotoMsg({ type: 'ok', text: 'Profile photo updated.' });
+    } catch (err: unknown) {
+      setPhotoUrl(user.photo_url ?? null); // revert preview on error
+      setPhotoMsg({ type: 'err', text: err instanceof Error ? err.message : 'Could not upload photo.' });
+    } finally {
+      setPhotoUploading(false);
+      URL.revokeObjectURL(localPreview);
+    }
+  };
+
+  // keep a live copy of the user object so PassportCard reflects unsaved edits
+  const liveUser: BPUUser = { ...user, profile: { ...user.profile, ...editForm }, photo_url: photoUrl ?? undefined };
+
   return (
     <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+      {/* ── Digital Passport preview ── */}
+      <div>
+        <h2 className="text-xl font-bold mb-1">My Digital Passport</h2>
+        <p className="section-sub mb-4">Your shareable professional identity card. Complete your profile below to unlock it.</p>
+        <PassportCard user={liveUser} />
+      </div>
+
+      <div className="divider" />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold">My Profile</h2>
-          <p className="section-sub">This information is used for job matching and mentor pairing.</p>
+          <p className="section-sub">This information is used for job matching, mentor pairing, and your passport.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -262,6 +342,137 @@ export default function ProfileClient({ user }: Props) {
         </div>
       </div>
 
+      {/* ── Passport details ── */}
+      <div className="card card-p space-y-5">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-3">Passport Details</p>
+          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Powers your public passport card</span>
+        </div>
+
+        {/* ── Profile photo uploader ── */}
+        <div>
+          <label className="field-label mb-2">Profile photo</label>
+          <div className="flex items-start gap-4 flex-wrap">
+            {/* Avatar preview */}
+            <div
+              className="relative flex-shrink-0 w-24 h-24 rounded-xl border-2 border-hp-dark overflow-hidden bg-hp-dark cursor-pointer group"
+              onClick={() => photoInputRef.current?.click()}
+              title="Click to change photo"
+            >
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white select-none">
+                  {(user.display_name?.[0] ?? '?').toUpperCase()}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-bold text-center leading-tight px-1">Change<br/>Photo</span>
+              </div>
+              {photoUploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <svg className="animate-spin w-6 h-6 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                </div>
+              )}
+            </div>
+
+            {/* Drop zone */}
+            <div
+              className={`flex-1 min-w-[160px] border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-center ${
+                photoDragOver ? 'border-hp-accent bg-amber-50' : 'border-gray-300 hover:border-hp-dark'
+              }`}
+              onClick={() => photoInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setPhotoDragOver(true); }}
+              onDragLeave={() => setPhotoDragOver(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setPhotoDragOver(false);
+                const f = e.dataTransfer.files[0];
+                if (f) handlePhotoUpload(f);
+              }}
+            >
+              <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="text-gray-400">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              <p className="text-xs font-bold text-text-3">
+                {photoUploading ? 'Uploading…' : 'Drop photo here or click to browse'}
+              </p>
+              <p className="text-[11px] text-text-3">JPEG, PNG or WebP · max 5 MB</p>
+            </div>
+
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ''; }}
+            />
+          </div>
+          {photoMsg && (
+            <div className={`mt-2 text-xs font-bold ${photoMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>
+              {photoMsg.text}
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="field-label">Job title <span className="text-brand">*</span></label>
+            <input
+              className="field-input"
+              placeholder="e.g. Senior Product Manager"
+              value={(editForm.job_title as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, job_title: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="field-label">Current employer</label>
+            <input
+              className="field-input"
+              placeholder="e.g. NatWest, BlackRock, NHS"
+              value={(editForm.current_employer as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, current_employer: e.target.value }))}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="field-label">Professional headline</label>
+            <input
+              className="field-input"
+              placeholder="e.g. Fintech leader. Board-ready. Scotland-based."
+              value={(editForm.profile_headline as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, profile_headline: e.target.value }))}
+            />
+            <p className="text-[11px] text-text-3 mt-1">One punchy line that appears on your passport card and public profile.</p>
+          </div>
+          <div>
+            <label className="field-label">LinkedIn profile URL</label>
+            <input
+              className="field-input"
+              placeholder="https://linkedin.com/in/your-name"
+              value={(editForm.linkedin_url as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, linkedin_url: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="field-label">Open to opportunities?</label>
+            <select
+              className="field-input"
+              value={(editForm.open_to_opportunities as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, open_to_opportunities: e.target.value }))}
+            >
+              <option value="">Select…</option>
+              <option value="Yes">Yes — actively looking</option>
+              <option value="Passive">Passive — open to the right role</option>
+              <option value="No">No — not looking right now</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       <div className="card card-p space-y-5">
         <p className="text-xs font-bold uppercase tracking-wide text-text-3">Career</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -355,81 +566,198 @@ export default function ProfileClient({ user }: Props) {
         </button>
       </div>
 
-      {/* CV-parsed structured data */}
-      {(experiences.length > 0 || educations.length > 0 || certifications.length > 0 || cvLanguages) && (
-        <>
-          <div className="divider" />
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-text-3">Parsed from your CV</p>
-            {cvParsedAt && <p className="text-xs text-text-3">Last updated: {cvParsedAt}</p>}
-          </div>
-          <p className="text-xs text-text-2">This information was automatically extracted from your uploaded CV. Re-upload your CV to refresh it.</p>
-
-          {experiences.length > 0 && (
-            <div className="card card-p space-y-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Work Experience</p>
-              <div className="space-y-4">
-                {experiences.map((exp, i) => (
-                  <div key={i} className="border-l-2 border-brand pl-4 space-y-1">
-                    <p className="font-semibold text-sm">{exp.title}</p>
-                    <p className="text-sm text-text-2">{exp.company}</p>
-                    {(exp.start_date || exp.end_date) && (
-                      <p className="text-xs text-text-3">
-                        {exp.start_date || ''}{exp.start_date && (exp.end_date || exp.is_current) ? ' – ' : ''}{exp.is_current ? 'Present' : exp.end_date || ''}
-                      </p>
-                    )}
-                    {exp.description && <p className="text-xs text-text-2 leading-relaxed">{exp.description}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {educations.length > 0 && (
-            <div className="card card-p space-y-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Education</p>
-              <div className="space-y-3">
-                {educations.map((edu, i) => (
-                  <div key={i} className="border-l-2 border-brand pl-4 space-y-1">
-                    <p className="font-semibold text-sm">{edu.institution}</p>
-                    {(edu.degree || edu.field_of_study) && (
-                      <p className="text-sm text-text-2">{[edu.degree, edu.field_of_study].filter(Boolean).join(', ')}</p>
-                    )}
-                    {(edu.start_year || edu.end_year) && (
-                      <p className="text-xs text-text-3">{edu.start_year || ''}{edu.start_year && edu.end_year ? ' – ' : ''}{edu.end_year || ''}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {certifications.length > 0 && (
-            <div className="card card-p space-y-4">
-              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Certifications</p>
-              <ul className="space-y-2">
-                {certifications.map((cert, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm">
-                    <span className="text-brand mt-0.5">{'✓'}</span>
-                    <span>
-                      <span className="font-medium">{cert.name}</span>
-                      {cert.issuer && <span className="text-text-2"> &mdash; {cert.issuer}</span>}
-                      {cert.year && <span className="text-text-3"> ({cert.year})</span>}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {cvLanguages && (
-            <div className="card card-p space-y-3">
-              <p className="text-xs font-bold uppercase tracking-wide text-text-3">Languages</p>
-              <p className="text-sm">{cvLanguages}</p>
-            </div>
-          )}
-        </>
+      {/* ── Work history, education & certifications ── */}
+      <div className="divider" />
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold">Work History &amp; Credentials</h2>
+          <p className="section-sub">
+            {cvParsedAt
+              ? `Populated from your CV on ${cvParsedAt}. Edit freely below.`
+              : 'Add your experience, education, and certifications manually.'}
+          </p>
+        </div>
+        <button
+          onClick={handleHistorySave}
+          disabled={historySaving}
+          className="btn btn-amber btn-sm shrink-0"
+        >
+          {historySaving ? 'Saving…' : 'Save history'}
+        </button>
+      </div>
+      {historyMsg && (
+        <div className={`alert ${historyMsg.type === 'ok' ? 'alert-green' : 'alert-red'} text-sm`}>
+          {historyMsg.text}
+        </div>
       )}
+
+      {/* Work Experience repeater */}
+      <div className="card card-p space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-3">Work Experience</p>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setExperiences(prev => [...prev, { title: '', company: '', start_date: '', end_date: '', is_current: false, description: '' }])}
+          >
+            + Add role
+          </button>
+        </div>
+        {experiences.length === 0 && (
+          <p className="text-xs text-text-3 italic">No work experience added yet.</p>
+        )}
+        <div className="space-y-5">
+          {experiences.map((exp, i) => (
+            <div key={i} className="relative border border-gray-200 rounded-lg p-4 space-y-3">
+              <button
+                type="button"
+                className="absolute top-3 right-3 text-text-3 hover:text-red-600 text-lg leading-none"
+                title="Remove"
+                onClick={() => setExperiences(prev => prev.filter((_, idx) => idx !== i))}
+              >
+                &times;
+              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="field-label">Job title</label>
+                  <input className="field-input" placeholder="e.g. Senior Engineer" value={exp.title || ''} onChange={e => setExperiences(prev => prev.map((x, idx) => idx === i ? { ...x, title: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">Company</label>
+                  <input className="field-input" placeholder="e.g. NatWest" value={exp.company || ''} onChange={e => setExperiences(prev => prev.map((x, idx) => idx === i ? { ...x, company: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">Start date</label>
+                  <input className="field-input" placeholder="e.g. Jan 2021" value={exp.start_date || ''} onChange={e => setExperiences(prev => prev.map((x, idx) => idx === i ? { ...x, start_date: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">End date</label>
+                  <input className="field-input" placeholder="e.g. Mar 2024" value={exp.end_date || ''} disabled={!!exp.is_current} onChange={e => setExperiences(prev => prev.map((x, idx) => idx === i ? { ...x, end_date: e.target.value } : x))} />
+                  <label className="flex items-center gap-2 mt-1.5 cursor-pointer">
+                    <input type="checkbox" checked={!!exp.is_current} onChange={e => setExperiences(prev => prev.map((x, idx) => idx === i ? { ...x, is_current: e.target.checked, end_date: e.target.checked ? '' : x.end_date } : x))} className="w-3.5 h-3.5" />
+                    <span className="text-xs text-text-2">I currently work here</span>
+                  </label>
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="field-label">Description <span className="font-normal text-text-3">(optional)</span></label>
+                  <textarea className="field-input field-textarea" placeholder="Brief summary of responsibilities…" rows={2} value={exp.description || ''} onChange={e => setExperiences(prev => prev.map((x, idx) => idx === i ? { ...x, description: e.target.value } : x))} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Education repeater */}
+      <div className="card card-p space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-3">Education</p>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setEducations(prev => [...prev, { institution: '', degree: '', field_of_study: '', start_year: '', end_year: '' }])}
+          >
+            + Add education
+          </button>
+        </div>
+        {educations.length === 0 && (
+          <p className="text-xs text-text-3 italic">No education added yet.</p>
+        )}
+        <div className="space-y-5">
+          {educations.map((edu, i) => (
+            <div key={i} className="relative border border-gray-200 rounded-lg p-4 space-y-3">
+              <button
+                type="button"
+                className="absolute top-3 right-3 text-text-3 hover:text-red-600 text-lg leading-none"
+                title="Remove"
+                onClick={() => setEducations(prev => prev.filter((_, idx) => idx !== i))}
+              >
+                &times;
+              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="field-label">Institution</label>
+                  <input className="field-input" placeholder="e.g. University of Edinburgh" value={edu.institution || ''} onChange={e => setEducations(prev => prev.map((x, idx) => idx === i ? { ...x, institution: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">Degree</label>
+                  <input className="field-input" placeholder="e.g. BSc, MBA" value={edu.degree || ''} onChange={e => setEducations(prev => prev.map((x, idx) => idx === i ? { ...x, degree: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">Field of study</label>
+                  <input className="field-input" placeholder="e.g. Computer Science" value={edu.field_of_study || ''} onChange={e => setEducations(prev => prev.map((x, idx) => idx === i ? { ...x, field_of_study: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">Start year</label>
+                  <input className="field-input" placeholder="e.g. 2016" value={edu.start_year || ''} onChange={e => setEducations(prev => prev.map((x, idx) => idx === i ? { ...x, start_year: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">End year</label>
+                  <input className="field-input" placeholder="e.g. 2020" value={edu.end_year || ''} onChange={e => setEducations(prev => prev.map((x, idx) => idx === i ? { ...x, end_year: e.target.value } : x))} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Certifications repeater */}
+      <div className="card card-p space-y-4">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-3">Certifications</p>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm"
+            onClick={() => setCertifications(prev => [...prev, { name: '', issuer: '', year: '' }])}
+          >
+            + Add certification
+          </button>
+        </div>
+        {certifications.length === 0 && (
+          <p className="text-xs text-text-3 italic">No certifications added yet.</p>
+        )}
+        <div className="space-y-4">
+          {certifications.map((cert, i) => (
+            <div key={i} className="relative border border-gray-200 rounded-lg p-4">
+              <button
+                type="button"
+                className="absolute top-3 right-3 text-text-3 hover:text-red-600 text-lg leading-none"
+                title="Remove"
+                onClick={() => setCertifications(prev => prev.filter((_, idx) => idx !== i))}
+              >
+                &times;
+              </button>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="field-label">Certification name</label>
+                  <input className="field-input" placeholder="e.g. AWS Solutions Architect" value={cert.name || ''} onChange={e => setCertifications(prev => prev.map((x, idx) => idx === i ? { ...x, name: e.target.value } : x))} />
+                </div>
+                <div>
+                  <label className="field-label">Year</label>
+                  <input className="field-input" placeholder="e.g. 2023" value={cert.year || ''} onChange={e => setCertifications(prev => prev.map((x, idx) => idx === i ? { ...x, year: e.target.value } : x))} />
+                </div>
+                <div className="sm:col-span-3">
+                  <label className="field-label">Issuer <span className="font-normal text-text-3">(optional)</span></label>
+                  <input className="field-input" placeholder="e.g. Amazon Web Services" value={cert.issuer || ''} onChange={e => setCertifications(prev => prev.map((x, idx) => idx === i ? { ...x, issuer: e.target.value } : x))} />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {cvLanguages && (
+        <div className="card card-p space-y-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-3">Languages (from CV)</p>
+          <p className="text-sm">{cvLanguages}</p>
+        </div>
+      )}
+
+      <div className="flex justify-end">
+        <button onClick={handleHistorySave} disabled={historySaving} className="btn btn-amber">
+          {historySaving ? 'Saving…' : 'Save history'}
+        </button>
+      </div>
 
       {/* Email preferences -- Pro only */}
       <div className="divider" />

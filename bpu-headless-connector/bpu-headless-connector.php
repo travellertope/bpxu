@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.8.0
+ * Version: 2.10.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1824,6 +1824,36 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_export_profile_completeness' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // ── Public member profile endpoints ──────────────────────────────
+        register_rest_route( $this->namespace, '/member/(?P<username>[a-zA-Z0-9\-_.@]+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_public_member_profile' ),
+            'permission_callback' => '__return_true',
+            'args'                => array(
+                'username' => array( 'required' => true, 'sanitize_callback' => 'sanitize_user' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/members', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_public_members_directory' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // Profile photo upload (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/photo', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'upload_member_photo' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Work history, education & certifications (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/history', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'update_member_history' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
     }
 
     /**
@@ -3641,6 +3671,9 @@ Rules:
             'first-generation_immigrant',
             'do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of',
             'other_disability',
+            // Passport / public profile fields
+            'job_title', 'current_employer', 'profile_headline',
+            'linkedin_url', 'open_to_opportunities',
         );
 
         if ( ! function_exists( 'update_field' ) ) {
@@ -3658,6 +3691,301 @@ Rules:
         }
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/history — save work experience, education, certifications manually.
+     */
+    public function update_member_history( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $body    = $request->get_json_params();
+
+        if ( array_key_exists( 'experiences', $body ) ) {
+            $experiences = is_array( $body['experiences'] ) ? array_map( function( $e ) {
+                return array(
+                    'title'       => sanitize_text_field( $e['title']       ?? '' ),
+                    'company'     => sanitize_text_field( $e['company']     ?? '' ),
+                    'start_date'  => sanitize_text_field( $e['start_date']  ?? '' ),
+                    'end_date'    => sanitize_text_field( $e['end_date']    ?? '' ),
+                    'is_current'  => ! empty( $e['is_current'] ),
+                    'description' => sanitize_textarea_field( $e['description'] ?? '' ),
+                );
+            }, $body['experiences'] ) : array();
+            update_user_meta( $user_id, 'bpu_experiences', $experiences );
+        }
+
+        if ( array_key_exists( 'educations', $body ) ) {
+            $educations = is_array( $body['educations'] ) ? array_map( function( $e ) {
+                return array(
+                    'institution'   => sanitize_text_field( $e['institution']   ?? $e['institute'] ?? '' ),
+                    'degree'        => sanitize_text_field( $e['degree']        ?? '' ),
+                    'field_of_study'=> sanitize_text_field( $e['field_of_study']?? $e['field']    ?? '' ),
+                    'start_year'    => sanitize_text_field( $e['start_year']    ?? '' ),
+                    'end_year'      => sanitize_text_field( $e['end_year']      ?? '' ),
+                );
+            }, $body['educations'] ) : array();
+            update_user_meta( $user_id, 'bpu_educations', $educations );
+        }
+
+        if ( array_key_exists( 'certifications', $body ) ) {
+            $certs = is_array( $body['certifications'] ) ? array_map( function( $c ) {
+                return array(
+                    'name'   => sanitize_text_field( $c['name']   ?? '' ),
+                    'issuer' => sanitize_text_field( $c['issuer'] ?? '' ),
+                    'year'   => sanitize_text_field( $c['year']   ?? '' ),
+                );
+            }, $body['certifications'] ) : array();
+            update_user_meta( $user_id, 'bpu_certifications', $certs );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  PUBLIC MEMBER PROFILE ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Build a sanitised public profile array for a given WP_User object.
+     * Used by both the single-member and directory endpoints.
+     *
+     * @param WP_User $user
+     * @param bool    $include_cv  Include CV-parsed arrays (slower; skip for list view).
+     * @return array
+     */
+    private function build_public_member_profile( WP_User $user, $include_cv = true ) {
+        $user_id = $user->ID;
+
+        // ACF fields
+        $acf = array();
+        if ( function_exists( 'get_fields' ) ) {
+            $raw = get_fields( 'user_' . $user_id );
+            if ( $raw ) {
+                $acf = $raw;
+            }
+        }
+
+        // Helper: pull value from ACF first, then raw user meta.
+        $get = function( $key ) use ( $user_id, $acf ) {
+            if ( ! empty( $acf[ $key ] ) ) {
+                return $acf[ $key ];
+            }
+            $meta = get_user_meta( $user_id, $key, true );
+            return ( $meta !== '' && $meta !== false ) ? $meta : null;
+        };
+
+        // Roles
+        $roles     = (array) $user->roles;
+        $is_pro    = in_array( 'bpu_pro', $roles, true ) || in_array( 'bpu_pro_member', $roles, true );
+        $is_mentor = in_array( 'bpu_mentor', $roles, true );
+
+        // Profile photo: custom upload first, then null (let front-end fall back to Gravatar)
+        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+
+        // Display name: prefer first+last, fall back to user_login
+        $first = $get( 'first_name' ) ?: $user->first_name;
+        $last  = $get( 'last_name' )  ?: $user->last_name;
+        $display_name = trim( $first . ' ' . $last );
+        if ( ! $display_name ) {
+            $display_name = $user->display_name ?: $user->user_login;
+        }
+
+        $data = array(
+            'id'                      => $user_id,
+            'username'                => $user->user_login,
+            'display_name'            => $display_name,
+            'photo_url'               => $photo_url,
+            // Passport
+            'job_title'               => $get( 'job_title' ),
+            'current_employer'        => $get( 'current_employer' ),
+            'profile_headline'        => $get( 'profile_headline' ),
+            'linkedin_url'            => $get( 'linkedin_url' ),
+            'open_to_opportunities'   => $get( 'open_to_opportunities' ),
+            // Location
+            'location_city'           => $get( 'location_city' ),
+            'where_in_the_uk'         => $get( 'where_in_the_uk' ),
+            'country_location'        => $get( 'country_location' ),
+            // Career
+            'industry'                => $get( 'industry' ),
+            'industryfield_of_expertise' => $get( 'industryfield_of_expertise' ),
+            'years_of_experience'     => $get( 'years_of_experience' ),
+            'skills_separate'         => $get( 'skills_separate' ),
+            'level_of_education'      => $get( 'level_of_education' ),
+            // Bio
+            'user_bio'                => $get( 'user_bio' ),
+            // Membership
+            'is_pro'                  => $is_pro,
+            'roles'                   => array_values( $roles ),
+            'member_since'            => date( 'Y-m-d', strtotime( $user->user_registered ) ),
+        );
+
+        if ( $include_cv ) {
+            $experiences    = get_user_meta( $user_id, 'bpu_experiences',    true );
+            $educations     = get_user_meta( $user_id, 'bpu_educations',     true );
+            $certifications = get_user_meta( $user_id, 'bpu_certifications', true );
+            $testimonials   = get_user_meta( $user_id, 'bpu_testimonials',   true );
+
+            $data['experiences']    = is_array( $experiences )    ? $experiences    : array();
+            $data['educations']     = is_array( $educations )     ? $educations     : array();
+            $data['certifications'] = is_array( $certifications ) ? $certifications : array();
+            $data['testimonials']   = is_array( $testimonials )   ? $testimonials   : array();
+        }
+
+        return $data;
+    }
+
+    /**
+     * GET /bpu/v1/member/{username} — public profile for a single member.
+     * No authentication required; only non-sensitive fields are returned.
+     */
+    public function get_public_member_profile( WP_REST_Request $request ) {
+        $username = $request->get_param( 'username' );
+        $user     = get_user_by( 'login', $username );
+
+        if ( ! $user ) {
+            return new WP_Error( 'bpu_member_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        return new WP_REST_Response( $this->build_public_member_profile( $user, true ), 200 );
+    }
+
+    /**
+     * GET /bpu/v1/members — public directory listing.
+     *
+     * Query params:
+     *   search   — string: matched against display_name / first_name / last_name / user_login
+     *   sector   — string: matched against the 'industry' ACF field (user meta)
+     *   featured — '1': only users with _bpu_featured meta = '1'
+     *   page     — int (default 1)
+     *   per_page — int (default 12, max 50)
+     *
+     * Responds with X-WP-Total and X-WP-TotalPages headers.
+     */
+    public function get_public_members_directory( WP_REST_Request $request ) {
+        $search   = sanitize_text_field( $request->get_param( 'search' )   ?? '' );
+        $sector   = sanitize_text_field( $request->get_param( 'sector' )   ?? '' );
+        $featured = $request->get_param( 'featured' ) === '1';
+        $page     = max( 1, intval( $request->get_param( 'page' )     ?? 1 ) );
+        $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?? 12 ) ) );
+
+        $args = array(
+            'number'  => $per_page,
+            'paged'   => $page,
+            'orderby' => 'display_name',
+            'order'   => 'ASC',
+            // Only return members with at least a subscriber role (excludes admins, editors, etc.)
+            'role__in' => array( 'subscriber', 'bpu_pro', 'bpu_pro_member', 'bpu_mentor' ),
+            'fields'   => 'all',
+            'count_total' => true,
+        );
+
+        if ( $search ) {
+            $args['search']         = '*' . $search . '*';
+            $args['search_columns'] = array( 'user_login', 'display_name', 'user_nicename' );
+        }
+
+        if ( $sector ) {
+            // Filter by 'industry' user meta (stored by ACF as a raw meta key)
+            $args['meta_query'] = array(
+                array(
+                    'key'     => 'industry',
+                    'value'   => $sector,
+                    'compare' => 'LIKE',
+                ),
+            );
+        }
+
+        if ( $featured ) {
+            $featured_clause = array(
+                'key'     => '_bpu_featured',
+                'value'   => '1',
+                'compare' => '=',
+            );
+            if ( isset( $args['meta_query'] ) ) {
+                $args['meta_query'][] = $featured_clause;
+            } else {
+                $args['meta_query'] = array( $featured_clause );
+            }
+        }
+
+        $query = new WP_User_Query( $args );
+        $total = $query->get_total();
+        $users = $query->get_results();
+
+        $members = array();
+        foreach ( $users as $user ) {
+            // Lightweight: skip CV arrays for directory listing
+            $members[] = $this->build_public_member_profile( $user, false );
+        }
+
+        $response = new WP_REST_Response( $members, 200 );
+        $response->header( 'X-WP-Total',      (string) $total );
+        $response->header( 'X-WP-TotalPages', (string) ceil( $total / $per_page ) );
+        return $response;
+    }
+
+    /**
+     * POST /bpu/v1/member/photo — upload a profile photo for the JWT holder.
+     *
+     * Expects a multipart/form-data request with a 'photo' file field.
+     * Stores the image in the WP media library, saves its URL to
+     * _bpu_photo_url user meta, and returns the new URL.
+     */
+    public function upload_member_photo( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $files   = $request->get_file_params();
+
+        if ( empty( $files['photo'] ) || $files['photo']['error'] !== UPLOAD_ERR_OK ) {
+            return new WP_Error( 'bpu_no_photo', __( 'No photo file received.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $file = $files['photo'];
+        $mime = mime_content_type( $file['tmp_name'] );
+        $allowed_mimes = array( 'image/jpeg', 'image/png', 'image/webp', 'image/gif' );
+
+        if ( ! in_array( $mime, $allowed_mimes, true ) ) {
+            return new WP_Error( 'bpu_invalid_photo_type', __( 'Photo must be a JPEG, PNG, WebP, or GIF.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        if ( $file['size'] > 5 * 1024 * 1024 ) {
+            return new WP_Error( 'bpu_photo_too_large', __( 'Photo must be under 5 MB.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        // Hand off to WP's media upload handler
+        require_once ABSPATH . 'wp-admin/includes/image.php';
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        require_once ABSPATH . 'wp-admin/includes/media.php';
+
+        $attachment_id = media_handle_sideload( $file, 0, sanitize_text_field( $user_id . '-profile-photo' ) );
+
+        if ( is_wp_error( $attachment_id ) ) {
+            return new WP_Error( 'bpu_photo_upload_failed', $attachment_id->get_error_message(), array( 'status' => 500 ) );
+        }
+
+        // Delete any previous profile photo attachment
+        $old_id = get_user_meta( $user_id, '_bpu_photo_attachment_id', true );
+        if ( $old_id && intval( $old_id ) !== $attachment_id ) {
+            wp_delete_attachment( intval( $old_id ), true );
+        }
+
+        $photo_url = wp_get_attachment_url( $attachment_id );
+        update_user_meta( $user_id, '_bpu_photo_url',           $photo_url );
+        update_user_meta( $user_id, '_bpu_photo_attachment_id', $attachment_id );
+
+        return new WP_REST_Response( array(
+            'success'   => true,
+            'photo_url' => $photo_url,
+        ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -3737,6 +4065,9 @@ Rules:
             'first_name', 'last_name', 'phone_number', 'current_employment_status',
             'level_of_education', 'industry', 'industryfield_of_expertise',
             'years_of_experience', 'skills_separate', 'user_bio', 'residence', 'linkedin_profile',
+            // Passport / public profile fields
+            'job_title', 'current_employer', 'profile_headline', 'linkedin_url', 'open_to_opportunities',
+            'location_city', 'where_in_the_uk', 'country_location',
         );
         foreach ( $flat_keys as $key ) {
             if ( empty( $acf_profile[ $key ] ) ) {
@@ -3756,8 +4087,11 @@ Rules:
         $languages      = get_user_meta( $user_id, 'bpu_languages', true );
         $cv_parsed_at   = get_user_meta( $user_id, 'bpu_cv_parsed_at', true );
 
+        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+
         return new WP_REST_Response( array(
             'profile'        => $acf_profile,
+            'photo_url'      => $photo_url,
             'cv_url'         => $cv_url,
             'experiences'    => is_array( $experiences )    ? $experiences    : array(),
             'educations'     => is_array( $educations )     ? $educations     : array(),
