@@ -9,6 +9,18 @@ import {
   LinkedinLogo, TwitterLogo, InstagramLogo,
 } from '@phosphor-icons/react';
 
+/* ─── WordPress post shape (minimal) ─── */
+interface WpPost {
+  id: number;
+  link: string;
+  title: { rendered: string };
+  excerpt: { rendered: string };
+  _embedded?: {
+    'wp:featuredmedia'?: Array<{ source_url: string }>;
+    'wp:term'?: Array<Array<{ name: string }>>;
+  };
+}
+
 /* ─── cycling cities ─── */
 const CITIES = [
   'Glasgow', 'London', 'Birmingham', 'Manchester', 'Leeds',
@@ -59,7 +71,7 @@ function useCounter(target: number, active: boolean) {
   return val;
 }
 
-export default function HomePage() {
+function HomePageClient({ posts }: { posts: WpPost[] }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -318,20 +330,27 @@ export default function HomePage() {
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
           {[
-            { name: 'Lawrence Dada',      role: 'Process and FA Engineer' },
-            { name: 'Olamide Kosile',     role: 'Cloud Infrastructure Engineer' },
-            { name: 'Augustine Ologun',   role: 'Cloud Infrastructure Engineer' },
-            { name: 'Michael David',      role: 'Tech Support' },
-            { name: 'Priya Nkosi',        role: 'Senior Product Manager' },
-            { name: 'Tunde Adesanya',     role: 'Financial Analyst' },
-            { name: 'Amara Osei',         role: 'UX Designer' },
-            { name: 'Kofi Mensah',        role: 'Software Engineer' },
-          ].map(({ name, role }) => (
+            { name: 'Wosilat Zachariah',        role: 'Mental Health Nurse',                   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/e85e2496-aefb-48ec-9092-25cd3f3316b8-Wosilat-Zachariah.jpeg' },
+            { name: 'Edward Enejoh',             role: 'Project Manager / Business Analyst',    img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_1918-Edward-Enejoh-scaled.jpeg' },
+            { name: 'Bukola Osuntuyi',           role: 'Tech Business Operations',              img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/photo-output-Olubukola-Osuntuyi.jpeg' },
+            { name: 'Nafisat Ogijo',             role: 'Data Analyst',                          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8373-Nafisat-olamide-Ogijo.jpg' },
+            { name: 'Dr Elizabeth Wuyep',        role: 'Sales and Operations Coordinator',      img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_3097-Elizabeth-scaled.jpeg' },
+            { name: 'Oluwasegun Odumoye',        role: 'Risk Management',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Segun-Landscape-2-Oluwasegun-Odumoye-scaled.jpg' },
+            { name: 'Uchenna Chukwu',            role: 'Product Manager',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/DSCF2795-Prince-Uchenna-Chukwu-scaled.jpg' },
+            { name: 'Chibuikem Ugwu',            role: 'Support Worker',                        img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Snapchat-123564268-ugwu-chibuikem.jpg' },
+            { name: 'Lawrence Dada',             role: 'Process and Flow Assurance Engineer',   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8144-Lawrence-DADA-e1761234517311.jpeg' },
+            { name: 'Olamide Kosile',            role: 'Cloud Infrastructure Engineer',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Generated-Image-September-25-2025-6_28PM-Olamide-Kosile.png' },
+            { name: 'Augustine Ologun',          role: 'Cloud Infrastructure Engineer',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_2487-Augustine-Ologun.jpeg' },
+            { name: 'Michael David',             role: 'Tech Support',                          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Michael-David-Headshot-David-Michael.png' },
+            { name: 'Ifeanyi Moses A',           role: 'HR – People Engagement Administrator',  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_6336-Moses-Ifeanyi.jpeg' },
+            { name: 'Kelechi Elizabeth Origa',   role: 'Product / Project Manager',             img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_0388-Kelechi-Origa.jpeg' },
+            { name: 'Dr. Ikenna Light Nkwocha',  role: 'Volunteer Research Associate',          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG-20250106-WA0002-Ikenna-Nkwocha-e1761239259922.jpg' },
+          ].map(({ name, role, img }) => (
             <div key={name} className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start">
               <div className="aspect-square w-full bg-gray-200 rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={`https://placehold.co/400x400/001478/FFFFFF?text=${encodeURIComponent(name)}`}
+                  src={img}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
@@ -482,21 +501,23 @@ export default function HomePage() {
                 competitive edge.
               </p>
               <a
-                href="/report"
+                href="https://blackprofessionals.uk/bpu-harnessing-talent-report-2026/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-block bg-white text-hp-dark px-8 py-4 rounded-xl border-2 border-white shadow-[6px_6px_0px_0px_rgba(217,56,30,1)] hover:shadow-[8px_8px_0px_0px_rgba(217,56,30,1)] transition-all uppercase font-black text-lg"
               >
-                View Interactive Report
+                View the Report
               </a>
             </div>
 
-            {/* Data viz placeholder */}
-            <div className="relative w-full aspect-square bg-[#1A1A1A] rounded-2xl border-2 border-gray-700 overflow-hidden flex items-center justify-center group cursor-pointer">
-              <div className="absolute inset-0 bg-radial-[at_center] from-gray-800 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="text-center z-10 p-8 border-brutal bg-hp-dark shadow-brutal transform group-hover:scale-105 transition-transform duration-300">
-                <ChartBar weight="light" size={64} className="text-hp-accent mb-4 mx-auto" />
-                <h3 className="font-black uppercase text-xl">Unlock the Data</h3>
-                <p className="text-sm text-gray-400 mt-2 font-medium">Explore the live dashboard</p>
-              </div>
+            {/* Report cover photo */}
+            <div className="relative w-full aspect-[3/2] rounded-2xl border-2 border-gray-700 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://blackprofessionals.uk/wp-content/uploads/2026/04/TBCC2026-103-scaled.jpg"
+                alt="Harnessing Talent Report 2026 – BPU event"
+                className="w-full h-full object-cover"
+              />
             </div>
           </div>
         </div>
@@ -512,36 +533,39 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {[
-            { tag: 'Internship Week',  name: 'Daniel Olanrewaju', label: 'Intern Spotlight' },
-            { tag: 'Alumni Mentor',    name: 'Vambo Maswiswi',    label: 'Alumni Mentor Spotlight' },
-            { tag: 'Alumni Mentor',    name: 'Olabisi Oloyede',   label: 'Alumni Mentor Spotlight' },
-          ].map(({ tag, name, label }) => (
-            <article key={name} className="flex flex-col group cursor-pointer">
-              <div className="w-full aspect-[4/3] bg-gray-200 rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
-                <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
-                  {tag}
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`https://placehold.co/600x450/0F0F0F/FFFFFF?text=${encodeURIComponent(name)}`}
-                  alt={name}
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-brutal pl-1">
-                    <Play weight="fill" size={24} />
+          {posts.map((post) => {
+            const title = post.title.rendered.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/<[^>]+>/g, '');
+            const excerpt = post.excerpt.rendered.replace(/<[^>]+>/g, '').replace(/\[&hellip;\]|\[…\]/g, '…').trim();
+            const category = post._embedded?.['wp:term']?.[0]?.[0]?.name ?? 'Article';
+            const image = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
+            return (
+              <article key={post.id} className="flex flex-col group cursor-pointer">
+                <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-gray-200 rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
+                  <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
+                    {category}
                   </div>
-                </div>
-              </div>
-              <h3 className="font-black text-2xl leading-tight mb-3 group-hover:text-hp-accent transition-colors">
-                {label}: A Conversation with {name}
-              </h3>
-              <a href="#" className="font-bold uppercase text-sm border-b-2 border-black w-max mt-auto">
-                Catch Up
-              </a>
-            </article>
-          ))}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {image && <img
+                    src={image}
+                    alt={title}
+                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                  />}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-brutal pl-1">
+                      <Play weight="fill" size={24} />
+                    </div>
+                  </div>
+                </a>
+                <h3 className="font-black text-xl leading-tight mb-2 group-hover:text-hp-accent transition-colors">
+                  {title}
+                </h3>
+                {excerpt && <p className="text-sm text-gray-600 font-medium mb-4 line-clamp-2">{excerpt}</p>}
+                <a href={post.link} target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-sm border-b-2 border-black w-max mt-auto hover:text-hp-accent hover:border-hp-accent transition-colors">
+                  Catch Up
+                </a>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -555,14 +579,40 @@ export default function HomePage() {
             Proudly partnering with industry leaders to create actionable change.
           </p>
 
-          {/* Auto-scrolling single-row carousel */}
+          {/* Auto-scrolling partner logo marquee */}
           <div className="marquee-container mb-16">
             <div className="marquee-content">
-              {['BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard',
-                'BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard'].map((p, i) => (
-                <span key={i} className="text-2xl font-black text-gray-400 hover:text-black transition-colors cursor-pointer px-12 whitespace-nowrap">
-                  {p}
-                </span>
+              {([
+                { name: 'Codebase',                       href: 'https://www.codebase.com/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/03/Codebase.jpg' },
+                { name: 'M&G',                            href: 'https://www.mandg.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/02/m-and-g.png' },
+                { name: 'RSPB',                           href: 'https://www.rspb.org.uk/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/RSPB.jpg' },
+                { name: 'Cairngorms',                     href: 'https://cairngorms.co.uk/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Cairngorms.jpg' },
+                { name: 'Scottish National Investment Bank', href: 'https://www.thebank.scot/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Scottish-National-Investment-Bank.jpg' },
+                { name: 'Barclays',                       href: 'https://www.barclays.co.uk/',           logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Barclays-1.jpg' },
+                { name: 'The Skills Network',             href: 'https://theskillsnetwork.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/The-Skills-Network.jpg' },
+                { name: 'BlackRock',                      href: 'https://www.blackrock.com/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/blackrock-1.jpg' },
+                { name: 'Charles River',                  href: 'https://www.criver.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/charles_river-1.jpg' },
+                { name: 'BNY',                            href: 'https://www.bny.com/',                  logo: 'https://blackprofessionals.uk/wp-content/uploads/2020/08/bny-log.png' },
+                { name: 'FreeAgent',                      href: 'https://www.freeagent.com/en/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/free-agent-.png' },
+                { name: 'NatWest',                        href: 'https://www.natwest.com/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/07/Natwest.png' },
+                { name: 'Walter Scott',                   href: 'https://www.walterscott.com/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
+                { name: 'Addleshaw Goddard',              href: 'https://www.addleshawgoddard.com/en/',  logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
+                { name: 'Capco',                          href: 'https://www.capco.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
+              ] as const).flatMap((p, i, arr) => [p, { ...p, key: `dup-${i}` }]).map((p, i) => (
+                <a
+                  key={i}
+                  href={p.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center px-8 whitespace-nowrap"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.logo}
+                    alt={p.name}
+                    className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
+                  />
+                </a>
               ))}
             </div>
           </div>
@@ -576,10 +626,28 @@ export default function HomePage() {
 
           <div className="border-t-4 border-black pt-12">
             <h3 className="text-xl font-black uppercase tracking-tight mb-8">Press Mentions</h3>
-            <div className="flex justify-center items-center gap-12 flex-wrap">
-              <div className="font-black text-xl md:text-2xl uppercase tracking-tighter">SCOTTISH BUSINESS NEWS</div>
-              <div className="w-2 h-2 bg-black rounded-full" />
-              <div className="font-black text-xl md:text-2xl uppercase tracking-tighter">THE SCOTSMAN</div>
+            <div className="flex justify-center items-center gap-10 flex-wrap">
+              {[
+                { name: 'Insider',               href: 'https://www.insider.co.uk/news/diversity-advocate-calls-out-subtle-23722129',                                                                                        logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/Insider.png' },
+                { name: 'Accounting & Business', href: 'https://abmagazine.accaglobal.com/global/articles/2021/jan/interviews/diversity-is-everyone-s-business.html',                                                         logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/Accounting-Business.png' },
+                { name: 'Scottish Business News', href: 'https://scottishbusiness.news/black-professionals-uk-strengthens-scotlands-workforce-diversity-with-2025-black-interns-and-black-talents-programmes/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/Scottish-Business-News.png' },
+                { name: 'The Scotsman',           href: 'https://www.scotsman.com/business/call-for-scots-financial-firms-to-step-up-support-of-black-workers-3164616',                                                        logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/scotsman-logo-1.png' },
+              ].map(({ name, href, logo }) => (
+                <a
+                  key={name}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logo}
+                    alt={name}
+                    className="h-8 w-auto object-contain grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
+                  />
+                </a>
+              ))}
             </div>
           </div>
         </div>
@@ -677,4 +745,19 @@ export default function HomePage() {
 
     </div>
   );
+}
+
+/* ── Server wrapper: fetches WP posts then renders the client page ── */
+export default async function HomePage() {
+  let posts: WpPost[] = [];
+  try {
+    const res = await fetch(
+      'https://blackprofessionals.uk/wp-json/wp/v2/posts?per_page=3&_embed=1',
+      { next: { revalidate: 3600 } }   // re-fetch at most once per hour
+    );
+    if (res.ok) posts = await res.json();
+  } catch {
+    // fail silently — page renders without posts
+  }
+  return <HomePageClient posts={posts} />;
 }
