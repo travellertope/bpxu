@@ -90,7 +90,8 @@ function useCounter(target: number, active: boolean) {
   return val;
 }
 
-function HomePageClient({ posts }: { posts: WpPost[] }) {
+export default function HomePageClient() {
+  const [posts, setPosts] = useState<WpPost[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -98,6 +99,13 @@ function HomePageClient({ posts }: { posts: WpPost[] }) {
   const [cityVisible, setCityVisible] = useState(true);
   const lastY = useRef(0);
   const marqueeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch('https://blackprofessionals.uk/wp-json/wp/v2/posts?per_page=3&_embed=1')
+      .then(r => r.ok ? r.json() : [])
+      .then(setPosts)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -757,17 +765,3 @@ function HomePageClient({ posts }: { posts: WpPost[] }) {
   );
 }
 
-/* ── Server wrapper: fetches WP posts then renders the client page ── */
-export default async function HomePage() {
-  let posts: WpPost[] = [];
-  try {
-    const res = await fetch(
-      'https://blackprofessionals.uk/wp-json/wp/v2/posts?per_page=3&_embed=1',
-      { next: { revalidate: 3600 } }   // re-fetch at most once per hour
-    );
-    if (res.ok) posts = await res.json();
-  } catch {
-    // fail silently — page renders without posts
-  }
-  return <HomePageClient posts={posts} />;
-}
