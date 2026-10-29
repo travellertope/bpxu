@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.14.0
+ * Version: 2.15.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1879,6 +1879,19 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/mentorship-request', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'handle_mentorship_intro_request' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Connections
+        register_rest_route( $this->namespace, '/member/connection-status/(?P<username>[a-zA-Z0-9\-_.@]+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_connection_status' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        register_rest_route( $this->namespace, '/member/connect', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_connection_action' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
@@ -4056,6 +4069,214 @@ Rules:
         );
 
         return new WP_REST_Response( array( 'success' => true, 'message' => 'Mentorship request sent.' ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  CONNECTION ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /bpu/v1/member/connection-status/{username}
+     * Returns the connection status between the JWT viewer and the target member.
+     * Unauthenticated requests always return 'not_connected'.
+     * Statuses: not_connected | pending_sent | pending_received | connected
+     */
+    public function get_connection_status( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_REST_Response( array( 'status' => 'not_connected' ), 200 );
+        }
+
+        $viewer_id = intval( $payload['user_id'] );
+        $username  = $request->get_param( 'username' );
+        $target    = get_user_by( 'login', $username );
+
+        if ( ! $target ) {
+            return new WP_Error( 'not_found', 'Member not found.', array( 'status' => 404 ) );
+        }
+
+        if ( $viewer_id === $target->ID ) {
+            return new WP_REST_Response( array( 'status' => 'self' ), 200 );
+        }
+
+        $connections = get_user_meta( $viewer_id, '_bpu_connections', true );
+        if ( ! is_array( $connections ) ) {
+            return new WP_REST_Response( array( 'status' => 'not_connected' ), 200 );
+        }
+
+        foreach ( $connections as $c ) {
+            if ( intval( $c['user_id'] ) === $target->ID ) {
+                if ( $c['status'] === 'accepted' ) {
+                    return new WP_REST_Response( array( 'status' => 'connected' ), 200 );
+                }
+                if ( $c['status'] === 'pending' ) {
+                    $status = $c['direction'] === 'sent' ? 'pending_sent' : 'pending_received';
+                    return new WP_REST_Response( array( 'status' => $status ), 200 );
+                }
+            }
+        }
+
+        return new WP_REST_Response( array( 'status' => 'not_connected' ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/connect
+     * Actions: send | withdraw | accept | decline
+     * Body: { action, to_username } for send/withdraw; { action, from_username } for accept/decline
+     */
+    public function handle_connection_action( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $actor_id = intval( $payload['user_id'] );
+        $body     = $request->get_json_params();
+        $action   = sanitize_text_field( $body['action'] ?? '' );
+
+        if ( ! in_array( $action, array( 'send', 'withdraw', 'accept', 'decline' ), true ) ) {
+            return new WP_Error( 'invalid_action', 'action must be send, withdraw, accept, or decline.', array( 'status' => 400 ) );
+        }
+
+        // Resolve the other user
+        if ( in_array( $action, array( 'send', 'withdraw' ), true ) ) {
+            $other_username = sanitize_text_field( $body['to_username'] ?? '' );
+        } else {
+            $other_username = sanitize_text_field( $body['from_username'] ?? '' );
+        }
+
+        if ( ! $other_username ) {
+            return new WP_Error( 'missing_username', 'to_username or from_username is required.', array( 'status' => 400 ) );
+        }
+
+        $other_user = get_user_by( 'login', $other_username );
+        if ( ! $other_user ) {
+            return new WP_Error( 'not_found', 'Member not found.', array( 'status' => 404 ) );
+        }
+
+        $other_id = $other_user->ID;
+
+        if ( $actor_id === $other_id ) {
+            return new WP_Error( 'self_connect', 'You cannot connect with yourself.', array( 'status' => 400 ) );
+        }
+
+        $actor_connections = get_user_meta( $actor_id, '_bpu_connections', true );
+        $other_connections = get_user_meta( $other_id, '_bpu_connections', true );
+        if ( ! is_array( $actor_connections ) ) $actor_connections = array();
+        if ( ! is_array( $other_connections ) ) $other_connections = array();
+
+        $actor_entry_idx = null;
+        $other_entry_idx = null;
+        foreach ( $actor_connections as $i => $c ) {
+            if ( intval( $c['user_id'] ) === $other_id ) { $actor_entry_idx = $i; break; }
+        }
+        foreach ( $other_connections as $i => $c ) {
+            if ( intval( $c['user_id'] ) === $actor_id ) { $other_entry_idx = $i; break; }
+        }
+
+        $actor_user = get_userdata( $actor_id );
+
+        if ( $action === 'send' ) {
+            if ( $actor_entry_idx !== null ) {
+                return new WP_Error( 'already_exists', 'A connection request already exists.', array( 'status' => 409 ) );
+            }
+
+            $context = sanitize_text_field( $body['context'] ?? 'Peer Professional' );
+            $note    = sanitize_textarea_field( $body['note'] ?? '' );
+            $now     = current_time( 'c' );
+
+            $actor_connections[] = array(
+                'user_id'    => $other_id,
+                'status'     => 'pending',
+                'direction'  => 'sent',
+                'context'    => $context,
+                'note'       => $note,
+                'created_at' => $now,
+            );
+            $other_connections[] = array(
+                'user_id'    => $actor_id,
+                'status'     => 'pending',
+                'direction'  => 'received',
+                'context'    => $context,
+                'note'       => $note,
+                'created_at' => $now,
+            );
+
+            update_user_meta( $actor_id, '_bpu_connections', $actor_connections );
+            update_user_meta( $other_id, '_bpu_connections', $other_connections );
+
+            // Email notification to recipient
+            $actor_name  = trim( $actor_user->display_name ) ?: $actor_user->user_login;
+            $other_name  = trim( $other_user->display_name ) ?: $other_user->user_login;
+            $other_email = $other_user->user_email;
+            $profile_url = 'https://web.blackprofessionals.uk/members/' . $actor_user->user_login;
+            $subject     = '[BPU] ' . $actor_name . ' wants to connect with you';
+            $msg         = "Hi {$other_name},\n\n{$actor_name} has sent you a connection request on Black Professionals UK.\n\nContext: {$context}\n";
+            if ( $note ) {
+                $msg .= "\nPersonal note:\n\"{$note}\"\n";
+            }
+            $msg .= "\nView their profile: {$profile_url}\n\n— The BPU Team\nhttps://web.blackprofessionals.uk";
+            wp_mail( $other_email, $subject, $msg );
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'pending_sent' ), 200 );
+        }
+
+        if ( $action === 'withdraw' ) {
+            if ( $actor_entry_idx === null || ( $actor_connections[ $actor_entry_idx ]['direction'] ?? '' ) !== 'sent' ) {
+                return new WP_Error( 'not_found', 'No pending sent request found.', array( 'status' => 404 ) );
+            }
+            array_splice( $actor_connections, $actor_entry_idx, 1 );
+            update_user_meta( $actor_id, '_bpu_connections', array_values( $actor_connections ) );
+
+            if ( $other_entry_idx !== null ) {
+                array_splice( $other_connections, $other_entry_idx, 1 );
+                update_user_meta( $other_id, '_bpu_connections', array_values( $other_connections ) );
+            }
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'not_connected' ), 200 );
+        }
+
+        if ( $action === 'accept' ) {
+            if ( $actor_entry_idx === null || ( $actor_connections[ $actor_entry_idx ]['direction'] ?? '' ) !== 'received' ) {
+                return new WP_Error( 'not_found', 'No pending received request found.', array( 'status' => 404 ) );
+            }
+            $actor_connections[ $actor_entry_idx ]['status']    = 'accepted';
+            $actor_connections[ $actor_entry_idx ]['accepted_at'] = current_time( 'c' );
+            update_user_meta( $actor_id, '_bpu_connections', $actor_connections );
+
+            if ( $other_entry_idx !== null ) {
+                $other_connections[ $other_entry_idx ]['status']    = 'accepted';
+                $other_connections[ $other_entry_idx ]['accepted_at'] = current_time( 'c' );
+                update_user_meta( $other_id, '_bpu_connections', $other_connections );
+            }
+
+            // Email notification to original requester
+            $actor_name  = trim( $actor_user->display_name ) ?: $actor_user->user_login;
+            $other_name  = trim( $other_user->display_name ) ?: $other_user->user_login;
+            $other_email = $other_user->user_email;
+            $profile_url = 'https://web.blackprofessionals.uk/members/' . $actor_user->user_login;
+            wp_mail(
+                $other_email,
+                '[BPU] ' . $actor_name . ' accepted your connection request',
+                "Hi {$other_name},\n\n{$actor_name} has accepted your connection request on Black Professionals UK.\n\nView their profile: {$profile_url}\n\n— The BPU Team"
+            );
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'connected' ), 200 );
+        }
+
+        if ( $action === 'decline' ) {
+            if ( $actor_entry_idx !== null ) {
+                array_splice( $actor_connections, $actor_entry_idx, 1 );
+                update_user_meta( $actor_id, '_bpu_connections', array_values( $actor_connections ) );
+            }
+            if ( $other_entry_idx !== null ) {
+                array_splice( $other_connections, $other_entry_idx, 1 );
+                update_user_meta( $other_id, '_bpu_connections', array_values( $other_connections ) );
+            }
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'not_connected' ), 200 );
+        }
+
+        return new WP_Error( 'invalid_action', 'Unknown action.', array( 'status' => 400 ) );
     }
 
     // ══════════════════════════════════════════════════════════════

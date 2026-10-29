@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { PublicMemberProfile, PublicTestimonial } from './types';
 import { BPUUser } from '@/lib/auth';
@@ -224,11 +224,25 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>(member?.testimonials ?? []);
   const [endorsements, setEndorsements] = useState<{ skill: string; count: number }[]>(member?.endorsements ?? []);
   const [endorsedSkills, setEndorsedSkills] = useState<Set<string>>(new Set<string>());
-  const [connectionState, setConnectionState] = useState<'not_connected' | 'pending' | 'connected'>('not_connected');
+  const [connectionState, setConnectionState] = useState<'not_connected' | 'pending' | 'pending_received' | 'connected'>('not_connected');
   const [showConnect, setShowConnect] = useState(false);
   const [connectContext, setConnectContext] = useState('Peer Professional');
   const [connectNote, setConnectNote] = useState('');
   const [connectSubmitting, setConnectSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!viewer || isOwner) return;
+    fetch(`/api/member/connect?username=${encodeURIComponent(username)}`)
+      .then(r => r.json())
+      .then(data => {
+        const s = data.status;
+        if (s === 'connected') setConnectionState('connected');
+        else if (s === 'pending_sent') setConnectionState('pending');
+        else if (s === 'pending_received') setConnectionState('pending_received');
+        else setConnectionState('not_connected');
+      })
+      .catch(() => { /* silently keep not_connected */ });
+  }, [viewer, isOwner, username]);
 
   const openToast = (msg: string) => setToast(msg);
 
@@ -421,11 +435,44 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                     )}
                     {connectionState === 'pending' && (
                       <button
-                        onClick={() => { setConnectionState('not_connected'); openToast('Connection request withdrawn.'); }}
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/member/connect', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'withdraw', to_username: username }),
+                            });
+                            if (res.ok) {
+                              setConnectionState('not_connected');
+                              openToast('Connection request withdrawn.');
+                            }
+                          } catch { /* ignore */ }
+                        }}
                         className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl flex items-center justify-center gap-2"
                         style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: SLATE }}
                       >
                         Request Sent ⏳
+                      </button>
+                    )}
+                    {connectionState === 'pending_received' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/member/connect', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'accept', from_username: username }),
+                            });
+                            if (res.ok) {
+                              setConnectionState('connected');
+                              openToast(`You are now connected with ${name}!`);
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
+                        style={{ background: '#166534', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                      >
+                        Accept Request ✓
                       </button>
                     )}
                     {connectionState === 'connected' && (
@@ -992,13 +1039,24 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
           onSubmit={async e => {
             e.preventDefault();
             setConnectSubmitting(true);
-            await new Promise(r => setTimeout(r, 600)); // optimistic delay
-            setConnectSubmitting(false);
-            setShowConnect(false);
-            setConnectContext('Peer Professional');
-            setConnectNote('');
-            setConnectionState('pending');
-            openToast(`Connection request sent to ${name}!`);
+            try {
+              const res = await fetch('/api/member/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'send', to_username: username, context: connectContext, note: connectNote }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Could not send connection request.');
+              setShowConnect(false);
+              setConnectContext('Peer Professional');
+              setConnectNote('');
+              setConnectionState('pending');
+              openToast(`Connection request sent to ${name}!`);
+            } catch (err: unknown) {
+              openToast(err instanceof Error ? err.message : 'Could not send connection request.');
+            } finally {
+              setConnectSubmitting(false);
+            }
           }}
           className="p-6 space-y-4"
         >
