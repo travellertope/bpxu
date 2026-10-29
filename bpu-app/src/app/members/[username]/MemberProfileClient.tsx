@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { PublicMemberProfile } from './types';
+import { PublicMemberProfile, PublicTestimonial } from './types';
 import { BPUUser } from '@/lib/auth';
 
 /* ── colour constants (match PassportCard) ── */
@@ -95,15 +95,32 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 }
 
 /* ── Skill bar ── */
-function SkillBar({ name, votes, pct }: { name: string; votes: number; pct: number }) {
+function SkillBar({ name, votes, maxVotes, endorsed, onEndorse }: {
+  name: string; votes: number; maxVotes: number; endorsed?: boolean; onEndorse?: () => void;
+}) {
+  const pct = maxVotes > 0 ? Math.round((votes / maxVotes) * 100) : 0;
   return (
     <div className="space-y-1">
-      <div className="flex justify-between items-center">
-        <span className="font-black text-xs uppercase" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{name}</span>
-        <span className="font-mono font-bold text-xs" style={{ color: OCHRE }}>{votes} votes</span>
+      <div className="flex justify-between items-center gap-2">
+        <span className="font-black text-xs uppercase flex-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{name}</span>
+        <span className="font-mono font-bold text-xs shrink-0" style={{ color: OCHRE }}>{votes} vote{votes !== 1 ? 's' : ''}</span>
+        {onEndorse && (
+          <button
+            onClick={onEndorse}
+            title={endorsed ? 'Remove endorsement' : 'Endorse this skill'}
+            className="shrink-0 font-mono font-bold text-[10px] uppercase px-2 py-0.5 rounded transition-colors"
+            style={{
+              border: `2px solid ${endorsed ? OCHRE : BORDER}`,
+              color: endorsed ? '#fff' : BORDER,
+              background: endorsed ? OCHRE : 'transparent',
+            }}
+          >
+            {endorsed ? '✓ Endorsed' : '+ Endorse'}
+          </button>
+        )}
       </div>
       <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: PAPER, border: `2px solid ${BORDER}` }}>
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SLATE }} />
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: SLATE }} />
       </div>
     </div>
   );
@@ -192,13 +209,71 @@ function downloadPassport(m: PublicMemberProfile) {
 export default function MemberProfileClient({ member, username, isOwner, viewer }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState(false);
-  const [showMentorship, setShowMentorship] = useState(false);
   const [showPassport, setShowPassport] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showRecommendation, setShowRecommendation] = useState(false);
   const [msgText, setMsgText] = useState('');
   const [msgSubject, setMsgSubject] = useState('');
+  const [msgSending, setMsgSending] = useState(false);
+  const [msgError, setMsgError] = useState<string | null>(null);
+  const [recText, setRecText] = useState('');
+  const [recAuthor, setRecAuthor] = useState(viewer?.display_name ?? '');
+  const [recRole, setRecRole] = useState('');
+  const [recSubmitting, setRecSubmitting] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+  const [testimonials, setTestimonials] = useState<PublicTestimonial[]>(member?.testimonials ?? []);
+  const [endorsements, setEndorsements] = useState<{ skill: string; count: number }[]>(member?.endorsements ?? []);
+  const [endorsedSkills, setEndorsedSkills] = useState<Set<string>>(new Set<string>());
+  const [connectionState, setConnectionState] = useState<'not_connected' | 'pending' | 'pending_received' | 'connected'>('not_connected');
+  const [showConnect, setShowConnect] = useState(false);
+  const [connectContext, setConnectContext] = useState('Peer Professional');
+  const [connectNote, setConnectNote] = useState('');
+  const [connectSubmitting, setConnectSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!viewer || isOwner) return;
+    fetch(`/api/member/connect?username=${encodeURIComponent(username)}`)
+      .then(r => r.json())
+      .then(data => {
+        const s = data.status;
+        if (s === 'connected') setConnectionState('connected');
+        else if (s === 'pending_sent') setConnectionState('pending');
+        else if (s === 'pending_received') setConnectionState('pending_received');
+        else setConnectionState('not_connected');
+      })
+      .catch(() => { /* silently keep not_connected */ });
+  }, [viewer, isOwner, username]);
 
   const openToast = (msg: string) => setToast(msg);
+
+  const handleEndorse = async (skill: string) => {
+    if (connectionState !== 'connected') {
+      setShowConnect(true);
+      return;
+    }
+    try {
+      const res = await fetch('/api/member/endorse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_username: username, skill }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save endorsement.');
+      const action: 'added' | 'removed' = data.action;
+      setEndorsedSkills(prev => {
+        const next = new Set(prev);
+        if (action === 'added') next.add(skill); else next.delete(skill);
+        return next;
+      });
+      setEndorsements(prev => {
+        const hit = prev.find(e => e.skill === skill);
+        if (hit) return prev.map(e => e.skill === skill ? { ...e, count: data.count } : e);
+        return [...prev, { skill, count: data.count }];
+      });
+    } catch (err: unknown) {
+      openToast(err instanceof Error ? err.message : 'Could not save endorsement.');
+    }
+  };
   const profileUrl = `https://web.blackprofessionals.uk/members/${username}`;
 
   /* ── Not found ── */
@@ -349,27 +424,84 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                 {viewer && !isOwner && (
                   <>
-                    <button
-                      onClick={() => openToast(`Connection request sent to ${name}!`)}
-                      className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
-                      style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-                    >
-                      + Connect on BPU
-                    </button>
-                    <button
-                      onClick={() => setShowMessage(true)}
-                      className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
-                      style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-                    >
-                      ✉ Message
-                    </button>
-                    <button
-                      onClick={() => setShowMentorship(true)}
-                      className="px-5 py-3 text-xs font-bold uppercase rounded-xl flex items-center gap-2"
-                      style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: OCHRE }}
-                    >
-                      🤝 Mentorship
-                    </button>
+                    {connectionState === 'not_connected' && (
+                      <button
+                        onClick={() => setShowConnect(true)}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
+                        style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                      >
+                        + Connect on BPU
+                      </button>
+                    )}
+                    {connectionState === 'pending' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/member/connect', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'withdraw', to_username: username }),
+                            });
+                            if (res.ok) {
+                              setConnectionState('not_connected');
+                              openToast('Connection request withdrawn.');
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl flex items-center justify-center gap-2"
+                        style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: SLATE }}
+                      >
+                        Request Sent ⏳
+                      </button>
+                    )}
+                    {connectionState === 'pending_received' && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            const res = await fetch('/api/member/connect', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ action: 'accept', from_username: username }),
+                            });
+                            if (res.ok) {
+                              setConnectionState('connected');
+                              openToast(`You are now connected with ${name}!`);
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
+                        style={{ background: '#166534', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                      >
+                        Accept Request ✓
+                      </button>
+                    )}
+                    {connectionState === 'connected' && (
+                      <button
+                        disabled
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl flex items-center justify-center gap-2"
+                        style={{ background: '#166534', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#fff' }}
+                      >
+                        Connected ✓
+                      </button>
+                    )}
+                    {connectionState === 'connected' && (
+                      <button
+                        onClick={() => setShowMessage(true)}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
+                        style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                      >
+                        ✉ Message
+                      </button>
+                    )}
+                    {m.mentorship_status === 'Accepting Mentees' && (
+                      <Link
+                        href={`/paired/mentors/${m.id}`}
+                        className="px-5 py-3 text-xs font-bold uppercase rounded-xl flex items-center gap-2"
+                        style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: OCHRE }}
+                      >
+                        🤝 Book Mentorship ↗
+                      </Link>
+                    )}
                   </>
                 )}
                 {isOwner && (
@@ -432,16 +564,35 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                 className="lg:col-span-4 p-4 rounded-xl space-y-3"
                 style={{ background: `${PAPER}80`, border: `2px solid ${BORDER}` }}
               >
-                {m.years_of_experience && (
+                {m.placement_scheme && (
                   <div className="flex items-center justify-between text-xs font-black uppercase" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span className="text-gray-600">Experience:</span>
-                    <span style={{ color: OCHRE }}>{m.years_of_experience} Yr{Number(m.years_of_experience) !== 1 ? 's' : ''}</span>
+                    <span className="text-gray-600">Placement Scheme:</span>
+                    <span style={{ color: OCHRE }}>{m.placement_scheme}</span>
                   </div>
                 )}
-                {m.level_of_education && (
+                {m.mentorship_status && (
                   <div className="flex items-center justify-between text-xs font-black uppercase border-t pt-2" style={{ borderColor: `${BORDER}30`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span className="text-gray-600">Education:</span>
-                    <span style={{ color: SLATE }}>{m.level_of_education}</span>
+                    <span className="text-gray-600">Mentorship:</span>
+                    <span
+                      className="px-2 py-0.5 rounded text-[10px]"
+                      style={{
+                        background: m.mentorship_status === 'Accepting Mentees' ? '#dcfce7' : m.mentorship_status === 'Active Mentor' ? '#dbeafe' : `${PAPER}`,
+                        color: m.mentorship_status === 'Accepting Mentees' ? '#166534' : m.mentorship_status === 'Active Mentor' ? '#1e40af' : SLATE,
+                        border: `1px solid ${m.mentorship_status === 'Accepting Mentees' ? '#86efac' : m.mentorship_status === 'Active Mentor' ? '#93c5fd' : BORDER}`,
+                      }}
+                    >
+                      {m.mentorship_status}
+                    </span>
+                  </div>
+                )}
+                <div className={`flex items-center justify-between text-xs font-black uppercase${m.placement_scheme || m.mentorship_status ? ' border-t pt-2' : ''}`} style={{ borderColor: `${BORDER}30`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  <span className="text-gray-600">Endorsements:</span>
+                  <span className="font-mono" style={{ color: SLATE }}>{(m.total_endorsements ?? endorsements.reduce((s, e) => s + e.count, 0))} Peer Votes</span>
+                </div>
+                {m.years_of_experience && (
+                  <div className="flex items-center justify-between text-xs font-black uppercase border-t pt-2" style={{ borderColor: `${BORDER}30`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    <span className="text-gray-600">Experience:</span>
+                    <span style={{ color: OCHRE }}>{m.years_of_experience} Yr{Number(m.years_of_experience) !== 1 ? 's' : ''}</span>
                   </div>
                 )}
                 {m.member_since && (
@@ -525,10 +676,24 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                   ))}
                 </div>
                 <div className="pt-4 border-t-2 space-y-3" style={{ borderColor: `${BORDER}30` }}>
-                  <span className="font-mono text-[11px] font-bold uppercase text-gray-500 block">TOP COMPETENCIES:</span>
-                  {topSkills.map((s, i) => (
-                    <SkillBar key={s} name={s} votes={Math.max(5, 42 - i * 6)} pct={Math.max(40, 95 - i * 10)} />
-                  ))}
+                  <span className="font-mono text-[11px] font-bold uppercase text-gray-500 block">TOP ENDORSED COMPETENCIES:</span>
+                  {(() => {
+                    const maxVotes = Math.max(1, ...endorsements.map(e => e.count));
+                    return topSkills.map(s => {
+                      const endorsement = endorsements.find(e => e.skill.toLowerCase() === s.toLowerCase());
+                      const votes = endorsement?.count ?? 0;
+                      return (
+                        <SkillBar
+                          key={s}
+                          name={s}
+                          votes={votes}
+                          maxVotes={maxVotes}
+                          endorsed={endorsedSkills.has(s)}
+                          onEndorse={viewer && !isOwner ? () => handleEndorse(s) : undefined}
+                        />
+                      );
+                    });
+                  })()}
                 </div>
               </section>
             )}
@@ -609,19 +774,50 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
               </section>
             )}
 
-            {/* Testimonials */}
-            {(m.testimonials?.length ?? 0) > 0 && (
-              <section
-                className="rounded-2xl p-6 sm:p-8 space-y-6"
-                style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}
-              >
-                <div className="flex justify-between items-center pb-3 border-b-2" style={{ borderColor: BORDER }}>
-                  <h2 className="font-black text-xl uppercase flex items-center gap-2" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span style={{ color: OCHRE }}>◆</span> Recommendations
-                  </h2>
+            {/* Recommendations & Testimonials */}
+            <section
+              className="rounded-2xl p-6 sm:p-8 space-y-6"
+              style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}
+            >
+              <div className="flex justify-between items-center pb-3 border-b-2" style={{ borderColor: BORDER }}>
+                <h2 className="font-black text-xl uppercase flex items-center gap-2" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  <span style={{ color: OCHRE, fontSize: '1.25rem', lineHeight: 1 }}>&ldquo;&rdquo;</span> Recommendations &amp; Testimonials
+                </h2>
+                {viewer && !isOwner && connectionState === 'connected' && (
+                  <button
+                    onClick={() => setShowRecommendation(true)}
+                    className="font-mono font-extrabold text-[10px] uppercase px-3 py-1.5 rounded"
+                    style={{ border: `2px solid ${OCHRE}`, color: OCHRE, background: 'transparent' }}
+                  >
+                    + Write Recommendation
+                  </button>
+                )}
+              </div>
+              {testimonials.length === 0 ? (
+                <div className="py-8 text-center space-y-2">
+                  <p className="font-mono text-xs text-gray-500 uppercase">No recommendations yet.</p>
+                  {viewer && !isOwner && connectionState === 'connected' && (
+                    <button
+                      onClick={() => setShowRecommendation(true)}
+                      className="font-black text-xs uppercase px-4 py-2 rounded text-white mt-2"
+                      style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                    >
+                      Be the first to recommend {name.split(' ')[0]} ↗
+                    </button>
+                  )}
+                  {viewer && !isOwner && connectionState !== 'connected' && (
+                    <button
+                      onClick={() => setShowConnect(true)}
+                      className="font-black text-xs uppercase px-4 py-2 rounded mt-2"
+                      style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: SLATE }}
+                    >
+                      Connect to write a recommendation ↗
+                    </button>
+                  )}
                 </div>
+              ) : (
                 <div className="space-y-4">
-                  {m.testimonials!.map((t, i) => (
+                  {testimonials.map((t, i) => (
                     <div key={i} className="p-5 rounded-xl relative space-y-2" style={{ background: PAPER, border: `3px solid ${BORDER}` }}>
                       <span className="absolute top-3 right-4 font-black text-3xl opacity-30" style={{ color: OCHRE }}>&ldquo;</span>
                       <p className="text-sm font-medium text-gray-800 italic leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
@@ -637,8 +833,8 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                     </div>
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
 
           </div>
 
@@ -730,10 +926,31 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
       {/* ── Modals ── */}
 
       {/* Message modal */}
-      <Modal id="modal-message" open={showMessage} onClose={() => setShowMessage(false)}>
-        <ModalHeader title="Direct BPU Network Message" onClose={() => setShowMessage(false)} />
+      <Modal id="modal-message" open={showMessage} onClose={() => { setShowMessage(false); setMsgError(null); }}>
+        <ModalHeader title="Direct BPU Network Message" onClose={() => { setShowMessage(false); setMsgError(null); }} />
         <form
-          onSubmit={e => { e.preventDefault(); setShowMessage(false); openToast(`Message sent to ${name}!`); setMsgText(''); setMsgSubject(''); }}
+          onSubmit={async e => {
+            e.preventDefault();
+            setMsgSending(true);
+            setMsgError(null);
+            try {
+              const res = await fetch('/api/member/message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_username: username, subject: msgSubject, message: msgText }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Message could not be sent.');
+              setShowMessage(false);
+              setMsgText('');
+              setMsgSubject('');
+              openToast(`Message sent to ${name}!`);
+            } catch (err: unknown) {
+              setMsgError(err instanceof Error ? err.message : 'Could not send message.');
+            } finally {
+              setMsgSending(false);
+            }
+          }}
           className="p-6 space-y-4"
         >
           <div>
@@ -748,40 +965,12 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
             <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Message <span style={{ color: OCHRE }}>*</span></label>
             <textarea required rows={4} value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Type your message…" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
           </div>
+          {msgError && <p className="text-xs font-bold text-red-600">{msgError}</p>}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowMessage(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
-            <button type="submit" className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Send ↗</button>
-          </div>
-        </form>
-      </Modal>
-
-      {/* Mentorship modal */}
-      <Modal id="modal-mentorship" open={showMentorship} onClose={() => setShowMentorship(false)}>
-        <ModalHeader title="BPU Mentorship Programme" onClose={() => setShowMentorship(false)} />
-        <form
-          onSubmit={e => { e.preventDefault(); setShowMentorship(false); openToast('Mentorship request sent! BPU Intro Committee will respond via email.'); }}
-          className="p-6 space-y-4"
-        >
-          <div className="p-3 rounded text-xs font-medium" style={{ background: `${PAPER}80`, border: `1px solid ${BORDER}` }}>
-            You are requesting mentorship from <strong>{name}</strong>. Our committee will coordinate the intro.
-          </div>
-          <div>
-            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your Career Stage <span style={{ color: OCHRE }}>*</span></label>
-            <select required className="w-full p-2.5 rounded font-medium text-xs bg-white focus:outline-none" style={{ border: `3px solid ${BORDER}` }}>
-              <option value="">— Choose Stage —</option>
-              <option>Student / Recent Graduate</option>
-              <option>Early Career (1–3 Yrs)</option>
-              <option>Mid-Level (4–7 Yrs)</option>
-              <option>Career Transitioning into STEM</option>
-            </select>
-          </div>
-          <div>
-            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Mentorship Goal <span style={{ color: OCHRE }}>*</span></label>
-            <textarea required rows={3} placeholder="Briefly outline what guidance you are seeking…" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowMentorship(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
-            <button type="submit" className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Request Intro ↗</button>
+            <button type="button" onClick={() => { setShowMessage(false); setMsgError(null); }} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+            <button type="submit" disabled={msgSending} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: msgSending ? 0.7 : 1 }}>
+              {msgSending ? 'Sending…' : 'Send ↗'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -841,6 +1030,145 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
             <button onClick={() => setShowShare(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Close</button>
           </div>
         </div>
+      </Modal>
+
+      {/* Connect on BPU modal */}
+      <Modal id="modal-connect" open={showConnect} onClose={() => setShowConnect(false)}>
+        <ModalHeader title="BPU Network Connection Request" onClose={() => setShowConnect(false)} />
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            setConnectSubmitting(true);
+            try {
+              const res = await fetch('/api/member/connect', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'send', to_username: username, context: connectContext, note: connectNote }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Could not send connection request.');
+              setShowConnect(false);
+              setConnectContext('Peer Professional');
+              setConnectNote('');
+              setConnectionState('pending');
+              openToast(`Connection request sent to ${name}!`);
+            } catch (err: unknown) {
+              openToast(err instanceof Error ? err.message : 'Could not send connection request.');
+            } finally {
+              setConnectSubmitting(false);
+            }
+          }}
+          className="p-6 space-y-4"
+        >
+          <div className="p-3 rounded flex items-center gap-3 text-xs font-medium" style={{ background: `${PAPER}80`, border: `1px solid ${BORDER}` }}>
+            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0" style={{ border: `2px solid ${BORDER}` }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={avatarUrl(member, username)} alt={name} className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <span className="font-black text-xs uppercase block" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{name}</span>
+              <span className="text-gray-600 block leading-tight">{m.job_title || m.industryfield_of_expertise || 'BPU Member'}</span>
+            </div>
+          </div>
+          <div>
+            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>How do you know each other? <span style={{ color: OCHRE }}>*</span></label>
+            <select
+              required
+              value={connectContext}
+              onChange={e => setConnectContext(e.target.value)}
+              className="w-full p-2.5 rounded font-medium text-xs bg-white focus:outline-none"
+              style={{ border: `3px solid ${BORDER}` }}
+            >
+              <option value="Peer Professional">Peer / Industry Professional</option>
+              <option value="Seeking Mentorship">Seeking Career Guidance / Mentorship</option>
+              <option value="Recruiter / Hiring Lead">Recruiter / Employer Representative</option>
+              <option value="Colleague / Placement Alumni">Colleague / Placement Alumni</option>
+            </select>
+          </div>
+          <div>
+            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Personal Note <span className="text-gray-400 normal-case font-medium">(optional but recommended)</span></label>
+            <textarea
+              rows={3}
+              value={connectNote}
+              onChange={e => setConnectNote(e.target.value)}
+              placeholder={`Hi ${name.split(' ')[0]}, I'd love to connect with you on BPU…`}
+              className="w-full p-2.5 rounded font-medium text-xs focus:outline-none"
+              style={{ border: `3px solid ${BORDER}` }}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setShowConnect(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+            <button type="submit" disabled={connectSubmitting} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: SLATE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: connectSubmitting ? 0.7 : 1 }}>
+              {connectSubmitting ? 'Sending…' : 'Send Invitation ↗'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Write Recommendation modal */}
+      <Modal id="modal-recommendation" open={showRecommendation} onClose={() => { setShowRecommendation(false); setRecError(null); }}>
+        <ModalHeader title="Write a Recommendation" onClose={() => { setShowRecommendation(false); setRecError(null); }} />
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            setRecSubmitting(true);
+            setRecError(null);
+            try {
+              const res = await fetch('/api/member/testimonial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_username: username, quote: recText, author_name: recAuthor, role: recRole }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Could not save recommendation.');
+              // Optimistically append to local testimonials list
+              setTestimonials(prev => [...prev, { quote: recText, author: recAuthor, role: recRole }]);
+              setShowRecommendation(false);
+              setRecText('');
+              setRecRole('');
+              openToast('Your recommendation has been published!');
+            } catch (err: unknown) {
+              setRecError(err instanceof Error ? err.message : 'Could not submit recommendation.');
+            } finally {
+              setRecSubmitting(false);
+            }
+          }}
+          className="p-6 space-y-4"
+        >
+          <div className="p-3 rounded text-xs font-medium" style={{ background: `${PAPER}80`, border: `1px solid ${BORDER}` }}>
+            You are writing a recommendation for <strong>{name}</strong>. It will appear on their public profile immediately.
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your name <span style={{ color: OCHRE }}>*</span></label>
+              <input required value={recAuthor} onChange={e => setRecAuthor(e.target.value)} placeholder="Your full name" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
+            </div>
+            <div>
+              <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your title &amp; org</label>
+              <input value={recRole} onChange={e => setRecRole(e.target.value)} placeholder="e.g. Senior Engineer at HSBC" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
+            </div>
+          </div>
+          <div>
+            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Recommendation <span style={{ color: OCHRE }}>*</span></label>
+            <textarea
+              required
+              rows={5}
+              value={recText}
+              onChange={e => setRecText(e.target.value)}
+              placeholder={`Share how you know ${name.split(' ')[0]} and what makes them stand out professionally…`}
+              className="w-full p-2.5 rounded font-medium text-xs focus:outline-none"
+              style={{ border: `3px solid ${BORDER}` }}
+            />
+            <p className="text-[10px] text-gray-500 mt-1 font-mono uppercase">Minimum 50 characters. Be specific — great recommendations mention impact.</p>
+          </div>
+          {recError && <p className="text-xs font-bold text-red-600">{recError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => { setShowRecommendation(false); setRecError(null); }} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+            <button type="submit" disabled={recSubmitting || recText.length < 50} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: (recSubmitting || recText.length < 50) ? 0.6 : 1 }}>
+              {recSubmitting ? 'Publishing…' : 'Publish Recommendation ↗'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Toast */}

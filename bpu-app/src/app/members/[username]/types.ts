@@ -58,6 +58,14 @@ export interface PublicMemberProfile {
   experiences?: PublicWorkExperience[];
   educations?: PublicEducation[];
   certifications?: PublicCertification[];
+  /* Status */
+  placement_scheme?: string;
+  mentorship_status?: string;
+  /* Paired */
+  is_paired_mentor?: boolean;
+  /* Endorsements */
+  endorsements?: { skill: string; count: number }[];
+  total_endorsements?: number;
   /* Social */
   testimonials?: PublicTestimonial[];
 }

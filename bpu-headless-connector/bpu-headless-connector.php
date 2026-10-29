@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.10.0
+ * Version: 2.16.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -38,6 +38,7 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_paired_notification_post_type' ) );
         add_action( 'init', array( $this, 'register_paired_referral_post_type' ) );
         add_action( 'init', array( $this, 'register_bpu_coupon_post_type' ) );
+        add_action( 'init', array( $this, 'register_network_post_post_type' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -124,6 +125,27 @@ class BPU_Headless_Connector {
     /**
      * Register Custom Post Type for Manual CV Reviews
      */
+    public function register_network_post_post_type() {
+        register_post_type( 'bpu_network_post', array(
+            'labels'             => array(
+                'name'          => 'Network Posts',
+                'singular_name' => 'Network Post',
+                'menu_name'     => 'Network Feed',
+            ),
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => true,
+            'query_var'          => false,
+            'capability_type'    => 'post',
+            'has_archive'        => false,
+            'hierarchical'       => false,
+            'menu_position'      => 30,
+            'menu_icon'          => 'dashicons-networking',
+            'supports'           => array( 'title', 'editor', 'author', 'custom-fields' ),
+        ) );
+    }
+
     public function register_cv_review_post_type() {
         $labels = array(
             'name'               => _x( 'CV Reviews', 'post type general name', 'bpu' ),
@@ -1852,6 +1874,84 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/history', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'update_member_history' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Direct message to a member (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/message', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'send_member_message' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Write a recommendation / testimonial for a member (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/testimonial', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'create_member_testimonial' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Endorse / un-endorse a skill on a member profile (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/endorse', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'endorse_member_skill' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/member/mentorship-request', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_mentorship_intro_request' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Connections
+        register_rest_route( $this->namespace, '/member/connection-status/(?P<username>[a-zA-Z0-9\-_.@]+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'get_connection_status' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        register_rest_route( $this->namespace, '/member/connect', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'handle_connection_action' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Network Feed
+        register_rest_route( $this->namespace, '/feed', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_feed_posts' ),
+                'permission_callback' => '__return_true',
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_feed_post' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/react', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'react_to_feed_post' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/comment', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'comment_on_feed_post' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/bookmark', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'bookmark_feed_post' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/vote', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'vote_on_feed_poll' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
@@ -3674,6 +3774,8 @@ Rules:
             // Passport / public profile fields
             'job_title', 'current_employer', 'profile_headline',
             'linkedin_url', 'open_to_opportunities',
+            // Status fields
+            'placement_scheme',
         );
 
         if ( ! function_exists( 'update_field' ) ) {
@@ -3687,6 +3789,27 @@ Rules:
         foreach ( $allowed as $field ) {
             if ( isset( $body[ $field ] ) ) {
                 update_field( $field, sanitize_textarea_field( (string) $body[ $field ] ), 'user_' . $user_id );
+            }
+        }
+
+        // Non-ACF user meta fields
+        if ( isset( $body['mentorship_status'] ) ) {
+            $valid  = array( 'Accepting Mentees', 'On Pause', 'Not Accepting', '' );
+            $status = sanitize_text_field( (string) $body['mentorship_status'] );
+            if ( in_array( $status, $valid, true ) ) {
+                // 'Accepting Mentees' requires the user to have a Paired mentor profile
+                if ( $status === 'Accepting Mentees' ) {
+                    $current_user = get_userdata( $user_id );
+                    if ( ! $current_user || ! in_array( 'mentor', (array) $current_user->roles, true ) ) {
+                        return new WP_REST_Response( array(
+                            'success'         => false,
+                            'error'           => 'You must complete your Paired mentor profile before accepting mentees.',
+                            'requires_paired' => true,
+                            'redirect'        => '/paired/apply',
+                        ), 400 );
+                    }
+                }
+                update_user_meta( $user_id, '_bpu_mentorship_status', $status );
             }
         }
 
@@ -3746,6 +3869,942 @@ Rules:
         return new WP_REST_Response( array( 'success' => true ), 200 );
     }
 
+    /**
+     * POST /bpu/v1/member/message — send a direct message (email) to a member.
+     */
+    public function send_member_message( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $sender_id = intval( $payload['user_id'] );
+        $sender    = get_userdata( $sender_id );
+        $body      = $request->get_json_params();
+
+        $to_username = sanitize_text_field( $body['to_username'] ?? '' );
+        $subject     = sanitize_text_field( $body['subject']     ?? '' );
+        $message     = sanitize_textarea_field( $body['message'] ?? '' );
+
+        if ( ! $to_username || ! $subject || ! $message ) {
+            return new WP_Error( 'missing_fields', __( 'to_username, subject and message are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $recipient = get_user_by( 'login', $to_username );
+        if ( ! $recipient ) {
+            return new WP_Error( 'user_not_found', __( 'Recipient not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( $sender_id === $recipient->ID ) {
+            return new WP_Error( 'self_message', __( 'You cannot message yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $sender_name  = $sender ? ( $sender->display_name ?: $sender->user_login ) : 'A BPU member';
+        $profile_url  = home_url( '/members/' . $sender->user_login );
+
+        $email_body = sprintf(
+            "Hi %s,\n\nYou have a new message from %s via Black Professionals UK.\n\nSubject: %s\n\n%s\n\n--\nView %s's profile: %s\n\nThis message was sent via the BPU member network. To reply, log in to your BPU account.\n",
+            $recipient->display_name,
+            $sender_name,
+            $subject,
+            $message,
+            $sender_name,
+            $profile_url
+        );
+
+        $sent = wp_mail(
+            $recipient->user_email,
+            '[BPU Message] ' . $subject,
+            $email_body,
+            array( 'From: Black Professionals UK <noreply@blackprofessionals.uk>' )
+        );
+
+        if ( ! $sent ) {
+            return new WP_Error( 'mail_failed', __( 'Message could not be delivered.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/testimonial — write a recommendation for a member.
+     */
+    public function create_member_testimonial( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $author_id = intval( $payload['user_id'] );
+        $body      = $request->get_json_params();
+
+        $to_username  = sanitize_text_field( $body['to_username']  ?? '' );
+        $quote        = sanitize_textarea_field( $body['quote']    ?? '' );
+        $author_name  = sanitize_text_field( $body['author_name']  ?? '' );
+        $role         = sanitize_text_field( $body['role']         ?? '' );
+
+        if ( ! $to_username || ! $quote || ! $author_name ) {
+            return new WP_Error( 'missing_fields', __( 'to_username, quote and author_name are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $recipient = get_user_by( 'login', $to_username );
+        if ( ! $recipient ) {
+            return new WP_Error( 'user_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( $author_id === $recipient->ID ) {
+            return new WP_Error( 'self_testimonial', __( 'You cannot recommend yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $existing = get_user_meta( $recipient->ID, 'bpu_testimonials', true );
+        $existing = is_array( $existing ) ? $existing : array();
+
+        $existing[] = array(
+            'quote'     => $quote,
+            'author'    => $author_name,
+            'role'      => $role,
+            'author_id' => $author_id,
+            'date'      => current_time( 'mysql' ),
+        );
+
+        update_user_meta( $recipient->ID, 'bpu_testimonials', $existing );
+
+        return new WP_REST_Response( array(
+            'success'     => true,
+            'testimonial' => array(
+                'quote'  => $quote,
+                'author' => $author_name,
+                'role'   => $role,
+            ),
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/endorse — toggle a skill endorsement for a member.
+     * Returns { success, action: 'added'|'removed', skill, count, total }.
+     */
+    public function endorse_member_skill( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $endorser_id = intval( $payload['user_id'] );
+        $body        = $request->get_json_params();
+
+        $to_username = sanitize_text_field( $body['to_username'] ?? '' );
+        $skill       = sanitize_text_field( $body['skill']       ?? '' );
+
+        if ( ! $to_username || ! $skill ) {
+            return new WP_Error( 'missing_fields', __( 'to_username and skill are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $recipient = get_user_by( 'login', $to_username );
+        if ( ! $recipient ) {
+            return new WP_Error( 'user_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( $endorser_id === $recipient->ID ) {
+            return new WP_Error( 'self_endorse', __( 'You cannot endorse yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $endorsements = get_user_meta( $recipient->ID, 'bpu_endorsements', true );
+        if ( ! is_array( $endorsements ) ) {
+            $endorsements = array();
+        }
+
+        $action     = 'added';
+        $skill_count = 1;
+        $found      = false;
+
+        foreach ( $endorsements as &$entry ) {
+            if ( $entry['skill'] === $skill ) {
+                $found      = true;
+                $ids        = is_array( $entry['endorser_ids'] ?? null ) ? $entry['endorser_ids'] : array();
+                if ( in_array( $endorser_id, $ids, true ) ) {
+                    $entry['endorser_ids'] = array_values( array_diff( $ids, array( $endorser_id ) ) );
+                    $action = 'removed';
+                } else {
+                    $entry['endorser_ids'][] = $endorser_id;
+                }
+                $skill_count = count( $entry['endorser_ids'] );
+                break;
+            }
+        }
+        unset( $entry );
+
+        if ( ! $found ) {
+            $endorsements[] = array( 'skill' => $skill, 'endorser_ids' => array( $endorser_id ) );
+        }
+
+        update_user_meta( $recipient->ID, 'bpu_endorsements', $endorsements );
+
+        $total = array_sum( array_map( function( $e ) {
+            return count( is_array( $e['endorser_ids'] ?? null ) ? $e['endorser_ids'] : array() );
+        }, $endorsements ) );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'action'  => $action,
+            'skill'   => $skill,
+            'count'   => $skill_count,
+            'total'   => $total,
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/mentorship-request
+     * Send a mentorship intro request to a member who is 'Accepting Mentees'.
+     */
+    public function handle_mentorship_intro_request( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $mentee_id    = intval( $payload['user_id'] );
+        $body         = $request->get_json_params();
+        $to_username  = sanitize_text_field( $body['to_username'] ?? '' );
+        $career_stage = sanitize_text_field( $body['career_stage'] ?? '' );
+        $goal         = sanitize_textarea_field( $body['goal'] ?? '' );
+
+        if ( ! $to_username || ! $career_stage || ! $goal ) {
+            return new WP_Error( 'missing_fields', 'to_username, career_stage and goal are required.', array( 'status' => 400 ) );
+        }
+
+        $mentor_user = get_user_by( 'login', $to_username );
+        if ( ! $mentor_user ) {
+            return new WP_Error( 'not_found', 'Member not found.', array( 'status' => 404 ) );
+        }
+
+        $mentor_id = $mentor_user->ID;
+
+        // Gate: only allow if mentor is 'Accepting Mentees'
+        $status = get_user_meta( $mentor_id, '_bpu_mentorship_status', true );
+        if ( $status !== 'Accepting Mentees' ) {
+            return new WP_Error( 'not_accepting', 'This member is not currently accepting mentorship requests.', array( 'status' => 403 ) );
+        }
+
+        if ( $mentee_id === $mentor_id ) {
+            return new WP_Error( 'self_request', 'You cannot request mentorship from yourself.', array( 'status' => 400 ) );
+        }
+
+        $mentee      = get_userdata( $mentee_id );
+        $mentee_name = $mentee ? ( trim( $mentee->display_name ) ?: $mentee->user_login ) : 'A BPU member';
+        $mentee_email = $mentee ? $mentee->user_email : '';
+
+        // Append to mentor's pending requests
+        $requests = get_user_meta( $mentor_id, '_bpu_mentorship_requests', true );
+        if ( ! is_array( $requests ) ) {
+            $requests = array();
+        }
+        $requests[] = array(
+            'mentee_id'    => $mentee_id,
+            'mentee_name'  => $mentee_name,
+            'mentee_email' => $mentee_email,
+            'career_stage' => $career_stage,
+            'goal'         => $goal,
+            'requested_at' => current_time( 'c' ),
+            'status'       => 'pending',
+        );
+        update_user_meta( $mentor_id, '_bpu_mentorship_requests', $requests );
+
+        // Email to mentor
+        $mentor_name  = trim( $mentor_user->display_name ) ?: $mentor_user->user_login;
+        $mentor_email = $mentor_user->user_email;
+        $subject      = '[BPU] New Mentorship Request from ' . $mentee_name;
+        $message      = "Hi {$mentor_name},\n\n{$mentee_name} has sent you a mentorship request via Black Professionals UK.\n\nCareer Stage: {$career_stage}\n\nWhat they're looking for:\n{$goal}\n\n";
+        if ( $mentee_email ) {
+            $message .= "You can reply directly to {$mentee_name} at: {$mentee_email}\n\n";
+        }
+        $message .= "— The BPU Team\nhttps://web.blackprofessionals.uk";
+
+        wp_mail( $mentor_email, $subject, $message, array( 'Reply-To: ' . $mentee_email ) );
+
+        // Confirmation email to mentee
+        wp_mail(
+            $mentee_email,
+            '[BPU] Your mentorship request has been sent',
+            "Hi {$mentee_name},\n\nYour mentorship request to {$mentor_name} has been sent. They will follow up with you directly.\n\n— The BPU Team"
+        );
+
+        return new WP_REST_Response( array( 'success' => true, 'message' => 'Mentorship request sent.' ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  NETWORK FEED ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Build the public response shape for a single bpu_network_post.
+     * viewer_id of 0 means unauthenticated.
+     */
+    private function build_feed_post_response( int $post_id, int $viewer_id ): array {
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return array();
+        }
+
+        $author    = get_userdata( $post->post_author );
+        $acf       = function_exists( 'get_fields' ) ? ( get_fields( 'user_' . $post->post_author ) ?: array() ) : array();
+        $photo_url = get_user_meta( $post->post_author, '_bpu_photo_url', true ) ?: null;
+        $first     = ! empty( $acf['first_name'] ) ? $acf['first_name'] : ( $author->first_name ?? '' );
+        $last      = ! empty( $acf['last_name'] )  ? $acf['last_name']  : ( $author->last_name  ?? '' );
+        $dname     = trim( $first . ' ' . $last ) ?: ( $author->display_name ?? $author->user_login );
+        $job_title = ! empty( $acf['job_title'] ) ? $acf['job_title'] : get_user_meta( $post->post_author, 'job_title', true );
+
+        $reactions  = get_post_meta( $post_id, '_bpu_post_reactions', true );
+        if ( ! is_array( $reactions ) ) $reactions = array( 'celebrate' => array(), 'insightful' => array(), 'support' => array() );
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            if ( ! is_array( $reactions[ $t ] ?? null ) ) $reactions[ $t ] = array();
+        }
+
+        $user_reaction = null;
+        if ( $viewer_id > 0 ) {
+            foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+                if ( in_array( $viewer_id, $reactions[ $t ], true ) ) { $user_reaction = $t; break; }
+            }
+        }
+
+        $poll_raw = get_post_meta( $post_id, '_bpu_post_poll', true );
+        $poll     = null;
+        if ( is_array( $poll_raw ) && ! empty( $poll_raw['options'] ) ) {
+            $user_voted_idx = null;
+            $total_votes    = 0;
+            $opts           = array();
+            foreach ( $poll_raw['options'] as $i => $opt ) {
+                $voter_ids = is_array( $opt['voter_ids'] ?? null ) ? $opt['voter_ids'] : array();
+                if ( $viewer_id > 0 && in_array( $viewer_id, $voter_ids, true ) ) {
+                    $user_voted_idx = $i;
+                }
+                $count        = count( $voter_ids );
+                $total_votes += $count;
+                $opts[]       = array( 'text' => $opt['text'], 'votes' => $count );
+            }
+            $poll = array( 'options' => $opts, 'total_votes' => $total_votes, 'user_voted_index' => $user_voted_idx );
+        }
+
+        $raw_comments = get_post_meta( $post_id, '_bpu_post_comments', true );
+        $comments     = array();
+        if ( is_array( $raw_comments ) ) {
+            foreach ( $raw_comments as $c ) {
+                $comments[] = array(
+                    'author_id'   => $c['author_id'],
+                    'author_name' => $c['author_name'],
+                    'author_photo'=> $c['author_photo'] ?? null,
+                    'text'        => $c['text'],
+                    'created_at'  => $c['created_at'],
+                );
+            }
+        }
+
+        $bookmarks   = get_post_meta( $post_id, '_bpu_post_bookmarks', true );
+        $is_bookmarked = $viewer_id > 0 && is_array( $bookmarks ) && in_array( $viewer_id, $bookmarks, true );
+
+        $created_ts = strtotime( $post->post_date );
+        $diff       = time() - $created_ts;
+        if ( $diff < 3600 )       $timestamp = max( 1, round( $diff / 60 ) ) . ' min ago';
+        elseif ( $diff < 86400 )  $timestamp = round( $diff / 3600 ) . 'h ago';
+        elseif ( $diff < 604800 ) $timestamp = round( $diff / 86400 ) . 'd ago';
+        else                      $timestamp = date( 'j M Y', $created_ts );
+
+        return array(
+            'id'             => $post_id,
+            'author_id'      => (int) $post->post_author,
+            'author_username'=> $author->user_login ?? '',
+            'author_name'    => $dname,
+            'author_title'   => $job_title ?: '',
+            'author_photo'   => $photo_url,
+            'timestamp'      => $timestamp,
+            'created_at'     => $post->post_date,
+            'category'       => get_post_meta( $post_id, '_bpu_post_category', true ) ?: 'General',
+            'content'        => $post->post_content,
+            'hashtags'       => (array) ( get_post_meta( $post_id, '_bpu_post_hashtags', true ) ?: array() ),
+            'reactions'      => array(
+                'celebrate'  => count( $reactions['celebrate'] ),
+                'insightful' => count( $reactions['insightful'] ),
+                'support'    => count( $reactions['support'] ),
+            ),
+            'user_reaction'  => $user_reaction,
+            'poll'           => $poll,
+            'comments'       => $comments,
+            'is_bookmarked'  => $is_bookmarked,
+            'is_own'         => $viewer_id > 0 && (int) $post->post_author === $viewer_id,
+        );
+    }
+
+    /**
+     * GET /bpu/v1/feed — paginated list of network posts.
+     * Query params: filter (connections|all|mine|saved), category, sort, search, hashtag, page, per_page
+     */
+    public function get_feed_posts( WP_REST_Request $request ) {
+        $payload   = $this->verify_jwt_bearer( $request );
+        $viewer_id = ( $payload && ! empty( $payload['user_id'] ) ) ? intval( $payload['user_id'] ) : 0;
+
+        $filter    = sanitize_text_field( $request->get_param( 'filter' )   ?? 'all' );
+        $category  = sanitize_text_field( $request->get_param( 'category' ) ?? '' );
+        $sort      = sanitize_text_field( $request->get_param( 'sort' )     ?? 'recent' );
+        $search    = sanitize_text_field( $request->get_param( 'search' )   ?? '' );
+        $hashtag   = sanitize_text_field( $request->get_param( 'hashtag' )  ?? '' );
+        $page      = max( 1, intval( $request->get_param( 'page' )     ?? 1 ) );
+        $per_page  = min( 20, max( 1, intval( $request->get_param( 'per_page' ) ?? 10 ) ) );
+
+        $args = array(
+            'post_type'      => 'bpu_network_post',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => array(),
+        );
+
+        // Author filter
+        if ( $viewer_id > 0 ) {
+            if ( $filter === 'connections' ) {
+                $connections = get_user_meta( $viewer_id, '_bpu_connections', true );
+                $conn_ids    = array( $viewer_id );
+                if ( is_array( $connections ) ) {
+                    foreach ( $connections as $c ) {
+                        if ( ( $c['status'] ?? '' ) === 'accepted' ) $conn_ids[] = intval( $c['user_id'] );
+                    }
+                }
+                $args['author__in'] = $conn_ids;
+            } elseif ( $filter === 'mine' ) {
+                $args['author__in'] = array( $viewer_id );
+            } elseif ( $filter === 'saved' ) {
+                global $wpdb;
+                $saved_ids = $wpdb->get_col( $wpdb->prepare(
+                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_bpu_post_bookmarks' AND meta_value LIKE %s",
+                    '%"' . $viewer_id . '"%'
+                ) );
+                if ( empty( $saved_ids ) ) {
+                    return new WP_REST_Response( array( 'posts' => array(), 'total' => 0, 'pages' => 0 ), 200 );
+                }
+                $args['post__in'] = array_map( 'intval', $saved_ids );
+            }
+        } else {
+            // Unauthenticated: always show all
+            $filter = 'all';
+        }
+
+        // Category filter
+        if ( $category && $category !== 'ALL' ) {
+            $args['meta_query'][] = array( 'key' => '_bpu_post_category', 'value' => $category, 'compare' => '=' );
+        }
+
+        // Hashtag filter
+        if ( $hashtag ) {
+            $args['meta_query'][] = array( 'key' => '_bpu_post_hashtags', 'value' => $hashtag, 'compare' => 'LIKE' );
+        }
+
+        // Search
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        // Sort by top engagement: we sort after fetching (limited by per_page*2 window)
+        if ( $sort === 'top' ) {
+            $args['posts_per_page'] = $per_page * 3;
+            $args['paged']          = 1;
+        }
+
+        $query = new WP_Query( $args );
+        $posts = $query->posts;
+
+        if ( $sort === 'top' ) {
+            usort( $posts, function( $a, $b ) {
+                $score_a = $this->get_post_engagement_score( $a->ID );
+                $score_b = $this->get_post_engagement_score( $b->ID );
+                return $score_b - $score_a;
+            } );
+            $posts = array_slice( $posts, ( $page - 1 ) * $per_page, $per_page );
+        }
+
+        $result = array_map( function( $p ) use ( $viewer_id ) {
+            return $this->build_feed_post_response( $p->ID, $viewer_id );
+        }, $posts );
+
+        return new WP_REST_Response( array(
+            'posts' => $result,
+            'total' => (int) $query->found_posts,
+            'pages' => (int) $query->max_num_pages ?: 1,
+        ), 200 );
+    }
+
+    private function get_post_engagement_score( int $post_id ): int {
+        $reactions = get_post_meta( $post_id, '_bpu_post_reactions', true );
+        $score     = 0;
+        if ( is_array( $reactions ) ) {
+            foreach ( $reactions as $ids ) {
+                $score += is_array( $ids ) ? count( $ids ) : 0;
+            }
+        }
+        $comments = get_post_meta( $post_id, '_bpu_post_comments', true );
+        $score   += is_array( $comments ) ? count( $comments ) : 0;
+        return $score;
+    }
+
+    /**
+     * POST /bpu/v1/feed — create a new network post.
+     */
+    public function create_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $author_id = intval( $payload['user_id'] );
+        $body      = $request->get_json_params();
+
+        $content  = sanitize_textarea_field( $body['content'] ?? '' );
+        $category = sanitize_text_field( $body['category']  ?? 'General' );
+        $hashtags = array_map( 'sanitize_text_field', (array) ( $body['hashtags'] ?? array() ) );
+        $poll_raw = $body['poll'] ?? null;
+
+        if ( strlen( $content ) < 10 ) {
+            return new WP_Error( 'too_short', 'Content must be at least 10 characters.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'    => 'bpu_network_post',
+            'post_status'  => 'publish',
+            'post_content' => $content,
+            'post_author'  => $author_id,
+            'post_title'   => 'Network post by user ' . $author_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'create_failed', 'Could not create post.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_post_category', $category );
+        update_post_meta( $post_id, '_bpu_post_hashtags', $hashtags );
+        update_post_meta( $post_id, '_bpu_post_reactions', array( 'celebrate' => array(), 'insightful' => array(), 'support' => array() ) );
+        update_post_meta( $post_id, '_bpu_post_comments', array() );
+        update_post_meta( $post_id, '_bpu_post_bookmarks', array() );
+
+        if ( is_array( $poll_raw ) && ! empty( $poll_raw['options'] ) ) {
+            $opts = array();
+            foreach ( array_slice( (array) $poll_raw['options'], 0, 4 ) as $opt ) {
+                $text = sanitize_text_field( is_array( $opt ) ? ( $opt['text'] ?? $opt ) : $opt );
+                if ( $text ) $opts[] = array( 'text' => $text, 'voter_ids' => array() );
+            }
+            if ( count( $opts ) >= 2 ) {
+                update_post_meta( $post_id, '_bpu_post_poll', array( 'options' => $opts ) );
+            }
+        }
+
+        return new WP_REST_Response( $this->build_feed_post_response( $post_id, $author_id ), 201 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/react — toggle reaction.
+     * Body: { type: 'celebrate'|'insightful'|'support' }
+     */
+    public function react_to_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id  = intval( $payload['user_id'] );
+        $post_id  = intval( $request->get_param( 'id' ) );
+        $body     = $request->get_json_params();
+        $type     = sanitize_text_field( $body['type'] ?? '' );
+
+        if ( ! in_array( $type, array( 'celebrate', 'insightful', 'support' ), true ) ) {
+            return new WP_Error( 'invalid_type', 'type must be celebrate, insightful, or support.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $reactions = get_post_meta( $post_id, '_bpu_post_reactions', true );
+        if ( ! is_array( $reactions ) ) $reactions = array( 'celebrate' => array(), 'insightful' => array(), 'support' => array() );
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            if ( ! is_array( $reactions[ $t ] ?? null ) ) $reactions[ $t ] = array();
+        }
+
+        // Remove from any existing reaction first
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            $reactions[ $t ] = array_values( array_diff( $reactions[ $t ], array( $user_id ) ) );
+        }
+
+        // Toggle: if same type, just removed; if different, add
+        $action = 'removed';
+        $existing_reaction = null;
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            if ( in_array( $user_id, get_post_meta( $post_id, '_bpu_post_reactions', true )[ $t ] ?? array(), true ) ) {
+                $existing_reaction = $t; break;
+            }
+        }
+
+        if ( $existing_reaction !== $type ) {
+            $reactions[ $type ][] = $user_id;
+            $action = 'added';
+        }
+
+        update_post_meta( $post_id, '_bpu_post_reactions', $reactions );
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'action'       => $action,
+            'type'         => $type,
+            'counts'       => array(
+                'celebrate'  => count( $reactions['celebrate'] ),
+                'insightful' => count( $reactions['insightful'] ),
+                'support'    => count( $reactions['support'] ),
+            ),
+            'user_reaction' => $action === 'added' ? $type : null,
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/comment — add a comment.
+     * Body: { text: string }
+     */
+    public function comment_on_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = intval( $request->get_param( 'id' ) );
+        $body    = $request->get_json_params();
+        $text    = sanitize_textarea_field( $body['text'] ?? '' );
+
+        if ( strlen( $text ) < 2 ) {
+            return new WP_Error( 'too_short', 'Comment is too short.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $author    = get_userdata( $user_id );
+        $acf       = function_exists( 'get_fields' ) ? ( get_fields( 'user_' . $user_id ) ?: array() ) : array();
+        $first     = ! empty( $acf['first_name'] ) ? $acf['first_name'] : ( $author->first_name ?? '' );
+        $last      = ! empty( $acf['last_name'] )  ? $acf['last_name']  : ( $author->last_name  ?? '' );
+        $dname     = trim( $first . ' ' . $last ) ?: ( $author->display_name ?? $author->user_login );
+        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+
+        $comments   = get_post_meta( $post_id, '_bpu_post_comments', true );
+        if ( ! is_array( $comments ) ) $comments = array();
+
+        $new_comment = array(
+            'author_id'    => $user_id,
+            'author_name'  => $dname,
+            'author_photo' => $photo_url,
+            'text'         => $text,
+            'created_at'   => current_time( 'c' ),
+        );
+        $comments[] = $new_comment;
+        update_post_meta( $post_id, '_bpu_post_comments', $comments );
+
+        return new WP_REST_Response( array( 'success' => true, 'comment' => $new_comment ), 201 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/bookmark — toggle bookmark.
+     */
+    public function bookmark_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = intval( $request->get_param( 'id' ) );
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $bookmarks = get_post_meta( $post_id, '_bpu_post_bookmarks', true );
+        if ( ! is_array( $bookmarks ) ) $bookmarks = array();
+
+        if ( in_array( $user_id, $bookmarks, true ) ) {
+            $bookmarks = array_values( array_diff( $bookmarks, array( $user_id ) ) );
+            $action    = 'removed';
+        } else {
+            $bookmarks[] = $user_id;
+            $action      = 'added';
+        }
+
+        update_post_meta( $post_id, '_bpu_post_bookmarks', $bookmarks );
+
+        return new WP_REST_Response( array( 'success' => true, 'action' => $action, 'is_bookmarked' => $action === 'added' ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/vote — vote on a poll option.
+     * Body: { option_index: int }
+     */
+    public function vote_on_feed_poll( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = intval( $request->get_param( 'id' ) );
+        $body    = $request->get_json_params();
+        $idx     = intval( $body['option_index'] ?? -1 );
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $poll = get_post_meta( $post_id, '_bpu_post_poll', true );
+        if ( ! is_array( $poll ) || empty( $poll['options'] ) ) {
+            return new WP_Error( 'no_poll', 'This post has no poll.', array( 'status' => 400 ) );
+        }
+
+        if ( $idx < 0 || $idx >= count( $poll['options'] ) ) {
+            return new WP_Error( 'invalid_option', 'Invalid poll option index.', array( 'status' => 400 ) );
+        }
+
+        // Check if already voted
+        foreach ( $poll['options'] as $opt ) {
+            if ( is_array( $opt['voter_ids'] ?? null ) && in_array( $user_id, $opt['voter_ids'], true ) ) {
+                return new WP_Error( 'already_voted', 'You have already voted on this poll.', array( 'status' => 409 ) );
+            }
+        }
+
+        $poll['options'][ $idx ]['voter_ids'][] = $user_id;
+        update_post_meta( $post_id, '_bpu_post_poll', $poll );
+
+        // Build response
+        $total_votes = 0;
+        $opts        = array();
+        foreach ( $poll['options'] as $i => $opt ) {
+            $count        = count( is_array( $opt['voter_ids'] ?? null ) ? $opt['voter_ids'] : array() );
+            $total_votes += $count;
+            $opts[]       = array( 'text' => $opt['text'], 'votes' => $count );
+        }
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'user_voted_index' => $idx,
+            'poll'             => array( 'options' => $opts, 'total_votes' => $total_votes, 'user_voted_index' => $idx ),
+        ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  CONNECTION ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * GET /bpu/v1/member/connection-status/{username}
+     * Returns the connection status between the JWT viewer and the target member.
+     * Unauthenticated requests always return 'not_connected'.
+     * Statuses: not_connected | pending_sent | pending_received | connected
+     */
+    public function get_connection_status( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_REST_Response( array( 'status' => 'not_connected' ), 200 );
+        }
+
+        $viewer_id = intval( $payload['user_id'] );
+        $username  = $request->get_param( 'username' );
+        $target    = get_user_by( 'login', $username );
+
+        if ( ! $target ) {
+            return new WP_Error( 'not_found', 'Member not found.', array( 'status' => 404 ) );
+        }
+
+        if ( $viewer_id === $target->ID ) {
+            return new WP_REST_Response( array( 'status' => 'self' ), 200 );
+        }
+
+        $connections = get_user_meta( $viewer_id, '_bpu_connections', true );
+        if ( ! is_array( $connections ) ) {
+            return new WP_REST_Response( array( 'status' => 'not_connected' ), 200 );
+        }
+
+        foreach ( $connections as $c ) {
+            if ( intval( $c['user_id'] ) === $target->ID ) {
+                if ( $c['status'] === 'accepted' ) {
+                    return new WP_REST_Response( array( 'status' => 'connected' ), 200 );
+                }
+                if ( $c['status'] === 'pending' ) {
+                    $status = $c['direction'] === 'sent' ? 'pending_sent' : 'pending_received';
+                    return new WP_REST_Response( array( 'status' => $status ), 200 );
+                }
+            }
+        }
+
+        return new WP_REST_Response( array( 'status' => 'not_connected' ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/connect
+     * Actions: send | withdraw | accept | decline
+     * Body: { action, to_username } for send/withdraw; { action, from_username } for accept/decline
+     */
+    public function handle_connection_action( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', 'Invalid or missing token.', array( 'status' => 401 ) );
+        }
+
+        $actor_id = intval( $payload['user_id'] );
+        $body     = $request->get_json_params();
+        $action   = sanitize_text_field( $body['action'] ?? '' );
+
+        if ( ! in_array( $action, array( 'send', 'withdraw', 'accept', 'decline' ), true ) ) {
+            return new WP_Error( 'invalid_action', 'action must be send, withdraw, accept, or decline.', array( 'status' => 400 ) );
+        }
+
+        // Resolve the other user
+        if ( in_array( $action, array( 'send', 'withdraw' ), true ) ) {
+            $other_username = sanitize_text_field( $body['to_username'] ?? '' );
+        } else {
+            $other_username = sanitize_text_field( $body['from_username'] ?? '' );
+        }
+
+        if ( ! $other_username ) {
+            return new WP_Error( 'missing_username', 'to_username or from_username is required.', array( 'status' => 400 ) );
+        }
+
+        $other_user = get_user_by( 'login', $other_username );
+        if ( ! $other_user ) {
+            return new WP_Error( 'not_found', 'Member not found.', array( 'status' => 404 ) );
+        }
+
+        $other_id = $other_user->ID;
+
+        if ( $actor_id === $other_id ) {
+            return new WP_Error( 'self_connect', 'You cannot connect with yourself.', array( 'status' => 400 ) );
+        }
+
+        $actor_connections = get_user_meta( $actor_id, '_bpu_connections', true );
+        $other_connections = get_user_meta( $other_id, '_bpu_connections', true );
+        if ( ! is_array( $actor_connections ) ) $actor_connections = array();
+        if ( ! is_array( $other_connections ) ) $other_connections = array();
+
+        $actor_entry_idx = null;
+        $other_entry_idx = null;
+        foreach ( $actor_connections as $i => $c ) {
+            if ( intval( $c['user_id'] ) === $other_id ) { $actor_entry_idx = $i; break; }
+        }
+        foreach ( $other_connections as $i => $c ) {
+            if ( intval( $c['user_id'] ) === $actor_id ) { $other_entry_idx = $i; break; }
+        }
+
+        $actor_user = get_userdata( $actor_id );
+
+        if ( $action === 'send' ) {
+            if ( $actor_entry_idx !== null ) {
+                return new WP_Error( 'already_exists', 'A connection request already exists.', array( 'status' => 409 ) );
+            }
+
+            $context = sanitize_text_field( $body['context'] ?? 'Peer Professional' );
+            $note    = sanitize_textarea_field( $body['note'] ?? '' );
+            $now     = current_time( 'c' );
+
+            $actor_connections[] = array(
+                'user_id'    => $other_id,
+                'status'     => 'pending',
+                'direction'  => 'sent',
+                'context'    => $context,
+                'note'       => $note,
+                'created_at' => $now,
+            );
+            $other_connections[] = array(
+                'user_id'    => $actor_id,
+                'status'     => 'pending',
+                'direction'  => 'received',
+                'context'    => $context,
+                'note'       => $note,
+                'created_at' => $now,
+            );
+
+            update_user_meta( $actor_id, '_bpu_connections', $actor_connections );
+            update_user_meta( $other_id, '_bpu_connections', $other_connections );
+
+            // Email notification to recipient
+            $actor_name  = trim( $actor_user->display_name ) ?: $actor_user->user_login;
+            $other_name  = trim( $other_user->display_name ) ?: $other_user->user_login;
+            $other_email = $other_user->user_email;
+            $profile_url = 'https://web.blackprofessionals.uk/members/' . $actor_user->user_login;
+            $subject     = '[BPU] ' . $actor_name . ' wants to connect with you';
+            $msg         = "Hi {$other_name},\n\n{$actor_name} has sent you a connection request on Black Professionals UK.\n\nContext: {$context}\n";
+            if ( $note ) {
+                $msg .= "\nPersonal note:\n\"{$note}\"\n";
+            }
+            $msg .= "\nView their profile: {$profile_url}\n\n— The BPU Team\nhttps://web.blackprofessionals.uk";
+            wp_mail( $other_email, $subject, $msg );
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'pending_sent' ), 200 );
+        }
+
+        if ( $action === 'withdraw' ) {
+            if ( $actor_entry_idx === null || ( $actor_connections[ $actor_entry_idx ]['direction'] ?? '' ) !== 'sent' ) {
+                return new WP_Error( 'not_found', 'No pending sent request found.', array( 'status' => 404 ) );
+            }
+            array_splice( $actor_connections, $actor_entry_idx, 1 );
+            update_user_meta( $actor_id, '_bpu_connections', array_values( $actor_connections ) );
+
+            if ( $other_entry_idx !== null ) {
+                array_splice( $other_connections, $other_entry_idx, 1 );
+                update_user_meta( $other_id, '_bpu_connections', array_values( $other_connections ) );
+            }
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'not_connected' ), 200 );
+        }
+
+        if ( $action === 'accept' ) {
+            if ( $actor_entry_idx === null || ( $actor_connections[ $actor_entry_idx ]['direction'] ?? '' ) !== 'received' ) {
+                return new WP_Error( 'not_found', 'No pending received request found.', array( 'status' => 404 ) );
+            }
+            $actor_connections[ $actor_entry_idx ]['status']    = 'accepted';
+            $actor_connections[ $actor_entry_idx ]['accepted_at'] = current_time( 'c' );
+            update_user_meta( $actor_id, '_bpu_connections', $actor_connections );
+
+            if ( $other_entry_idx !== null ) {
+                $other_connections[ $other_entry_idx ]['status']    = 'accepted';
+                $other_connections[ $other_entry_idx ]['accepted_at'] = current_time( 'c' );
+                update_user_meta( $other_id, '_bpu_connections', $other_connections );
+            }
+
+            // Email notification to original requester
+            $actor_name  = trim( $actor_user->display_name ) ?: $actor_user->user_login;
+            $other_name  = trim( $other_user->display_name ) ?: $other_user->user_login;
+            $other_email = $other_user->user_email;
+            $profile_url = 'https://web.blackprofessionals.uk/members/' . $actor_user->user_login;
+            wp_mail(
+                $other_email,
+                '[BPU] ' . $actor_name . ' accepted your connection request',
+                "Hi {$other_name},\n\n{$actor_name} has accepted your connection request on Black Professionals UK.\n\nView their profile: {$profile_url}\n\n— The BPU Team"
+            );
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'connected' ), 200 );
+        }
+
+        if ( $action === 'decline' ) {
+            if ( $actor_entry_idx !== null ) {
+                array_splice( $actor_connections, $actor_entry_idx, 1 );
+                update_user_meta( $actor_id, '_bpu_connections', array_values( $actor_connections ) );
+            }
+            if ( $other_entry_idx !== null ) {
+                array_splice( $other_connections, $other_entry_idx, 1 );
+                update_user_meta( $other_id, '_bpu_connections', array_values( $other_connections ) );
+            }
+            return new WP_REST_Response( array( 'success' => true, 'status' => 'not_connected' ), 200 );
+        }
+
+        return new WP_Error( 'invalid_action', 'Unknown action.', array( 'status' => 400 ) );
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  PUBLIC MEMBER PROFILE ENDPOINTS
     // ══════════════════════════════════════════════════════════════
@@ -3780,9 +4839,10 @@ Rules:
         };
 
         // Roles
-        $roles     = (array) $user->roles;
-        $is_pro    = in_array( 'bpu_pro', $roles, true ) || in_array( 'bpu_pro_member', $roles, true );
-        $is_mentor = in_array( 'bpu_mentor', $roles, true );
+        $roles           = (array) $user->roles;
+        $is_pro          = in_array( 'bpu_pro', $roles, true ) || in_array( 'bpu_pro_member', $roles, true );
+        $is_mentor       = in_array( 'bpu_mentor', $roles, true );
+        $is_paired_mentor = in_array( 'mentor', $roles, true ); // Paired-specific role
 
         // Profile photo: custom upload first, then null (let front-end fall back to Gravatar)
         $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
@@ -3818,11 +4878,32 @@ Rules:
             'level_of_education'      => $get( 'level_of_education' ),
             // Bio
             'user_bio'                => $get( 'user_bio' ),
+            // Status fields
+            'placement_scheme'        => $get( 'placement_scheme' ),
+            'mentorship_status'       => get_user_meta( $user_id, '_bpu_mentorship_status', true ) ?: null,
             // Membership
             'is_pro'                  => $is_pro,
+            'is_paired_mentor'        => $is_paired_mentor,
             'roles'                   => array_values( $roles ),
             'member_since'            => date( 'Y-m-d', strtotime( $user->user_registered ) ),
         );
+
+        // Endorsements — public counts only (endorser IDs are never exposed)
+        $raw_endorsements = get_user_meta( $user_id, 'bpu_endorsements', true );
+        if ( is_array( $raw_endorsements ) && ! empty( $raw_endorsements ) ) {
+            $endorsements = array();
+            $total        = 0;
+            foreach ( $raw_endorsements as $entry ) {
+                $count          = is_array( $entry['endorser_ids'] ?? null ) ? count( $entry['endorser_ids'] ) : 0;
+                $total         += $count;
+                $endorsements[] = array( 'skill' => $entry['skill'], 'count' => $count );
+            }
+            $data['endorsements']       = $endorsements;
+            $data['total_endorsements'] = $total;
+        } else {
+            $data['endorsements']       = array();
+            $data['total_endorsements'] = 0;
+        }
 
         if ( $include_cv ) {
             $experiences    = get_user_meta( $user_id, 'bpu_experiences',    true );
@@ -4068,6 +5149,8 @@ Rules:
             // Passport / public profile fields
             'job_title', 'current_employer', 'profile_headline', 'linkedin_url', 'open_to_opportunities',
             'location_city', 'where_in_the_uk', 'country_location',
+            // Status
+            'placement_scheme',
         );
         foreach ( $flat_keys as $key ) {
             if ( empty( $acf_profile[ $key ] ) ) {
@@ -4087,17 +5170,19 @@ Rules:
         $languages      = get_user_meta( $user_id, 'bpu_languages', true );
         $cv_parsed_at   = get_user_meta( $user_id, 'bpu_cv_parsed_at', true );
 
-        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+        $photo_url         = get_user_meta( $user_id, '_bpu_photo_url',         true ) ?: null;
+        $mentorship_status = get_user_meta( $user_id, '_bpu_mentorship_status', true ) ?: '';
 
         return new WP_REST_Response( array(
-            'profile'        => $acf_profile,
-            'photo_url'      => $photo_url,
-            'cv_url'         => $cv_url,
-            'experiences'    => is_array( $experiences )    ? $experiences    : array(),
-            'educations'     => is_array( $educations )     ? $educations     : array(),
-            'certifications' => is_array( $certifications ) ? $certifications : array(),
-            'languages'      => is_string( $languages )     ? $languages      : '',
-            'cv_parsed_at'   => $cv_parsed_at ?: '',
+            'profile'           => $acf_profile,
+            'photo_url'         => $photo_url,
+            'mentorship_status' => $mentorship_status,
+            'cv_url'            => $cv_url,
+            'experiences'       => is_array( $experiences )    ? $experiences    : array(),
+            'educations'        => is_array( $educations )     ? $educations     : array(),
+            'certifications'    => is_array( $certifications ) ? $certifications : array(),
+            'languages'         => is_string( $languages )     ? $languages      : '',
+            'cv_parsed_at'      => $cv_parsed_at ?: '',
         ), 200 );
     }
 

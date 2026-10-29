@@ -57,6 +57,8 @@ export interface ACFProfile {
     linkedin_url?: string;
     profile_headline?: string;
     open_to_opportunities?: string;
+    /* ── Status fields ── */
+    placement_scheme?: string;
 }
 
 export interface BPUUser {
@@ -68,6 +70,7 @@ export interface BPUUser {
     is_pro: boolean;
     profile: ACFProfile;
     photo_url?: string;
+    mentorship_status?: string;
     cv_url?: string;
     experiences?: WorkExperience[];
     educations?: Education[];
@@ -154,8 +157,9 @@ export async function getBPUSession(): Promise<SessionResult> {
                     if (profileData.profile) {
                         user.profile = profileData.profile;
                     }
-                    if (profileData.cv_url)   user.cv_url   = profileData.cv_url;
-                    if (profileData.photo_url) user.photo_url = profileData.photo_url;
+                    if (profileData.cv_url)            user.cv_url            = profileData.cv_url;
+                    if (profileData.photo_url)         user.photo_url         = profileData.photo_url;
+                    if (profileData.mentorship_status) user.mentorship_status = profileData.mentorship_status;
                     if (profileData.experiences?.length)    user.experiences    = profileData.experiences;
                     if (profileData.educations?.length)     user.educations     = profileData.educations;
                     if (profileData.certifications?.length) user.certifications = profileData.certifications;
