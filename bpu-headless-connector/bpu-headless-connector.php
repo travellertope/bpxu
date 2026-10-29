@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.15.0
+ * Version: 2.16.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -38,6 +38,7 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_paired_notification_post_type' ) );
         add_action( 'init', array( $this, 'register_paired_referral_post_type' ) );
         add_action( 'init', array( $this, 'register_bpu_coupon_post_type' ) );
+        add_action( 'init', array( $this, 'register_network_post_post_type' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -124,6 +125,27 @@ class BPU_Headless_Connector {
     /**
      * Register Custom Post Type for Manual CV Reviews
      */
+    public function register_network_post_post_type() {
+        register_post_type( 'bpu_network_post', array(
+            'labels'             => array(
+                'name'          => 'Network Posts',
+                'singular_name' => 'Network Post',
+                'menu_name'     => 'Network Feed',
+            ),
+            'public'             => false,
+            'publicly_queryable' => false,
+            'show_ui'            => true,
+            'show_in_menu'       => true,
+            'query_var'          => false,
+            'capability_type'    => 'post',
+            'has_archive'        => false,
+            'hierarchical'       => false,
+            'menu_position'      => 30,
+            'menu_icon'          => 'dashicons-networking',
+            'supports'           => array( 'title', 'editor', 'author', 'custom-fields' ),
+        ) );
+    }
+
     public function register_cv_review_post_type() {
         $labels = array(
             'name'               => _x( 'CV Reviews', 'post type general name', 'bpu' ),
@@ -1892,6 +1914,44 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/connect', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'handle_connection_action' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Network Feed
+        register_rest_route( $this->namespace, '/feed', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'get_feed_posts' ),
+                'permission_callback' => '__return_true',
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'create_feed_post' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/react', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'react_to_feed_post' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/comment', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'comment_on_feed_post' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/bookmark', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'bookmark_feed_post' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        register_rest_route( $this->namespace, '/feed/(?P<id>\d+)/vote', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'vote_on_feed_poll' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
@@ -4069,6 +4129,472 @@ Rules:
         );
 
         return new WP_REST_Response( array( 'success' => true, 'message' => 'Mentorship request sent.' ), 200 );
+    }
+
+    // ══════════════════════════════════════════════════════════════
+    //  NETWORK FEED ENDPOINTS
+    // ══════════════════════════════════════════════════════════════
+
+    /**
+     * Build the public response shape for a single bpu_network_post.
+     * viewer_id of 0 means unauthenticated.
+     */
+    private function build_feed_post_response( int $post_id, int $viewer_id ): array {
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return array();
+        }
+
+        $author    = get_userdata( $post->post_author );
+        $acf       = function_exists( 'get_fields' ) ? ( get_fields( 'user_' . $post->post_author ) ?: array() ) : array();
+        $photo_url = get_user_meta( $post->post_author, '_bpu_photo_url', true ) ?: null;
+        $first     = ! empty( $acf['first_name'] ) ? $acf['first_name'] : ( $author->first_name ?? '' );
+        $last      = ! empty( $acf['last_name'] )  ? $acf['last_name']  : ( $author->last_name  ?? '' );
+        $dname     = trim( $first . ' ' . $last ) ?: ( $author->display_name ?? $author->user_login );
+        $job_title = ! empty( $acf['job_title'] ) ? $acf['job_title'] : get_user_meta( $post->post_author, 'job_title', true );
+
+        $reactions  = get_post_meta( $post_id, '_bpu_post_reactions', true );
+        if ( ! is_array( $reactions ) ) $reactions = array( 'celebrate' => array(), 'insightful' => array(), 'support' => array() );
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            if ( ! is_array( $reactions[ $t ] ?? null ) ) $reactions[ $t ] = array();
+        }
+
+        $user_reaction = null;
+        if ( $viewer_id > 0 ) {
+            foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+                if ( in_array( $viewer_id, $reactions[ $t ], true ) ) { $user_reaction = $t; break; }
+            }
+        }
+
+        $poll_raw = get_post_meta( $post_id, '_bpu_post_poll', true );
+        $poll     = null;
+        if ( is_array( $poll_raw ) && ! empty( $poll_raw['options'] ) ) {
+            $user_voted_idx = null;
+            $total_votes    = 0;
+            $opts           = array();
+            foreach ( $poll_raw['options'] as $i => $opt ) {
+                $voter_ids = is_array( $opt['voter_ids'] ?? null ) ? $opt['voter_ids'] : array();
+                if ( $viewer_id > 0 && in_array( $viewer_id, $voter_ids, true ) ) {
+                    $user_voted_idx = $i;
+                }
+                $count        = count( $voter_ids );
+                $total_votes += $count;
+                $opts[]       = array( 'text' => $opt['text'], 'votes' => $count );
+            }
+            $poll = array( 'options' => $opts, 'total_votes' => $total_votes, 'user_voted_index' => $user_voted_idx );
+        }
+
+        $raw_comments = get_post_meta( $post_id, '_bpu_post_comments', true );
+        $comments     = array();
+        if ( is_array( $raw_comments ) ) {
+            foreach ( $raw_comments as $c ) {
+                $comments[] = array(
+                    'author_id'   => $c['author_id'],
+                    'author_name' => $c['author_name'],
+                    'author_photo'=> $c['author_photo'] ?? null,
+                    'text'        => $c['text'],
+                    'created_at'  => $c['created_at'],
+                );
+            }
+        }
+
+        $bookmarks   = get_post_meta( $post_id, '_bpu_post_bookmarks', true );
+        $is_bookmarked = $viewer_id > 0 && is_array( $bookmarks ) && in_array( $viewer_id, $bookmarks, true );
+
+        $created_ts = strtotime( $post->post_date );
+        $diff       = time() - $created_ts;
+        if ( $diff < 3600 )       $timestamp = max( 1, round( $diff / 60 ) ) . ' min ago';
+        elseif ( $diff < 86400 )  $timestamp = round( $diff / 3600 ) . 'h ago';
+        elseif ( $diff < 604800 ) $timestamp = round( $diff / 86400 ) . 'd ago';
+        else                      $timestamp = date( 'j M Y', $created_ts );
+
+        return array(
+            'id'             => $post_id,
+            'author_id'      => (int) $post->post_author,
+            'author_username'=> $author->user_login ?? '',
+            'author_name'    => $dname,
+            'author_title'   => $job_title ?: '',
+            'author_photo'   => $photo_url,
+            'timestamp'      => $timestamp,
+            'created_at'     => $post->post_date,
+            'category'       => get_post_meta( $post_id, '_bpu_post_category', true ) ?: 'General',
+            'content'        => $post->post_content,
+            'hashtags'       => (array) ( get_post_meta( $post_id, '_bpu_post_hashtags', true ) ?: array() ),
+            'reactions'      => array(
+                'celebrate'  => count( $reactions['celebrate'] ),
+                'insightful' => count( $reactions['insightful'] ),
+                'support'    => count( $reactions['support'] ),
+            ),
+            'user_reaction'  => $user_reaction,
+            'poll'           => $poll,
+            'comments'       => $comments,
+            'is_bookmarked'  => $is_bookmarked,
+            'is_own'         => $viewer_id > 0 && (int) $post->post_author === $viewer_id,
+        );
+    }
+
+    /**
+     * GET /bpu/v1/feed — paginated list of network posts.
+     * Query params: filter (connections|all|mine|saved), category, sort, search, hashtag, page, per_page
+     */
+    public function get_feed_posts( WP_REST_Request $request ) {
+        $payload   = $this->verify_jwt_bearer( $request );
+        $viewer_id = ( $payload && ! empty( $payload['user_id'] ) ) ? intval( $payload['user_id'] ) : 0;
+
+        $filter    = sanitize_text_field( $request->get_param( 'filter' )   ?? 'all' );
+        $category  = sanitize_text_field( $request->get_param( 'category' ) ?? '' );
+        $sort      = sanitize_text_field( $request->get_param( 'sort' )     ?? 'recent' );
+        $search    = sanitize_text_field( $request->get_param( 'search' )   ?? '' );
+        $hashtag   = sanitize_text_field( $request->get_param( 'hashtag' )  ?? '' );
+        $page      = max( 1, intval( $request->get_param( 'page' )     ?? 1 ) );
+        $per_page  = min( 20, max( 1, intval( $request->get_param( 'per_page' ) ?? 10 ) ) );
+
+        $args = array(
+            'post_type'      => 'bpu_network_post',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => array(),
+        );
+
+        // Author filter
+        if ( $viewer_id > 0 ) {
+            if ( $filter === 'connections' ) {
+                $connections = get_user_meta( $viewer_id, '_bpu_connections', true );
+                $conn_ids    = array( $viewer_id );
+                if ( is_array( $connections ) ) {
+                    foreach ( $connections as $c ) {
+                        if ( ( $c['status'] ?? '' ) === 'accepted' ) $conn_ids[] = intval( $c['user_id'] );
+                    }
+                }
+                $args['author__in'] = $conn_ids;
+            } elseif ( $filter === 'mine' ) {
+                $args['author__in'] = array( $viewer_id );
+            } elseif ( $filter === 'saved' ) {
+                global $wpdb;
+                $saved_ids = $wpdb->get_col( $wpdb->prepare(
+                    "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_bpu_post_bookmarks' AND meta_value LIKE %s",
+                    '%"' . $viewer_id . '"%'
+                ) );
+                if ( empty( $saved_ids ) ) {
+                    return new WP_REST_Response( array( 'posts' => array(), 'total' => 0, 'pages' => 0 ), 200 );
+                }
+                $args['post__in'] = array_map( 'intval', $saved_ids );
+            }
+        } else {
+            // Unauthenticated: always show all
+            $filter = 'all';
+        }
+
+        // Category filter
+        if ( $category && $category !== 'ALL' ) {
+            $args['meta_query'][] = array( 'key' => '_bpu_post_category', 'value' => $category, 'compare' => '=' );
+        }
+
+        // Hashtag filter
+        if ( $hashtag ) {
+            $args['meta_query'][] = array( 'key' => '_bpu_post_hashtags', 'value' => $hashtag, 'compare' => 'LIKE' );
+        }
+
+        // Search
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        // Sort by top engagement: we sort after fetching (limited by per_page*2 window)
+        if ( $sort === 'top' ) {
+            $args['posts_per_page'] = $per_page * 3;
+            $args['paged']          = 1;
+        }
+
+        $query = new WP_Query( $args );
+        $posts = $query->posts;
+
+        if ( $sort === 'top' ) {
+            usort( $posts, function( $a, $b ) {
+                $score_a = $this->get_post_engagement_score( $a->ID );
+                $score_b = $this->get_post_engagement_score( $b->ID );
+                return $score_b - $score_a;
+            } );
+            $posts = array_slice( $posts, ( $page - 1 ) * $per_page, $per_page );
+        }
+
+        $result = array_map( function( $p ) use ( $viewer_id ) {
+            return $this->build_feed_post_response( $p->ID, $viewer_id );
+        }, $posts );
+
+        return new WP_REST_Response( array(
+            'posts' => $result,
+            'total' => (int) $query->found_posts,
+            'pages' => (int) $query->max_num_pages ?: 1,
+        ), 200 );
+    }
+
+    private function get_post_engagement_score( int $post_id ): int {
+        $reactions = get_post_meta( $post_id, '_bpu_post_reactions', true );
+        $score     = 0;
+        if ( is_array( $reactions ) ) {
+            foreach ( $reactions as $ids ) {
+                $score += is_array( $ids ) ? count( $ids ) : 0;
+            }
+        }
+        $comments = get_post_meta( $post_id, '_bpu_post_comments', true );
+        $score   += is_array( $comments ) ? count( $comments ) : 0;
+        return $score;
+    }
+
+    /**
+     * POST /bpu/v1/feed — create a new network post.
+     */
+    public function create_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $author_id = intval( $payload['user_id'] );
+        $body      = $request->get_json_params();
+
+        $content  = sanitize_textarea_field( $body['content'] ?? '' );
+        $category = sanitize_text_field( $body['category']  ?? 'General' );
+        $hashtags = array_map( 'sanitize_text_field', (array) ( $body['hashtags'] ?? array() ) );
+        $poll_raw = $body['poll'] ?? null;
+
+        if ( strlen( $content ) < 10 ) {
+            return new WP_Error( 'too_short', 'Content must be at least 10 characters.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'    => 'bpu_network_post',
+            'post_status'  => 'publish',
+            'post_content' => $content,
+            'post_author'  => $author_id,
+            'post_title'   => 'Network post by user ' . $author_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'create_failed', 'Could not create post.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_post_category', $category );
+        update_post_meta( $post_id, '_bpu_post_hashtags', $hashtags );
+        update_post_meta( $post_id, '_bpu_post_reactions', array( 'celebrate' => array(), 'insightful' => array(), 'support' => array() ) );
+        update_post_meta( $post_id, '_bpu_post_comments', array() );
+        update_post_meta( $post_id, '_bpu_post_bookmarks', array() );
+
+        if ( is_array( $poll_raw ) && ! empty( $poll_raw['options'] ) ) {
+            $opts = array();
+            foreach ( array_slice( (array) $poll_raw['options'], 0, 4 ) as $opt ) {
+                $text = sanitize_text_field( is_array( $opt ) ? ( $opt['text'] ?? $opt ) : $opt );
+                if ( $text ) $opts[] = array( 'text' => $text, 'voter_ids' => array() );
+            }
+            if ( count( $opts ) >= 2 ) {
+                update_post_meta( $post_id, '_bpu_post_poll', array( 'options' => $opts ) );
+            }
+        }
+
+        return new WP_REST_Response( $this->build_feed_post_response( $post_id, $author_id ), 201 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/react — toggle reaction.
+     * Body: { type: 'celebrate'|'insightful'|'support' }
+     */
+    public function react_to_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id  = intval( $payload['user_id'] );
+        $post_id  = intval( $request->get_param( 'id' ) );
+        $body     = $request->get_json_params();
+        $type     = sanitize_text_field( $body['type'] ?? '' );
+
+        if ( ! in_array( $type, array( 'celebrate', 'insightful', 'support' ), true ) ) {
+            return new WP_Error( 'invalid_type', 'type must be celebrate, insightful, or support.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $reactions = get_post_meta( $post_id, '_bpu_post_reactions', true );
+        if ( ! is_array( $reactions ) ) $reactions = array( 'celebrate' => array(), 'insightful' => array(), 'support' => array() );
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            if ( ! is_array( $reactions[ $t ] ?? null ) ) $reactions[ $t ] = array();
+        }
+
+        // Remove from any existing reaction first
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            $reactions[ $t ] = array_values( array_diff( $reactions[ $t ], array( $user_id ) ) );
+        }
+
+        // Toggle: if same type, just removed; if different, add
+        $action = 'removed';
+        $existing_reaction = null;
+        foreach ( array( 'celebrate', 'insightful', 'support' ) as $t ) {
+            if ( in_array( $user_id, get_post_meta( $post_id, '_bpu_post_reactions', true )[ $t ] ?? array(), true ) ) {
+                $existing_reaction = $t; break;
+            }
+        }
+
+        if ( $existing_reaction !== $type ) {
+            $reactions[ $type ][] = $user_id;
+            $action = 'added';
+        }
+
+        update_post_meta( $post_id, '_bpu_post_reactions', $reactions );
+
+        return new WP_REST_Response( array(
+            'success'      => true,
+            'action'       => $action,
+            'type'         => $type,
+            'counts'       => array(
+                'celebrate'  => count( $reactions['celebrate'] ),
+                'insightful' => count( $reactions['insightful'] ),
+                'support'    => count( $reactions['support'] ),
+            ),
+            'user_reaction' => $action === 'added' ? $type : null,
+        ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/comment — add a comment.
+     * Body: { text: string }
+     */
+    public function comment_on_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = intval( $request->get_param( 'id' ) );
+        $body    = $request->get_json_params();
+        $text    = sanitize_textarea_field( $body['text'] ?? '' );
+
+        if ( strlen( $text ) < 2 ) {
+            return new WP_Error( 'too_short', 'Comment is too short.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $author    = get_userdata( $user_id );
+        $acf       = function_exists( 'get_fields' ) ? ( get_fields( 'user_' . $user_id ) ?: array() ) : array();
+        $first     = ! empty( $acf['first_name'] ) ? $acf['first_name'] : ( $author->first_name ?? '' );
+        $last      = ! empty( $acf['last_name'] )  ? $acf['last_name']  : ( $author->last_name  ?? '' );
+        $dname     = trim( $first . ' ' . $last ) ?: ( $author->display_name ?? $author->user_login );
+        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+
+        $comments   = get_post_meta( $post_id, '_bpu_post_comments', true );
+        if ( ! is_array( $comments ) ) $comments = array();
+
+        $new_comment = array(
+            'author_id'    => $user_id,
+            'author_name'  => $dname,
+            'author_photo' => $photo_url,
+            'text'         => $text,
+            'created_at'   => current_time( 'c' ),
+        );
+        $comments[] = $new_comment;
+        update_post_meta( $post_id, '_bpu_post_comments', $comments );
+
+        return new WP_REST_Response( array( 'success' => true, 'comment' => $new_comment ), 201 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/bookmark — toggle bookmark.
+     */
+    public function bookmark_feed_post( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = intval( $request->get_param( 'id' ) );
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $bookmarks = get_post_meta( $post_id, '_bpu_post_bookmarks', true );
+        if ( ! is_array( $bookmarks ) ) $bookmarks = array();
+
+        if ( in_array( $user_id, $bookmarks, true ) ) {
+            $bookmarks = array_values( array_diff( $bookmarks, array( $user_id ) ) );
+            $action    = 'removed';
+        } else {
+            $bookmarks[] = $user_id;
+            $action      = 'added';
+        }
+
+        update_post_meta( $post_id, '_bpu_post_bookmarks', $bookmarks );
+
+        return new WP_REST_Response( array( 'success' => true, 'action' => $action, 'is_bookmarked' => $action === 'added' ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/feed/{id}/vote — vote on a poll option.
+     * Body: { option_index: int }
+     */
+    public function vote_on_feed_poll( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Invalid token.', array( 'status' => 401 ) );
+        }
+
+        $user_id = intval( $payload['user_id'] );
+        $post_id = intval( $request->get_param( 'id' ) );
+        $body    = $request->get_json_params();
+        $idx     = intval( $body['option_index'] ?? -1 );
+
+        $post = get_post( $post_id );
+        if ( ! $post || $post->post_type !== 'bpu_network_post' ) {
+            return new WP_Error( 'not_found', 'Post not found.', array( 'status' => 404 ) );
+        }
+
+        $poll = get_post_meta( $post_id, '_bpu_post_poll', true );
+        if ( ! is_array( $poll ) || empty( $poll['options'] ) ) {
+            return new WP_Error( 'no_poll', 'This post has no poll.', array( 'status' => 400 ) );
+        }
+
+        if ( $idx < 0 || $idx >= count( $poll['options'] ) ) {
+            return new WP_Error( 'invalid_option', 'Invalid poll option index.', array( 'status' => 400 ) );
+        }
+
+        // Check if already voted
+        foreach ( $poll['options'] as $opt ) {
+            if ( is_array( $opt['voter_ids'] ?? null ) && in_array( $user_id, $opt['voter_ids'], true ) ) {
+                return new WP_Error( 'already_voted', 'You have already voted on this poll.', array( 'status' => 409 ) );
+            }
+        }
+
+        $poll['options'][ $idx ]['voter_ids'][] = $user_id;
+        update_post_meta( $post_id, '_bpu_post_poll', $poll );
+
+        // Build response
+        $total_votes = 0;
+        $opts        = array();
+        foreach ( $poll['options'] as $i => $opt ) {
+            $count        = count( is_array( $opt['voter_ids'] ?? null ) ? $opt['voter_ids'] : array() );
+            $total_votes += $count;
+            $opts[]       = array( 'text' => $opt['text'], 'votes' => $count );
+        }
+
+        return new WP_REST_Response( array(
+            'success'          => true,
+            'user_voted_index' => $idx,
+            'poll'             => array( 'options' => $opts, 'total_votes' => $total_votes, 'user_voted_index' => $idx ),
+        ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════
