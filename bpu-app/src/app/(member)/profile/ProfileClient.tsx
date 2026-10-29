@@ -470,6 +470,39 @@ export default function ProfileClient({ user }: Props) {
               <option value="No">No — not looking right now</option>
             </select>
           </div>
+          <div>
+            <label className="field-label">Placement scheme</label>
+            <select
+              className="field-input"
+              value={(editForm.placement_scheme as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, placement_scheme: e.target.value }))}
+            >
+              <option value="">Select…</option>
+              {['Experienced Talent', 'Graduate Scheme', 'Early Career', 'Executive Track', 'Returnship', 'Apprenticeship'].map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+            <p className="text-[11px] text-text-3 mt-1">Shown on your public profile to highlight your career stage to employers.</p>
+          </div>
+          <div>
+            <label className="field-label">Mentorship status</label>
+            <select
+              className="field-input"
+              value={user.mentorship_status || ''}
+              onChange={async e => {
+                const val = e.target.value;
+                await fetch('/api/member/profile', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ mentorship_status: val }),
+                });
+              }}
+            >
+              <option value="">Not set</option>
+              <option value="Accepting Mentees">Accepting Mentees</option>
+              <option value="On Pause">On Pause</option>
+              <option value="Not Accepting">Not Accepting</option>
+            </select>
+            <p className="text-[11px] text-text-3 mt-1">Controls the badge shown on your public profile. Saves immediately on change.</p>
+          </div>
         </div>
       </div>
 

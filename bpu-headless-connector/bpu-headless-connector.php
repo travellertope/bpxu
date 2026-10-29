@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.11.0
+ * Version: 2.12.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1868,6 +1868,13 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'create_member_testimonial' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
+
+        // Endorse / un-endorse a skill on a member profile (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/endorse', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'endorse_member_skill' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
     }
 
     /**
@@ -3688,6 +3695,8 @@ Rules:
             // Passport / public profile fields
             'job_title', 'current_employer', 'profile_headline',
             'linkedin_url', 'open_to_opportunities',
+            // Status fields
+            'placement_scheme',
         );
 
         if ( ! function_exists( 'update_field' ) ) {
@@ -3701,6 +3710,15 @@ Rules:
         foreach ( $allowed as $field ) {
             if ( isset( $body[ $field ] ) ) {
                 update_field( $field, sanitize_textarea_field( (string) $body[ $field ] ), 'user_' . $user_id );
+            }
+        }
+
+        // Non-ACF user meta fields
+        if ( isset( $body['mentorship_status'] ) ) {
+            $valid = array( 'Accepting Mentees', 'On Pause', 'Not Accepting', '' );
+            $status = sanitize_text_field( (string) $body['mentorship_status'] );
+            if ( in_array( $status, $valid, true ) ) {
+                update_user_meta( $user_id, '_bpu_mentorship_status', $status );
             }
         }
 
@@ -3870,6 +3888,79 @@ Rules:
         ), 200 );
     }
 
+    /**
+     * POST /bpu/v1/member/endorse — toggle a skill endorsement for a member.
+     * Returns { success, action: 'added'|'removed', skill, count, total }.
+     */
+    public function endorse_member_skill( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $endorser_id = intval( $payload['user_id'] );
+        $body        = $request->get_json_params();
+
+        $to_username = sanitize_text_field( $body['to_username'] ?? '' );
+        $skill       = sanitize_text_field( $body['skill']       ?? '' );
+
+        if ( ! $to_username || ! $skill ) {
+            return new WP_Error( 'missing_fields', __( 'to_username and skill are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $recipient = get_user_by( 'login', $to_username );
+        if ( ! $recipient ) {
+            return new WP_Error( 'user_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( $endorser_id === $recipient->ID ) {
+            return new WP_Error( 'self_endorse', __( 'You cannot endorse yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $endorsements = get_user_meta( $recipient->ID, 'bpu_endorsements', true );
+        if ( ! is_array( $endorsements ) ) {
+            $endorsements = array();
+        }
+
+        $action     = 'added';
+        $skill_count = 1;
+        $found      = false;
+
+        foreach ( $endorsements as &$entry ) {
+            if ( $entry['skill'] === $skill ) {
+                $found      = true;
+                $ids        = is_array( $entry['endorser_ids'] ?? null ) ? $entry['endorser_ids'] : array();
+                if ( in_array( $endorser_id, $ids, true ) ) {
+                    $entry['endorser_ids'] = array_values( array_diff( $ids, array( $endorser_id ) ) );
+                    $action = 'removed';
+                } else {
+                    $entry['endorser_ids'][] = $endorser_id;
+                }
+                $skill_count = count( $entry['endorser_ids'] );
+                break;
+            }
+        }
+        unset( $entry );
+
+        if ( ! $found ) {
+            $endorsements[] = array( 'skill' => $skill, 'endorser_ids' => array( $endorser_id ) );
+        }
+
+        update_user_meta( $recipient->ID, 'bpu_endorsements', $endorsements );
+
+        $total = array_sum( array_map( function( $e ) {
+            return count( is_array( $e['endorser_ids'] ?? null ) ? $e['endorser_ids'] : array() );
+        }, $endorsements ) );
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'action'  => $action,
+            'skill'   => $skill,
+            'count'   => $skill_count,
+            'total'   => $total,
+        ), 200 );
+    }
+
     // ══════════════════════════════════════════════════════════════
     //  PUBLIC MEMBER PROFILE ENDPOINTS
     // ══════════════════════════════════════════════════════════════
@@ -3942,11 +4033,31 @@ Rules:
             'level_of_education'      => $get( 'level_of_education' ),
             // Bio
             'user_bio'                => $get( 'user_bio' ),
+            // Status fields
+            'placement_scheme'        => $get( 'placement_scheme' ),
+            'mentorship_status'       => get_user_meta( $user_id, '_bpu_mentorship_status', true ) ?: null,
             // Membership
             'is_pro'                  => $is_pro,
             'roles'                   => array_values( $roles ),
             'member_since'            => date( 'Y-m-d', strtotime( $user->user_registered ) ),
         );
+
+        // Endorsements — public counts only (endorser IDs are never exposed)
+        $raw_endorsements = get_user_meta( $user_id, 'bpu_endorsements', true );
+        if ( is_array( $raw_endorsements ) && ! empty( $raw_endorsements ) ) {
+            $endorsements = array();
+            $total        = 0;
+            foreach ( $raw_endorsements as $entry ) {
+                $count          = is_array( $entry['endorser_ids'] ?? null ) ? count( $entry['endorser_ids'] ) : 0;
+                $total         += $count;
+                $endorsements[] = array( 'skill' => $entry['skill'], 'count' => $count );
+            }
+            $data['endorsements']       = $endorsements;
+            $data['total_endorsements'] = $total;
+        } else {
+            $data['endorsements']       = array();
+            $data['total_endorsements'] = 0;
+        }
 
         if ( $include_cv ) {
             $experiences    = get_user_meta( $user_id, 'bpu_experiences',    true );
@@ -4192,6 +4303,8 @@ Rules:
             // Passport / public profile fields
             'job_title', 'current_employer', 'profile_headline', 'linkedin_url', 'open_to_opportunities',
             'location_city', 'where_in_the_uk', 'country_location',
+            // Status
+            'placement_scheme',
         );
         foreach ( $flat_keys as $key ) {
             if ( empty( $acf_profile[ $key ] ) ) {
@@ -4211,17 +4324,19 @@ Rules:
         $languages      = get_user_meta( $user_id, 'bpu_languages', true );
         $cv_parsed_at   = get_user_meta( $user_id, 'bpu_cv_parsed_at', true );
 
-        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+        $photo_url         = get_user_meta( $user_id, '_bpu_photo_url',         true ) ?: null;
+        $mentorship_status = get_user_meta( $user_id, '_bpu_mentorship_status', true ) ?: '';
 
         return new WP_REST_Response( array(
-            'profile'        => $acf_profile,
-            'photo_url'      => $photo_url,
-            'cv_url'         => $cv_url,
-            'experiences'    => is_array( $experiences )    ? $experiences    : array(),
-            'educations'     => is_array( $educations )     ? $educations     : array(),
-            'certifications' => is_array( $certifications ) ? $certifications : array(),
-            'languages'      => is_string( $languages )     ? $languages      : '',
-            'cv_parsed_at'   => $cv_parsed_at ?: '',
+            'profile'           => $acf_profile,
+            'photo_url'         => $photo_url,
+            'mentorship_status' => $mentorship_status,
+            'cv_url'            => $cv_url,
+            'experiences'       => is_array( $experiences )    ? $experiences    : array(),
+            'educations'        => is_array( $educations )     ? $educations     : array(),
+            'certifications'    => is_array( $certifications ) ? $certifications : array(),
+            'languages'         => is_string( $languages )     ? $languages      : '',
+            'cv_parsed_at'      => $cv_parsed_at ?: '',
         ), 200 );
     }
 

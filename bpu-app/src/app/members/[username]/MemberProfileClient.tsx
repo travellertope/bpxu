@@ -95,15 +95,32 @@ function Toast({ msg, onClose }: { msg: string; onClose: () => void }) {
 }
 
 /* ── Skill bar ── */
-function SkillBar({ name, votes, pct }: { name: string; votes: number; pct: number }) {
+function SkillBar({ name, votes, maxVotes, endorsed, onEndorse }: {
+  name: string; votes: number; maxVotes: number; endorsed?: boolean; onEndorse?: () => void;
+}) {
+  const pct = maxVotes > 0 ? Math.round((votes / maxVotes) * 100) : 0;
   return (
     <div className="space-y-1">
-      <div className="flex justify-between items-center">
-        <span className="font-black text-xs uppercase" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{name}</span>
-        <span className="font-mono font-bold text-xs" style={{ color: OCHRE }}>{votes} votes</span>
+      <div className="flex justify-between items-center gap-2">
+        <span className="font-black text-xs uppercase flex-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{name}</span>
+        <span className="font-mono font-bold text-xs shrink-0" style={{ color: OCHRE }}>{votes} vote{votes !== 1 ? 's' : ''}</span>
+        {onEndorse && (
+          <button
+            onClick={onEndorse}
+            title={endorsed ? 'Remove endorsement' : 'Endorse this skill'}
+            className="shrink-0 font-mono font-bold text-[10px] uppercase px-2 py-0.5 rounded transition-colors"
+            style={{
+              border: `2px solid ${endorsed ? OCHRE : BORDER}`,
+              color: endorsed ? '#fff' : BORDER,
+              background: endorsed ? OCHRE : 'transparent',
+            }}
+          >
+            {endorsed ? '✓ Endorsed' : '+ Endorse'}
+          </button>
+        )}
       </div>
       <div className="w-full h-3 rounded-full overflow-hidden" style={{ background: PAPER, border: `2px solid ${BORDER}` }}>
-        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: SLATE }} />
+        <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: SLATE }} />
       </div>
     </div>
   );
@@ -206,8 +223,40 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
   const [recSubmitting, setRecSubmitting] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>(member?.testimonials ?? []);
+  const [endorsements, setEndorsements] = useState<{ skill: string; count: number }[]>(member?.endorsements ?? []);
+  const [endorsedSkills, setEndorsedSkills] = useState<Set<string>>(new Set<string>());
+  const [connectionState, setConnectionState] = useState<'not_connected' | 'pending' | 'connected'>('not_connected');
+  const [showConnect, setShowConnect] = useState(false);
+  const [connectContext, setConnectContext] = useState('Peer Professional');
+  const [connectNote, setConnectNote] = useState('');
+  const [connectSubmitting, setConnectSubmitting] = useState(false);
 
   const openToast = (msg: string) => setToast(msg);
+
+  const handleEndorse = async (skill: string) => {
+    try {
+      const res = await fetch('/api/member/endorse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_username: username, skill }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save endorsement.');
+      const action: 'added' | 'removed' = data.action;
+      setEndorsedSkills(prev => {
+        const next = new Set(prev);
+        if (action === 'added') next.add(skill); else next.delete(skill);
+        return next;
+      });
+      setEndorsements(prev => {
+        const hit = prev.find(e => e.skill === skill);
+        if (hit) return prev.map(e => e.skill === skill ? { ...e, count: data.count } : e);
+        return [...prev, { skill, count: data.count }];
+      });
+    } catch (err: unknown) {
+      openToast(err instanceof Error ? err.message : 'Could not save endorsement.');
+    }
+  };
   const profileUrl = `https://web.blackprofessionals.uk/members/${username}`;
 
   /* ── Not found ── */
@@ -358,13 +407,33 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
               <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                 {viewer && !isOwner && (
                   <>
-                    <button
-                      onClick={() => openToast(`Connection request sent to ${name}!`)}
-                      className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
-                      style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-                    >
-                      + Connect on BPU
-                    </button>
+                    {connectionState === 'not_connected' && (
+                      <button
+                        onClick={() => setShowConnect(true)}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
+                        style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                      >
+                        + Connect on BPU
+                      </button>
+                    )}
+                    {connectionState === 'pending' && (
+                      <button
+                        onClick={() => { setConnectionState('not_connected'); openToast('Connection request withdrawn.'); }}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl flex items-center justify-center gap-2"
+                        style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: SLATE }}
+                      >
+                        Request Sent ⏳
+                      </button>
+                    )}
+                    {connectionState === 'connected' && (
+                      <button
+                        disabled
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl flex items-center justify-center gap-2"
+                        style={{ background: '#166534', border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: '#fff' }}
+                      >
+                        Connected ✓
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowMessage(true)}
                       className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
@@ -441,16 +510,35 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                 className="lg:col-span-4 p-4 rounded-xl space-y-3"
                 style={{ background: `${PAPER}80`, border: `2px solid ${BORDER}` }}
               >
-                {m.years_of_experience && (
+                {m.placement_scheme && (
                   <div className="flex items-center justify-between text-xs font-black uppercase" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span className="text-gray-600">Experience:</span>
-                    <span style={{ color: OCHRE }}>{m.years_of_experience} Yr{Number(m.years_of_experience) !== 1 ? 's' : ''}</span>
+                    <span className="text-gray-600">Placement Scheme:</span>
+                    <span style={{ color: OCHRE }}>{m.placement_scheme}</span>
                   </div>
                 )}
-                {m.level_of_education && (
+                {m.mentorship_status && (
                   <div className="flex items-center justify-between text-xs font-black uppercase border-t pt-2" style={{ borderColor: `${BORDER}30`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span className="text-gray-600">Education:</span>
-                    <span style={{ color: SLATE }}>{m.level_of_education}</span>
+                    <span className="text-gray-600">Mentorship:</span>
+                    <span
+                      className="px-2 py-0.5 rounded text-[10px]"
+                      style={{
+                        background: m.mentorship_status === 'Accepting Mentees' ? '#dcfce7' : m.mentorship_status === 'Active Mentor' ? '#dbeafe' : `${PAPER}`,
+                        color: m.mentorship_status === 'Accepting Mentees' ? '#166534' : m.mentorship_status === 'Active Mentor' ? '#1e40af' : SLATE,
+                        border: `1px solid ${m.mentorship_status === 'Accepting Mentees' ? '#86efac' : m.mentorship_status === 'Active Mentor' ? '#93c5fd' : BORDER}`,
+                      }}
+                    >
+                      {m.mentorship_status}
+                    </span>
+                  </div>
+                )}
+                <div className={`flex items-center justify-between text-xs font-black uppercase${m.placement_scheme || m.mentorship_status ? ' border-t pt-2' : ''}`} style={{ borderColor: `${BORDER}30`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  <span className="text-gray-600">Endorsements:</span>
+                  <span className="font-mono" style={{ color: SLATE }}>{(m.total_endorsements ?? endorsements.reduce((s, e) => s + e.count, 0))} Peer Votes</span>
+                </div>
+                {m.years_of_experience && (
+                  <div className="flex items-center justify-between text-xs font-black uppercase border-t pt-2" style={{ borderColor: `${BORDER}30`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    <span className="text-gray-600">Experience:</span>
+                    <span style={{ color: OCHRE }}>{m.years_of_experience} Yr{Number(m.years_of_experience) !== 1 ? 's' : ''}</span>
                   </div>
                 )}
                 {m.member_since && (
@@ -534,10 +622,24 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                   ))}
                 </div>
                 <div className="pt-4 border-t-2 space-y-3" style={{ borderColor: `${BORDER}30` }}>
-                  <span className="font-mono text-[11px] font-bold uppercase text-gray-500 block">TOP COMPETENCIES:</span>
-                  {topSkills.map((s, i) => (
-                    <SkillBar key={s} name={s} votes={Math.max(5, 42 - i * 6)} pct={Math.max(40, 95 - i * 10)} />
-                  ))}
+                  <span className="font-mono text-[11px] font-bold uppercase text-gray-500 block">TOP ENDORSED COMPETENCIES:</span>
+                  {(() => {
+                    const maxVotes = Math.max(1, ...endorsements.map(e => e.count));
+                    return topSkills.map(s => {
+                      const endorsement = endorsements.find(e => e.skill.toLowerCase() === s.toLowerCase());
+                      const votes = endorsement?.count ?? 0;
+                      return (
+                        <SkillBar
+                          key={s}
+                          name={s}
+                          votes={votes}
+                          maxVotes={maxVotes}
+                          endorsed={endorsedSkills.has(s)}
+                          onEndorse={viewer && !isOwner ? () => handleEndorse(s) : undefined}
+                        />
+                      );
+                    });
+                  })()}
                 </div>
               </section>
             )}
@@ -896,6 +998,68 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
             <button onClick={() => setShowShare(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Close</button>
           </div>
         </div>
+      </Modal>
+
+      {/* Connect on BPU modal */}
+      <Modal id="modal-connect" open={showConnect} onClose={() => setShowConnect(false)}>
+        <ModalHeader title="BPU Network Connection Request" onClose={() => setShowConnect(false)} />
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            setConnectSubmitting(true);
+            await new Promise(r => setTimeout(r, 600)); // optimistic delay
+            setConnectSubmitting(false);
+            setShowConnect(false);
+            setConnectContext('Peer Professional');
+            setConnectNote('');
+            setConnectionState('pending');
+            openToast(`Connection request sent to ${name}!`);
+          }}
+          className="p-6 space-y-4"
+        >
+          <div className="p-3 rounded flex items-center gap-3 text-xs font-medium" style={{ background: `${PAPER}80`, border: `1px solid ${BORDER}` }}>
+            <div className="w-10 h-10 rounded-xl overflow-hidden flex-shrink-0" style={{ border: `2px solid ${BORDER}` }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={avatarUrl(member, username)} alt={name} className="w-full h-full object-cover" />
+            </div>
+            <div>
+              <span className="font-black text-xs uppercase block" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{name}</span>
+              <span className="text-gray-600 block leading-tight">{m.job_title || m.industryfield_of_expertise || 'BPU Member'}</span>
+            </div>
+          </div>
+          <div>
+            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>How do you know each other? <span style={{ color: OCHRE }}>*</span></label>
+            <select
+              required
+              value={connectContext}
+              onChange={e => setConnectContext(e.target.value)}
+              className="w-full p-2.5 rounded font-medium text-xs bg-white focus:outline-none"
+              style={{ border: `3px solid ${BORDER}` }}
+            >
+              <option value="Peer Professional">Peer / Industry Professional</option>
+              <option value="Seeking Mentorship">Seeking Career Guidance / Mentorship</option>
+              <option value="Recruiter / Hiring Lead">Recruiter / Employer Representative</option>
+              <option value="Colleague / Placement Alumni">Colleague / Placement Alumni</option>
+            </select>
+          </div>
+          <div>
+            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Personal Note <span className="text-gray-400 normal-case font-medium">(optional but recommended)</span></label>
+            <textarea
+              rows={3}
+              value={connectNote}
+              onChange={e => setConnectNote(e.target.value)}
+              placeholder={`Hi ${name.split(' ')[0]}, I'd love to connect with you on BPU…`}
+              className="w-full p-2.5 rounded font-medium text-xs focus:outline-none"
+              style={{ border: `3px solid ${BORDER}` }}
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setShowConnect(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+            <button type="submit" disabled={connectSubmitting} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: SLATE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: connectSubmitting ? 0.7 : 1 }}>
+              {connectSubmitting ? 'Sending…' : 'Send Invitation ↗'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Write Recommendation modal */}
