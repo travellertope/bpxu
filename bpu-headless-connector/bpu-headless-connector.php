@@ -4926,7 +4926,8 @@ Rules:
      */
     public function get_public_member_profile( WP_REST_Request $request ) {
         $username = $request->get_param( 'username' );
-        $user     = get_user_by( 'login', $username );
+        // Try user_login first, then user_nicename (URL slug) as fallback.
+        $user = get_user_by( 'login', $username ) ?: get_user_by( 'slug', $username );
 
         if ( ! $user ) {
             return new WP_Error( 'bpu_member_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
@@ -4950,6 +4951,7 @@ Rules:
     public function get_public_members_directory( WP_REST_Request $request ) {
         $search   = sanitize_text_field( $request->get_param( 'search' )   ?? '' );
         $sector   = sanitize_text_field( $request->get_param( 'sector' )   ?? '' );
+        $city     = sanitize_text_field( $request->get_param( 'city' )     ?? '' );
         $featured = $request->get_param( 'featured' ) === '1';
         $page     = max( 1, intval( $request->get_param( 'page' )     ?? 1 ) );
         $per_page = min( 50, max( 1, intval( $request->get_param( 'per_page' ) ?? 12 ) ) );
@@ -4970,28 +4972,43 @@ Rules:
             $args['search_columns'] = array( 'user_login', 'display_name', 'user_nicename' );
         }
 
+        $meta_clauses = array();
+
         if ( $sector ) {
-            // Filter by 'industry' user meta (stored by ACF as a raw meta key)
-            $args['meta_query'] = array(
+            $meta_clauses[] = array(
+                'key'     => 'industry',
+                'value'   => $sector,
+                'compare' => 'LIKE',
+            );
+        }
+
+        if ( $city ) {
+            // Match against location_city or where_in_the_uk meta keys.
+            $meta_clauses[] = array(
+                'relation' => 'OR',
                 array(
-                    'key'     => 'industry',
-                    'value'   => $sector,
+                    'key'     => 'location_city',
+                    'value'   => $city,
+                    'compare' => 'LIKE',
+                ),
+                array(
+                    'key'     => 'where_in_the_uk',
+                    'value'   => $city,
                     'compare' => 'LIKE',
                 ),
             );
         }
 
         if ( $featured ) {
-            $featured_clause = array(
+            $meta_clauses[] = array(
                 'key'     => '_bpu_featured',
                 'value'   => '1',
                 'compare' => '=',
             );
-            if ( isset( $args['meta_query'] ) ) {
-                $args['meta_query'][] = $featured_clause;
-            } else {
-                $args['meta_query'] = array( $featured_clause );
-            }
+        }
+
+        if ( ! empty( $meta_clauses ) ) {
+            $args['meta_query'] = array_merge( array( 'relation' => 'AND' ), $meta_clauses );
         }
 
         $query = new WP_User_Query( $args );
