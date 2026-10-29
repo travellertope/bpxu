@@ -4027,8 +4027,11 @@ Rules:
         $languages      = get_user_meta( $user_id, 'bpu_languages', true );
         $cv_parsed_at   = get_user_meta( $user_id, 'bpu_cv_parsed_at', true );
 
+        $photo_url = get_user_meta( $user_id, '_bpu_photo_url', true ) ?: null;
+
         return new WP_REST_Response( array(
             'profile'        => $acf_profile,
+            'photo_url'      => $photo_url,
             'cv_url'         => $cv_url,
             'experiences'    => is_array( $experiences )    ? $experiences    : array(),
             'educations'     => is_array( $educations )     ? $educations     : array(),

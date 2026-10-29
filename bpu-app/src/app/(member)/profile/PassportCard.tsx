@@ -70,7 +70,7 @@ export default function PassportCard({ user }: Props) {
 
   const passportNo = `PASSPORT NO. 2026-${String(user.id).padStart(4, '0')}`;
   const profileUrl = `https://web.blackprofessionals.uk/members/${user.username}`;
-  const gravatarUrl = `https://www.gravatar.com/avatar/${user.email}?s=300&d=mp`;
+  const gravatarUrl = user.photo_url || `https://www.gravatar.com/avatar/${encodeURIComponent(user.email)}?s=300&d=mp`;
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(profileUrl).catch(() => {});

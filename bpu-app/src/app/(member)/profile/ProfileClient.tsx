@@ -14,6 +14,11 @@ export default function ProfileClient({ user }: Props) {
 
   const [profile, setProfile] = useState<ACFProfile>(user.profile);
   const [editForm, setEditForm] = useState<Partial<ACFProfile>>(profile);
+  const [photoUrl, setPhotoUrl] = useState<string | null>(user.photo_url ?? null);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [photoDragOver, setPhotoDragOver] = useState(false);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -71,8 +76,39 @@ export default function ProfileClient({ user }: Props) {
     setSmsPrefSaving(false);
   };
 
+  const handlePhotoUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setPhotoMsg({ type: 'err', text: 'Please select an image file (JPEG, PNG, WebP).' });
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setPhotoMsg({ type: 'err', text: 'Photo must be under 5 MB.' });
+      return;
+    }
+    // Show local preview immediately
+    const localPreview = URL.createObjectURL(file);
+    setPhotoUrl(localPreview);
+    setPhotoUploading(true);
+    setPhotoMsg(null);
+    try {
+      const fd = new FormData();
+      fd.append('photo', file);
+      const res = await fetch('/api/member/photo', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed.');
+      setPhotoUrl(data.photo_url);
+      setPhotoMsg({ type: 'ok', text: 'Profile photo updated.' });
+    } catch (err: unknown) {
+      setPhotoUrl(user.photo_url ?? null); // revert preview on error
+      setPhotoMsg({ type: 'err', text: err instanceof Error ? err.message : 'Could not upload photo.' });
+    } finally {
+      setPhotoUploading(false);
+      URL.revokeObjectURL(localPreview);
+    }
+  };
+
   // keep a live copy of the user object so PassportCard reflects unsaved edits
-  const liveUser: BPUUser = { ...user, profile: { ...user.profile, ...editForm } };
+  const liveUser: BPUUser = { ...user, profile: { ...user.profile, ...editForm }, photo_url: photoUrl ?? undefined };
 
   return (
     <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -282,6 +318,77 @@ export default function ProfileClient({ user }: Props) {
           <p className="text-xs font-bold uppercase tracking-wide text-text-3">Passport Details</p>
           <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Powers your public passport card</span>
         </div>
+
+        {/* ── Profile photo uploader ── */}
+        <div>
+          <label className="field-label mb-2">Profile photo</label>
+          <div className="flex items-start gap-4 flex-wrap">
+            {/* Avatar preview */}
+            <div
+              className="relative flex-shrink-0 w-24 h-24 rounded-xl border-2 border-hp-dark overflow-hidden bg-hp-dark cursor-pointer group"
+              onClick={() => photoInputRef.current?.click()}
+              title="Click to change photo"
+            >
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="Profile" className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-3xl font-black text-white select-none">
+                  {(user.display_name?.[0] ?? '?').toUpperCase()}
+                </div>
+              )}
+              <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-xs font-bold text-center leading-tight px-1">Change<br/>Photo</span>
+              </div>
+              {photoUploading && (
+                <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                  <svg className="animate-spin w-6 h-6 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                  </svg>
+                </div>
+              )}
+            </div>
+
+            {/* Drop zone */}
+            <div
+              className={`flex-1 min-w-[160px] border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors text-center ${
+                photoDragOver ? 'border-hp-accent bg-amber-50' : 'border-gray-300 hover:border-hp-dark'
+              }`}
+              onClick={() => photoInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setPhotoDragOver(true); }}
+              onDragLeave={() => setPhotoDragOver(false)}
+              onDrop={e => {
+                e.preventDefault();
+                setPhotoDragOver(false);
+                const f = e.dataTransfer.files[0];
+                if (f) handlePhotoUpload(f);
+              }}
+            >
+              <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="text-gray-400">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+              </svg>
+              <p className="text-xs font-bold text-text-3">
+                {photoUploading ? 'Uploading…' : 'Drop photo here or click to browse'}
+              </p>
+              <p className="text-[11px] text-text-3">JPEG, PNG or WebP · max 5 MB</p>
+            </div>
+
+            <input
+              ref={photoInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoUpload(f); e.target.value = ''; }}
+            />
+          </div>
+          {photoMsg && (
+            <div className={`mt-2 text-xs font-bold ${photoMsg.type === 'ok' ? 'text-green-700' : 'text-red-600'}`}>
+              {photoMsg.text}
+            </div>
+          )}
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="field-label">Job title <span className="text-brand">*</span></label>
