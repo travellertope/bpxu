@@ -9,6 +9,18 @@ import {
   LinkedinLogo, TwitterLogo, InstagramLogo,
 } from '@phosphor-icons/react';
 
+/* ─── WordPress post shape (minimal) ─── */
+interface WpPost {
+  id: number;
+  link: string;
+  title: { rendered: string };
+  excerpt: { rendered: string };
+  _embedded?: {
+    'wp:featuredmedia'?: Array<{ source_url: string }>;
+    'wp:term'?: Array<Array<{ name: string }>>;
+  };
+}
+
 /* ─── cycling cities ─── */
 const CITIES = [
   'Glasgow', 'London', 'Birmingham', 'Manchester', 'Leeds',
@@ -59,7 +71,7 @@ function useCounter(target: number, active: boolean) {
   return val;
 }
 
-export default function HomePage() {
+function HomePageClient({ posts }: { posts: WpPost[] }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -521,36 +533,39 @@ export default function HomePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {[
-            { tag: 'Internship Week',  name: 'Daniel Olanrewaju', label: 'Intern Spotlight' },
-            { tag: 'Alumni Mentor',    name: 'Vambo Maswiswi',    label: 'Alumni Mentor Spotlight' },
-            { tag: 'Alumni Mentor',    name: 'Olabisi Oloyede',   label: 'Alumni Mentor Spotlight' },
-          ].map(({ tag, name, label }) => (
-            <article key={name} className="flex flex-col group cursor-pointer">
-              <div className="w-full aspect-[4/3] bg-gray-200 rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
-                <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
-                  {tag}
-                </div>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={`https://placehold.co/600x450/0F0F0F/FFFFFF?text=${encodeURIComponent(name)}`}
-                  alt={name}
-                  className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                />
-                <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-brutal pl-1">
-                    <Play weight="fill" size={24} />
+          {posts.map((post) => {
+            const title = post.title.rendered.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/<[^>]+>/g, '');
+            const excerpt = post.excerpt.rendered.replace(/<[^>]+>/g, '').replace(/\[&hellip;\]|\[…\]/g, '…').trim();
+            const category = post._embedded?.['wp:term']?.[0]?.[0]?.name ?? 'Article';
+            const image = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
+            return (
+              <article key={post.id} className="flex flex-col group cursor-pointer">
+                <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-gray-200 rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
+                  <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
+                    {category}
                   </div>
-                </div>
-              </div>
-              <h3 className="font-black text-2xl leading-tight mb-3 group-hover:text-hp-accent transition-colors">
-                {label}: A Conversation with {name}
-              </h3>
-              <a href="#" className="font-bold uppercase text-sm border-b-2 border-black w-max mt-auto">
-                Catch Up
-              </a>
-            </article>
-          ))}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {image && <img
+                    src={image}
+                    alt={title}
+                    className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
+                  />}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center border-brutal pl-1">
+                      <Play weight="fill" size={24} />
+                    </div>
+                  </div>
+                </a>
+                <h3 className="font-black text-xl leading-tight mb-2 group-hover:text-hp-accent transition-colors">
+                  {title}
+                </h3>
+                {excerpt && <p className="text-sm text-gray-600 font-medium mb-4 line-clamp-2">{excerpt}</p>}
+                <a href={post.link} target="_blank" rel="noopener noreferrer" className="font-bold uppercase text-sm border-b-2 border-black w-max mt-auto hover:text-hp-accent hover:border-hp-accent transition-colors">
+                  Catch Up
+                </a>
+              </article>
+            );
+          })}
         </div>
       </section>
 
@@ -730,4 +745,19 @@ export default function HomePage() {
 
     </div>
   );
+}
+
+/* ── Server wrapper: fetches WP posts then renders the client page ── */
+export default async function HomePage() {
+  let posts: WpPost[] = [];
+  try {
+    const res = await fetch(
+      'https://blackprofessionals.uk/wp-json/wp/v2/posts?per_page=3&_embed=1',
+      { next: { revalidate: 3600 } }   // re-fetch at most once per hour
+    );
+    if (res.ok) posts = await res.json();
+  } catch {
+    // fail silently — page renders without posts
+  }
+  return <HomePageClient posts={posts} />;
 }
