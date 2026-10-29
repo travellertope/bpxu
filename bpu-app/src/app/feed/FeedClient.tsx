@@ -425,7 +425,28 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
   const TRENDING = ['#ScotlandTech2026', '#ExperiencedTalent', '#BPUInternSpotlight', '#CloudArchitecture', '#DEIStrategy'];
 
   return (
-    <div className="min-h-full" style={{ background: PAPER, fontFamily: '"DM Sans", sans-serif', color: SLATE }}>
+    <div className="min-h-screen" style={{ background: PAPER, fontFamily: '"DM Sans", sans-serif', color: SLATE }}>
+
+      {/* ── Topbar ── */}
+      <header className="topbar" style={{ borderBottom: `2px solid ${BORDER}` }}>
+        <div className="topbar-inner">
+          <a href="/" className="topbar-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals UK" />
+          </a>
+          <nav className="flex items-center gap-3">
+            <a href="/members" className="btn btn-ghost btn-sm">Directory</a>
+            <a href="/passport" className="btn btn-ghost btn-sm">Passports</a>
+            <a href="/dashboard" className="btn btn-ghost btn-sm">Dashboard</a>
+            {viewer && (
+              <a href={`/members/${encodeURIComponent(viewer.username)}`} className="btn btn-ghost btn-sm">My Profile</a>
+            )}
+          </nav>
+        </div>
+      </header>
+
+      {/* ── Main content ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
       {/* Page header */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -741,6 +762,8 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
       )}
 
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
+
+      </div>{/* end max-w container */}
     </div>
   );
 }
