@@ -489,21 +489,23 @@ export default function HomePage() {
                 competitive edge.
               </p>
               <a
-                href="/report"
+                href="https://blackprofessionals.uk/bpu-harnessing-talent-report-2026/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="inline-block bg-white text-hp-dark px-8 py-4 rounded-xl border-2 border-white shadow-[6px_6px_0px_0px_rgba(217,56,30,1)] hover:shadow-[8px_8px_0px_0px_rgba(217,56,30,1)] transition-all uppercase font-black text-lg"
               >
-                View Interactive Report
+                View the Report
               </a>
             </div>
 
-            {/* Data viz placeholder */}
-            <div className="relative w-full aspect-square bg-[#1A1A1A] rounded-2xl border-2 border-gray-700 overflow-hidden flex items-center justify-center group cursor-pointer">
-              <div className="absolute inset-0 bg-radial-[at_center] from-gray-800 to-transparent opacity-50 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="text-center z-10 p-8 border-brutal bg-hp-dark shadow-brutal transform group-hover:scale-105 transition-transform duration-300">
-                <ChartBar weight="light" size={64} className="text-hp-accent mb-4 mx-auto" />
-                <h3 className="font-black uppercase text-xl">Unlock the Data</h3>
-                <p className="text-sm text-gray-400 mt-2 font-medium">Explore the live dashboard</p>
-              </div>
+            {/* Report cover photo */}
+            <div className="relative w-full aspect-[3/2] rounded-2xl border-2 border-gray-700 overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://blackprofessionals.uk/wp-content/uploads/2026/04/TBCC2026-103-scaled.jpg"
+                alt="Harnessing Talent Report 2026 – BPU event"
+                className="w-full h-full object-cover"
+              />
             </div>
           </div>
         </div>
