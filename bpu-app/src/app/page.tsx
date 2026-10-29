@@ -9,6 +9,13 @@ import {
   LinkedinLogo, TwitterLogo, InstagramLogo,
 } from '@phosphor-icons/react';
 
+/* ─── cycling cities ─── */
+const CITIES = [
+  'Glasgow', 'London', 'Birmingham', 'Manchester', 'Leeds',
+  'Edinburgh', 'Bristol', 'Cardiff', 'Liverpool', 'Nottingham',
+  'Sheffield', 'Leicester', 'Newcastle', 'Brighton', 'Oxford',
+];
+
 /* ─── hero photo data ─── */
 const HERO_PHOTOS = [
   { src: '/images/hero/bcc26-keynote-full-room.jpg',     alt: 'BCC2026 keynote speaker with packed auditorium', tall: true  },
@@ -56,8 +63,21 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
+  const [cityIndex, setCityIndex] = useState(0);
+  const [cityVisible, setCityVisible] = useState(true);
   const lastY = useRef(0);
   const marqueeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCityVisible(false);
+      setTimeout(() => {
+        setCityIndex(i => (i + 1) % CITIES.length);
+        setCityVisible(true);
+      }, 280);
+    }, 2200);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -160,7 +180,17 @@ export default function HomePage() {
           <div className="space-y-8 z-10 pb-16">
             <div className="inline-flex items-center gap-2 border-brutal rounded-full px-4 py-2 bg-white shadow-brutal-sm">
               <div className="w-3 h-3 bg-hp-accent rounded-full animate-pulse" />
-              <span className="font-bold text-sm uppercase tracking-wider">Glasgow HQ • UK Wide</span>
+              <span className="font-bold text-sm uppercase tracking-wider flex items-center gap-1">
+                <span style={{
+                  display: 'inline-block',
+                  transition: 'opacity 0.28s ease, transform 0.28s ease',
+                  opacity: cityVisible ? 1 : 0,
+                  transform: cityVisible ? 'translateY(0)' : 'translateY(-6px)',
+                }}>
+                  {CITIES[cityIndex]}
+                </span>
+                <span>• UK Wide</span>
+              </span>
             </div>
 
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-[0.9] tracking-tighter">
