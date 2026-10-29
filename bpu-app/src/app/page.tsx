@@ -9,28 +9,35 @@ import {
   LinkedinLogo, TwitterLogo, InstagramLogo,
 } from '@phosphor-icons/react';
 
+/* ─── cycling cities ─── */
+const CITIES = [
+  'Glasgow', 'London', 'Birmingham', 'Manchester', 'Leeds',
+  'Edinburgh', 'Bristol', 'Cardiff', 'Liverpool', 'Nottingham',
+  'Sheffield', 'Leicester', 'Newcastle', 'Brighton', 'Oxford',
+];
+
 /* ─── hero photo data ─── */
 const HERO_PHOTOS = [
-  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+1',  alt: 'Member portrait 1',  tall: true  },
-  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Event+1',     alt: 'BPU event 1',        tall: false },
-  { src: 'https://placehold.co/400x600/1A1A1A/FFFFFF?text=Portrait+2',  alt: 'Member portrait 2',  tall: true  },
-  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Workshop+1',  alt: 'Workshop 1',         tall: false },
-  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+3',  alt: 'Member portrait 3',  tall: true  },
-  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Event+2',     alt: 'BPU event 2',        tall: false },
-  { src: 'https://placehold.co/400x600/2D2D2D/FFFFFF?text=Portrait+4',  alt: 'Member portrait 4',  tall: true  },
-  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Networking',  alt: 'Networking',         tall: false },
-  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+5',  alt: 'Member portrait 5',  tall: true  },
-  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Conference',  alt: 'Conference',         tall: false },
-  { src: 'https://placehold.co/400x600/1A1A1A/FFFFFF?text=Portrait+6',  alt: 'Member portrait 6',  tall: true  },
-  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Awards',      alt: 'Award night',        tall: false },
-  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+7',  alt: 'Member portrait 7',  tall: true  },
-  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Event+3',     alt: 'BPU event 3',        tall: false },
-  { src: 'https://placehold.co/400x600/2D2D2D/FFFFFF?text=Portrait+8',  alt: 'Member portrait 8',  tall: true  },
-  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Workshop+2',  alt: 'Workshop 2',         tall: false },
-  { src: 'https://placehold.co/400x600/0F0F0F/FFFFFF?text=Portrait+9',  alt: 'Member portrait 9',  tall: true  },
-  { src: 'https://placehold.co/400x300/D9381E/FFFFFF?text=Panel',       alt: 'Panel discussion',   tall: false },
-  { src: 'https://placehold.co/400x600/1A1A1A/FFFFFF?text=Portrait+10', alt: 'Member portrait 10', tall: true  },
-  { src: 'https://placehold.co/400x300/F4F4F0/0F0F0F?text=Mentoring',   alt: 'Mentoring session',  tall: false },
+  { src: '/images/hero/bcc26-keynote-full-room.jpg',     alt: 'BCC2026 keynote speaker with packed auditorium', tall: true  },
+  { src: '/images/hero/bcc26-group-backdrop-wide.jpg',   alt: 'BCC2026 group at sponsor backdrop',              tall: false },
+  { src: '/images/hero/bcc26-audience-diverse.jpg',      alt: 'Diverse BCC2026 audience',                       tall: true  },
+  { src: '/images/hero/bcc26-networking-laugh.jpg',      alt: 'Professionals networking at BCC2026',            tall: false },
+  { src: '/images/hero/bcc26-group-backdrop-portrait.jpg', alt: 'BCC2026 delegates at sponsor wall',            tall: true  },
+  { src: '/images/hero/bcc26-auditorium-wide.jpg',       alt: 'BCC2026 full auditorium',                        tall: false },
+  { src: '/images/hero/bcc26-attendee-portrait.jpg',     alt: 'Engaged BCC2026 attendee',                       tall: true  },
+  { src: '/images/hero/bcc26-atrium-networking.jpg',     alt: 'BCC2026 atrium networking',                      tall: false },
+  { src: '/images/hero/bcc26-two-women-audience.jpg',    alt: 'BCC2026 delegates listening intently',           tall: true  },
+  { src: '/images/hero/bcc26-expo-hall.jpg',             alt: 'BCC2026 expo and networking hall',               tall: false },
+  { src: '/images/hero/bcc26-blue-suit-smile.jpg',       alt: 'BCC2026 professional delegate',                  tall: true  },
+  { src: '/images/hero/bcc26-speaker-behind.jpg',        alt: 'BCC2026 speaker addressing the room',            tall: false },
+  { src: '/images/hero/bcc26-three-pros-seated.jpg',     alt: 'BCC2026 well-dressed delegates',                 tall: true  },
+  { src: '/images/hero/bcc26-audience-from-stage.jpg',   alt: 'BCC2026 audience from stage view',               tall: false },
+  { src: '/images/hero/bcc26-focused-attendees.jpg',     alt: 'BCC2026 focused attendees',                      tall: true  },
+  { src: '/images/hero/bcc26-audience-side.jpg',         alt: 'BCC2026 audience side view',                     tall: false },
+  { src: '/images/hero/bcc26-keynote-charge.jpg',        alt: 'BCC2026 keynote and charge session',             tall: true  },
+  { src: '/images/hero/bcc26-front-row-audience.jpg',    alt: 'BCC2026 front row delegates',                    tall: false },
+  { src: '/images/hero/bcc26-women-audience.jpg',        alt: 'BCC2026 women delegates',                        tall: true  },
+  { src: '/images/hero/bcc26-speaker-podium.jpg',        alt: 'BCC2026 speaker at podium',                      tall: false },
 ];
 const heroLeft  = HERO_PHOTOS.filter((_, i) => i % 2 === 0); // starts tall
 const heroRight = HERO_PHOTOS.filter((_, i) => i % 2 === 1); // starts short
@@ -56,8 +63,21 @@ export default function HomePage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
+  const [cityIndex, setCityIndex] = useState(0);
+  const [cityVisible, setCityVisible] = useState(true);
   const lastY = useRef(0);
   const marqueeRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCityVisible(false);
+      setTimeout(() => {
+        setCityIndex(i => (i + 1) % CITIES.length);
+        setCityVisible(true);
+      }, 280);
+    }, 2200);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -160,7 +180,17 @@ export default function HomePage() {
           <div className="space-y-8 z-10 pb-16">
             <div className="inline-flex items-center gap-2 border-brutal rounded-full px-4 py-2 bg-white shadow-brutal-sm">
               <div className="w-3 h-3 bg-hp-accent rounded-full animate-pulse" />
-              <span className="font-bold text-sm uppercase tracking-wider">Glasgow HQ • UK Wide</span>
+              <span className="font-bold text-sm uppercase tracking-wider flex items-center gap-1">
+                <span style={{
+                  display: 'inline-block',
+                  transition: 'opacity 0.28s ease, transform 0.28s ease',
+                  opacity: cityVisible ? 1 : 0,
+                  transform: cityVisible ? 'translateY(0)' : 'translateY(-6px)',
+                }}>
+                  {CITIES[cityIndex]}
+                </span>
+                <span>• UK Wide</span>
+              </span>
             </div>
 
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-[0.9] tracking-tighter">
