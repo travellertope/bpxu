@@ -562,14 +562,40 @@ export default function HomePage() {
             Proudly partnering with industry leaders to create actionable change.
           </p>
 
-          {/* Auto-scrolling single-row carousel */}
+          {/* Auto-scrolling partner logo marquee */}
           <div className="marquee-container mb-16">
             <div className="marquee-content">
-              {['BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard',
-                'BNY', 'FreeAgent', 'insider.co.uk', 'NatWest Group', 'Walter Scott', 'Addleshaw Goddard'].map((p, i) => (
-                <span key={i} className="text-2xl font-black text-gray-400 hover:text-black transition-colors cursor-pointer px-12 whitespace-nowrap">
-                  {p}
-                </span>
+              {([
+                { name: 'Codebase',                       href: 'https://www.codebase.com/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/03/Codebase.jpg' },
+                { name: 'M&G',                            href: 'https://www.mandg.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/02/m-and-g.png' },
+                { name: 'RSPB',                           href: 'https://www.rspb.org.uk/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/RSPB.jpg' },
+                { name: 'Cairngorms',                     href: 'https://cairngorms.co.uk/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Cairngorms.jpg' },
+                { name: 'Scottish National Investment Bank', href: 'https://www.thebank.scot/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Scottish-National-Investment-Bank.jpg' },
+                { name: 'Barclays',                       href: 'https://www.barclays.co.uk/',           logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Barclays-1.jpg' },
+                { name: 'The Skills Network',             href: 'https://theskillsnetwork.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/The-Skills-Network.jpg' },
+                { name: 'BlackRock',                      href: 'https://www.blackrock.com/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/blackrock-1.jpg' },
+                { name: 'Charles River',                  href: 'https://www.criver.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/charles_river-1.jpg' },
+                { name: 'BNY',                            href: 'https://www.bny.com/',                  logo: 'https://blackprofessionals.uk/wp-content/uploads/2020/08/bny-log.png' },
+                { name: 'FreeAgent',                      href: 'https://www.freeagent.com/en/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/free-agent-.png' },
+                { name: 'NatWest',                        href: 'https://www.natwest.com/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/07/Natwest.png' },
+                { name: 'Walter Scott',                   href: 'https://www.walterscott.com/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
+                { name: 'Addleshaw Goddard',              href: 'https://www.addleshawgoddard.com/en/',  logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
+                { name: 'Capco',                          href: 'https://www.capco.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
+              ] as const).flatMap((p, i, arr) => [p, { ...p, key: `dup-${i}` }]).map((p, i) => (
+                <a
+                  key={i}
+                  href={p.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center px-8 whitespace-nowrap"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={p.logo}
+                    alt={p.name}
+                    className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
+                  />
+                </a>
               ))}
             </div>
           </div>
@@ -583,10 +609,28 @@ export default function HomePage() {
 
           <div className="border-t-4 border-black pt-12">
             <h3 className="text-xl font-black uppercase tracking-tight mb-8">Press Mentions</h3>
-            <div className="flex justify-center items-center gap-12 flex-wrap">
-              <div className="font-black text-xl md:text-2xl uppercase tracking-tighter">SCOTTISH BUSINESS NEWS</div>
-              <div className="w-2 h-2 bg-black rounded-full" />
-              <div className="font-black text-xl md:text-2xl uppercase tracking-tighter">THE SCOTSMAN</div>
+            <div className="flex justify-center items-center gap-10 flex-wrap">
+              {[
+                { name: 'Insider',               href: 'https://www.insider.co.uk/news/diversity-advocate-calls-out-subtle-23722129',                                                                                        logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/Insider.png' },
+                { name: 'Accounting & Business', href: 'https://abmagazine.accaglobal.com/global/articles/2021/jan/interviews/diversity-is-everyone-s-business.html',                                                         logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/Accounting-Business.png' },
+                { name: 'Scottish Business News', href: 'https://scottishbusiness.news/black-professionals-uk-strengthens-scotlands-workforce-diversity-with-2025-black-interns-and-black-talents-programmes/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/Scottish-Business-News.png' },
+                { name: 'The Scotsman',           href: 'https://www.scotsman.com/business/call-for-scots-financial-firms-to-step-up-support-of-black-workers-3164616',                                                        logo: 'https://blackprofessionals.uk/wp-content/uploads/2024/01/scotsman-logo-1.png' },
+              ].map(({ name, href, logo }) => (
+                <a
+                  key={name}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logo}
+                    alt={name}
+                    className="h-8 w-auto object-contain grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
+                  />
+                </a>
+              ))}
             </div>
           </div>
         </div>
