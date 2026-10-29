@@ -90,6 +90,16 @@ function useCounter(target: number, active: boolean) {
   return val;
 }
 
+const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+
+/* Score how well a display_name matches a search name — count shared tokens */
+function nameMatchScore(displayName: string, searchName: string): number {
+  const clean = (s: string) => s.toLowerCase().replace(/\bdr\.?\b/g, '').trim();
+  const tokens = clean(searchName).split(/\s+/).filter(t => t.length > 2);
+  const haystack = clean(displayName);
+  return tokens.filter(t => haystack.includes(t)).length;
+}
+
 /* ─── Static showcase members ─── */
 const STATIC_MEMBERS = [
   { name: 'Wosilat Zachariah',       role: 'Mental Health Nurse',                  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/e85e2496-aefb-48ec-9092-25cd3f3316b8-Wosilat-Zachariah.jpeg' },
@@ -111,6 +121,8 @@ const STATIC_MEMBERS = [
 
 export default function HomePageClient() {
   const [posts, setPosts] = useState<WpPost[]>([]);
+  /* name → resolved WP username (populated async after mount) */
+  const [resolvedUsernames, setResolvedUsernames] = useState<Record<string, string>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -124,6 +136,29 @@ export default function HomePageClient() {
       .then(r => r.ok ? r.json() : [])
       .then(setPosts)
       .catch(() => {});
+  }, []);
+
+  /* Resolve each hardcoded member to a WP username via name search */
+  useEffect(() => {
+    const results: Record<string, string> = {};
+    Promise.allSettled(
+      STATIC_MEMBERS.map(({ name }) =>
+        fetch(`${WP_URL}/wp-json/bpu/v1/members?search=${encodeURIComponent(name)}&per_page=5`)
+          .then(r => r.ok ? r.json() : [])
+          .then((candidates: Array<{ username: string; display_name: string }>) => {
+            /* Pick candidate with highest name token overlap, require ≥2 matching tokens */
+            const best = candidates
+              .map(c => ({ username: c.username, score: nameMatchScore(c.display_name, name) }))
+              .filter(c => c.score >= 2)
+              .sort((a, b) => b.score - a.score)[0];
+            if (best) results[name] = best.username;
+          })
+          .catch(() => {}),
+      ),
+    ).then(() => {
+      if (Object.keys(results).length > 0) setResolvedUsernames(results);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
 
@@ -376,10 +411,15 @@ export default function HomePageClient() {
           id="members-carousel"
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
-          {STATIC_MEMBERS.map(({ name, role, img }) => (
+          {STATIC_MEMBERS.map(({ name, role, img }) => {
+            const username = resolvedUsernames[name];
+            const href = username
+              ? `/members/${encodeURIComponent(username)}`
+              : `/members?search=${encodeURIComponent(name)}`;
+            return (
             <a
               key={name}
-              href={`/members?search=${encodeURIComponent(name)}`}
+              href={href}
               className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start"
               style={{ textDecoration: 'none', color: 'inherit' }}
             >
@@ -393,7 +433,8 @@ export default function HomePageClient() {
                 View Profile →
               </span>
             </a>
-          ))}
+            );
+          })}
           {/* end padding so last card doesn't sit against the edge */}
           <div className="flex-shrink-0 w-4" />
         </div>
