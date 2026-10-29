@@ -51,6 +51,12 @@ export interface ACFProfile {
     user_bio?: string;
     do_you_have_any_disabilities_or_accessibility_needs_we_should_be_aware_of?: string;
     other_disability?: string;
+    /* ── Passport fields ── */
+    job_title?: string;
+    current_employer?: string;
+    linkedin_url?: string;
+    profile_headline?: string;
+    open_to_opportunities?: string;
 }
 
 export interface BPUUser {

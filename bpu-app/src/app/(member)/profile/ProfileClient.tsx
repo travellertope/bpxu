@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { BPUUser, ACFProfile, WorkExperience, Education, Certification } from '@/lib/auth';
 import { BPUApi } from '@/lib/api';
+import PassportCard from './PassportCard';
 
 interface Props {
   user: BPUUser;
@@ -70,12 +71,25 @@ export default function ProfileClient({ user }: Props) {
     setSmsPrefSaving(false);
   };
 
+  // keep a live copy of the user object so PassportCard reflects unsaved edits
+  const liveUser: BPUUser = { ...user, profile: { ...user.profile, ...editForm } };
+
   return (
     <div className="wrap-sm fade-up" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+
+      {/* ── Digital Passport preview ── */}
+      <div>
+        <h2 className="text-xl font-bold mb-1">My Digital Passport</h2>
+        <p className="section-sub mb-4">Your shareable professional identity card. Complete your profile below to unlock it.</p>
+        <PassportCard user={liveUser} />
+      </div>
+
+      <div className="divider" />
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold">My Profile</h2>
-          <p className="section-sub">This information is used for job matching and mentor pairing.</p>
+          <p className="section-sub">This information is used for job matching, mentor pairing, and your passport.</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <button
@@ -259,6 +273,66 @@ export default function ProfileClient({ user }: Props) {
               />
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ── Passport details ── */}
+      <div className="card card-p space-y-5">
+        <div className="flex items-center gap-2">
+          <p className="text-xs font-bold uppercase tracking-wide text-text-3">Passport Details</p>
+          <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">Powers your public passport card</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="field-label">Job title <span className="text-brand">*</span></label>
+            <input
+              className="field-input"
+              placeholder="e.g. Senior Product Manager"
+              value={(editForm.job_title as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, job_title: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="field-label">Current employer</label>
+            <input
+              className="field-input"
+              placeholder="e.g. NatWest, BlackRock, NHS"
+              value={(editForm.current_employer as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, current_employer: e.target.value }))}
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="field-label">Professional headline</label>
+            <input
+              className="field-input"
+              placeholder="e.g. Fintech leader. Board-ready. Scotland-based."
+              value={(editForm.profile_headline as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, profile_headline: e.target.value }))}
+            />
+            <p className="text-[11px] text-text-3 mt-1">One punchy line that appears on your passport card and public profile.</p>
+          </div>
+          <div>
+            <label className="field-label">LinkedIn profile URL</label>
+            <input
+              className="field-input"
+              placeholder="https://linkedin.com/in/your-name"
+              value={(editForm.linkedin_url as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, linkedin_url: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="field-label">Open to opportunities?</label>
+            <select
+              className="field-input"
+              value={(editForm.open_to_opportunities as string) || ''}
+              onChange={e => setEditForm(f => ({ ...f, open_to_opportunities: e.target.value }))}
+            >
+              <option value="">Select…</option>
+              <option value="Yes">Yes — actively looking</option>
+              <option value="Passive">Passive — open to the right role</option>
+              <option value="No">No — not looking right now</option>
+            </select>
+          </div>
         </div>
       </div>
 
