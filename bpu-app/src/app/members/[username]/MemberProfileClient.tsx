@@ -29,8 +29,8 @@ function passportNo(id: number) {
   return `PASSPORT NO. 2026-${String(id).padStart(4, '0')}`;
 }
 
-function gravatarUrl(username: string) {
-  return `https://www.gravatar.com/avatar/${username}?s=400&d=mp`;
+function avatarUrl(member: PublicMemberProfile | null, username: string) {
+  return member?.photo_url || `https://www.gravatar.com/avatar/${username}?s=400&d=mp`;
 }
 
 /* ── Modal wrapper ── */
@@ -334,7 +334,7 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                   style={{ border: `4px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={gravatarUrl(username)} alt={name} className="w-full h-full object-cover" />
+                  <img src={avatarUrl(member, username)} alt={name} className="w-full h-full object-cover" />
                 </div>
                 <span
                   className="absolute -bottom-2 -right-2 p-2 rounded-lg text-white"
