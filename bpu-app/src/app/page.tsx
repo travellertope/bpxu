@@ -318,20 +318,27 @@ export default function HomePage() {
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
           {[
-            { name: 'Lawrence Dada',      role: 'Process and FA Engineer' },
-            { name: 'Olamide Kosile',     role: 'Cloud Infrastructure Engineer' },
-            { name: 'Augustine Ologun',   role: 'Cloud Infrastructure Engineer' },
-            { name: 'Michael David',      role: 'Tech Support' },
-            { name: 'Priya Nkosi',        role: 'Senior Product Manager' },
-            { name: 'Tunde Adesanya',     role: 'Financial Analyst' },
-            { name: 'Amara Osei',         role: 'UX Designer' },
-            { name: 'Kofi Mensah',        role: 'Software Engineer' },
-          ].map(({ name, role }) => (
+            { name: 'Wosilat Zachariah',        role: 'Mental Health Nurse',                   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/e85e2496-aefb-48ec-9092-25cd3f3316b8-Wosilat-Zachariah.jpeg' },
+            { name: 'Edward Enejoh',             role: 'Project Manager / Business Analyst',    img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_1918-Edward-Enejoh-scaled.jpeg' },
+            { name: 'Bukola Osuntuyi',           role: 'Tech Business Operations',              img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/photo-output-Olubukola-Osuntuyi.jpeg' },
+            { name: 'Nafisat Ogijo',             role: 'Data Analyst',                          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8373-Nafisat-olamide-Ogijo.jpg' },
+            { name: 'Dr Elizabeth Wuyep',        role: 'Sales and Operations Coordinator',      img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_3097-Elizabeth-scaled.jpeg' },
+            { name: 'Oluwasegun Odumoye',        role: 'Risk Management',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Segun-Landscape-2-Oluwasegun-Odumoye-scaled.jpg' },
+            { name: 'Uchenna Chukwu',            role: 'Product Manager',                       img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/DSCF2795-Prince-Uchenna-Chukwu-scaled.jpg' },
+            { name: 'Chibuikem Ugwu',            role: 'Support Worker',                        img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Snapchat-123564268-ugwu-chibuikem.jpg' },
+            { name: 'Lawrence Dada',             role: 'Process and Flow Assurance Engineer',   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_8144-Lawrence-DADA-e1761234517311.jpeg' },
+            { name: 'Olamide Kosile',            role: 'Cloud Infrastructure Engineer',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Generated-Image-September-25-2025-6_28PM-Olamide-Kosile.png' },
+            { name: 'Augustine Ologun',          role: 'Cloud Infrastructure Engineer',         img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_2487-Augustine-Ologun.jpeg' },
+            { name: 'Michael David',             role: 'Tech Support',                          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/Michael-David-Headshot-David-Michael.png' },
+            { name: 'Ifeanyi Moses A',           role: 'HR – People Engagement Administrator',  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_6336-Moses-Ifeanyi.jpeg' },
+            { name: 'Kelechi Elizabeth Origa',   role: 'Product / Project Manager',             img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_0388-Kelechi-Origa.jpeg' },
+            { name: 'Dr. Ikenna Light Nkwocha',  role: 'Volunteer Research Associate',          img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG-20250106-WA0002-Ikenna-Nkwocha-e1761239259922.jpg' },
+          ].map(({ name, role, img }) => (
             <div key={name} className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start">
               <div className="aspect-square w-full bg-gray-200 rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={`https://placehold.co/400x400/001478/FFFFFF?text=${encodeURIComponent(name)}`}
+                  src={img}
                   alt={name}
                   className="w-full h-full object-cover"
                 />
