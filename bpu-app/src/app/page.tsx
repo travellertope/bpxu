@@ -28,6 +28,25 @@ const CITIES = [
   'Sheffield', 'Leicester', 'Newcastle', 'Brighton', 'Oxford',
 ];
 
+/* ─── partners ─── */
+const PARTNERS = [
+  { name: 'Codebase',                        href: 'https://www.codebase.com/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/03/Codebase.jpg' },
+  { name: 'M&G',                             href: 'https://www.mandg.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/02/m-and-g.png' },
+  { name: 'RSPB',                            href: 'https://www.rspb.org.uk/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/RSPB.jpg' },
+  { name: 'Cairngorms',                      href: 'https://cairngorms.co.uk/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Cairngorms.jpg' },
+  { name: 'Scottish National Investment Bank', href: 'https://www.thebank.scot/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Scottish-National-Investment-Bank.jpg' },
+  { name: 'Barclays',                        href: 'https://www.barclays.co.uk/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Barclays-1.jpg' },
+  { name: 'The Skills Network',              href: 'https://theskillsnetwork.com/',        logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/The-Skills-Network.jpg' },
+  { name: 'BlackRock',                       href: 'https://www.blackrock.com/',           logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/blackrock-1.jpg' },
+  { name: 'Charles River',                   href: 'https://www.criver.com/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/charles_river-1.jpg' },
+  { name: 'BNY',                             href: 'https://www.bny.com/',                 logo: 'https://blackprofessionals.uk/wp-content/uploads/2020/08/bny-log.png' },
+  { name: 'FreeAgent',                       href: 'https://www.freeagent.com/en/',        logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/free-agent-.png' },
+  { name: 'NatWest',                         href: 'https://www.natwest.com/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/07/Natwest.png' },
+  { name: 'Walter Scott',                    href: 'https://www.walterscott.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
+  { name: 'Addleshaw Goddard',               href: 'https://www.addleshawgoddard.com/en/', logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
+  { name: 'Capco',                           href: 'https://www.capco.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
+];
+
 /* ─── hero photo data ─── */
 const HERO_PHOTOS = [
   { src: '/images/hero/bcc26-keynote-full-room.jpg',     alt: 'BCC2026 keynote speaker with packed auditorium', tall: true  },
@@ -582,23 +601,7 @@ function HomePageClient({ posts }: { posts: WpPost[] }) {
           {/* Auto-scrolling partner logo marquee */}
           <div className="marquee-container mb-16">
             <div className="marquee-content">
-              {([
-                { name: 'Codebase',                       href: 'https://www.codebase.com/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/03/Codebase.jpg' },
-                { name: 'M&G',                            href: 'https://www.mandg.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/02/m-and-g.png' },
-                { name: 'RSPB',                           href: 'https://www.rspb.org.uk/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/RSPB.jpg' },
-                { name: 'Cairngorms',                     href: 'https://cairngorms.co.uk/',             logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Cairngorms.jpg' },
-                { name: 'Scottish National Investment Bank', href: 'https://www.thebank.scot/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Scottish-National-Investment-Bank.jpg' },
-                { name: 'Barclays',                       href: 'https://www.barclays.co.uk/',           logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/Barclays-1.jpg' },
-                { name: 'The Skills Network',             href: 'https://theskillsnetwork.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/The-Skills-Network.jpg' },
-                { name: 'BlackRock',                      href: 'https://www.blackrock.com/',            logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/blackrock-1.jpg' },
-                { name: 'Charles River',                  href: 'https://www.criver.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2023/11/charles_river-1.jpg' },
-                { name: 'BNY',                            href: 'https://www.bny.com/',                  logo: 'https://blackprofessionals.uk/wp-content/uploads/2020/08/bny-log.png' },
-                { name: 'FreeAgent',                      href: 'https://www.freeagent.com/en/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/free-agent-.png' },
-                { name: 'NatWest',                        href: 'https://www.natwest.com/',              logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/07/Natwest.png' },
-                { name: 'Walter Scott',                   href: 'https://www.walterscott.com/',          logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
-                { name: 'Addleshaw Goddard',              href: 'https://www.addleshawgoddard.com/en/',  logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
-                { name: 'Capco',                          href: 'https://www.capco.com/',                logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
-              ] as const).flatMap((p, i, arr) => [p, { ...p, key: `dup-${i}` }]).map((p, i) => (
+              {[...PARTNERS, ...PARTNERS].map((p, i) => (
                 <a
                   key={i}
                   href={p.href}
