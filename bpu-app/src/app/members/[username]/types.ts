@@ -31,6 +31,7 @@ export interface PublicMemberProfile {
   id: number;
   username: string;
   display_name: string;
+  photo_url?: string;
   /* Passport fields */
   job_title?: string;
   current_employer?: string;
