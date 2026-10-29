@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.10.0
+ * Version: 2.11.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -1852,6 +1852,20 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/member/history', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'update_member_history' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Direct message to a member (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/message', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'send_member_message' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // Write a recommendation / testimonial for a member (JWT-authenticated)
+        register_rest_route( $this->namespace, '/member/testimonial', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'create_member_testimonial' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
         ) );
     }
@@ -3744,6 +3758,116 @@ Rules:
         }
 
         return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/message — send a direct message (email) to a member.
+     */
+    public function send_member_message( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $sender_id = intval( $payload['user_id'] );
+        $sender    = get_userdata( $sender_id );
+        $body      = $request->get_json_params();
+
+        $to_username = sanitize_text_field( $body['to_username'] ?? '' );
+        $subject     = sanitize_text_field( $body['subject']     ?? '' );
+        $message     = sanitize_textarea_field( $body['message'] ?? '' );
+
+        if ( ! $to_username || ! $subject || ! $message ) {
+            return new WP_Error( 'missing_fields', __( 'to_username, subject and message are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $recipient = get_user_by( 'login', $to_username );
+        if ( ! $recipient ) {
+            return new WP_Error( 'user_not_found', __( 'Recipient not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( $sender_id === $recipient->ID ) {
+            return new WP_Error( 'self_message', __( 'You cannot message yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $sender_name  = $sender ? ( $sender->display_name ?: $sender->user_login ) : 'A BPU member';
+        $profile_url  = home_url( '/members/' . $sender->user_login );
+
+        $email_body = sprintf(
+            "Hi %s,\n\nYou have a new message from %s via Black Professionals UK.\n\nSubject: %s\n\n%s\n\n--\nView %s's profile: %s\n\nThis message was sent via the BPU member network. To reply, log in to your BPU account.\n",
+            $recipient->display_name,
+            $sender_name,
+            $subject,
+            $message,
+            $sender_name,
+            $profile_url
+        );
+
+        $sent = wp_mail(
+            $recipient->user_email,
+            '[BPU Message] ' . $subject,
+            $email_body,
+            array( 'From: Black Professionals UK <noreply@blackprofessionals.uk>' )
+        );
+
+        if ( ! $sent ) {
+            return new WP_Error( 'mail_failed', __( 'Message could not be delivered.', 'bpu' ), array( 'status' => 500 ) );
+        }
+
+        return new WP_REST_Response( array( 'success' => true ), 200 );
+    }
+
+    /**
+     * POST /bpu/v1/member/testimonial — write a recommendation for a member.
+     */
+    public function create_member_testimonial( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'sso_invalid_token', __( 'Invalid token.', 'bpu' ), array( 'status' => 401 ) );
+        }
+
+        $author_id = intval( $payload['user_id'] );
+        $body      = $request->get_json_params();
+
+        $to_username  = sanitize_text_field( $body['to_username']  ?? '' );
+        $quote        = sanitize_textarea_field( $body['quote']    ?? '' );
+        $author_name  = sanitize_text_field( $body['author_name']  ?? '' );
+        $role         = sanitize_text_field( $body['role']         ?? '' );
+
+        if ( ! $to_username || ! $quote || ! $author_name ) {
+            return new WP_Error( 'missing_fields', __( 'to_username, quote and author_name are required.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $recipient = get_user_by( 'login', $to_username );
+        if ( ! $recipient ) {
+            return new WP_Error( 'user_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
+        }
+
+        if ( $author_id === $recipient->ID ) {
+            return new WP_Error( 'self_testimonial', __( 'You cannot recommend yourself.', 'bpu' ), array( 'status' => 400 ) );
+        }
+
+        $existing = get_user_meta( $recipient->ID, 'bpu_testimonials', true );
+        $existing = is_array( $existing ) ? $existing : array();
+
+        $existing[] = array(
+            'quote'     => $quote,
+            'author'    => $author_name,
+            'role'      => $role,
+            'author_id' => $author_id,
+            'date'      => current_time( 'mysql' ),
+        );
+
+        update_user_meta( $recipient->ID, 'bpu_testimonials', $existing );
+
+        return new WP_REST_Response( array(
+            'success'     => true,
+            'testimonial' => array(
+                'quote'  => $quote,
+                'author' => $author_name,
+                'role'   => $role,
+            ),
+        ), 200 );
     }
 
     // ══════════════════════════════════════════════════════════════

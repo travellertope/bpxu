@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { PublicMemberProfile } from './types';
+import { PublicMemberProfile, PublicTestimonial } from './types';
 import { BPUUser } from '@/lib/auth';
 
 /* ── colour constants (match PassportCard) ── */
@@ -195,8 +195,17 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
   const [showMentorship, setShowMentorship] = useState(false);
   const [showPassport, setShowPassport] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showRecommendation, setShowRecommendation] = useState(false);
   const [msgText, setMsgText] = useState('');
   const [msgSubject, setMsgSubject] = useState('');
+  const [msgSending, setMsgSending] = useState(false);
+  const [msgError, setMsgError] = useState<string | null>(null);
+  const [recText, setRecText] = useState('');
+  const [recAuthor, setRecAuthor] = useState(viewer?.display_name ?? '');
+  const [recRole, setRecRole] = useState('');
+  const [recSubmitting, setRecSubmitting] = useState(false);
+  const [recError, setRecError] = useState<string | null>(null);
+  const [testimonials, setTestimonials] = useState<PublicTestimonial[]>(member?.testimonials ?? []);
 
   const openToast = (msg: string) => setToast(msg);
   const profileUrl = `https://web.blackprofessionals.uk/members/${username}`;
@@ -609,19 +618,41 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
               </section>
             )}
 
-            {/* Testimonials */}
-            {(m.testimonials?.length ?? 0) > 0 && (
-              <section
-                className="rounded-2xl p-6 sm:p-8 space-y-6"
-                style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}
-              >
-                <div className="flex justify-between items-center pb-3 border-b-2" style={{ borderColor: BORDER }}>
-                  <h2 className="font-black text-xl uppercase flex items-center gap-2" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    <span style={{ color: OCHRE }}>◆</span> Recommendations
-                  </h2>
+            {/* Recommendations & Testimonials */}
+            <section
+              className="rounded-2xl p-6 sm:p-8 space-y-6"
+              style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}
+            >
+              <div className="flex justify-between items-center pb-3 border-b-2" style={{ borderColor: BORDER }}>
+                <h2 className="font-black text-xl uppercase flex items-center gap-2" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                  <span style={{ color: OCHRE, fontSize: '1.25rem', lineHeight: 1 }}>&ldquo;&rdquo;</span> Recommendations &amp; Testimonials
+                </h2>
+                {viewer && !isOwner && (
+                  <button
+                    onClick={() => setShowRecommendation(true)}
+                    className="font-mono font-extrabold text-[10px] uppercase px-3 py-1.5 rounded"
+                    style={{ border: `2px solid ${OCHRE}`, color: OCHRE, background: 'transparent' }}
+                  >
+                    + Write Recommendation
+                  </button>
+                )}
+              </div>
+              {testimonials.length === 0 ? (
+                <div className="py-8 text-center space-y-2">
+                  <p className="font-mono text-xs text-gray-500 uppercase">No recommendations yet.</p>
+                  {viewer && !isOwner && (
+                    <button
+                      onClick={() => setShowRecommendation(true)}
+                      className="font-black text-xs uppercase px-4 py-2 rounded text-white mt-2"
+                      style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                    >
+                      Be the first to recommend {name.split(' ')[0]} ↗
+                    </button>
+                  )}
                 </div>
+              ) : (
                 <div className="space-y-4">
-                  {m.testimonials!.map((t, i) => (
+                  {testimonials.map((t, i) => (
                     <div key={i} className="p-5 rounded-xl relative space-y-2" style={{ background: PAPER, border: `3px solid ${BORDER}` }}>
                       <span className="absolute top-3 right-4 font-black text-3xl opacity-30" style={{ color: OCHRE }}>&ldquo;</span>
                       <p className="text-sm font-medium text-gray-800 italic leading-relaxed">&ldquo;{t.quote}&rdquo;</p>
@@ -637,8 +668,8 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                     </div>
                   ))}
                 </div>
-              </section>
-            )}
+              )}
+            </section>
 
           </div>
 
@@ -730,10 +761,31 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
       {/* ── Modals ── */}
 
       {/* Message modal */}
-      <Modal id="modal-message" open={showMessage} onClose={() => setShowMessage(false)}>
-        <ModalHeader title="Direct BPU Network Message" onClose={() => setShowMessage(false)} />
+      <Modal id="modal-message" open={showMessage} onClose={() => { setShowMessage(false); setMsgError(null); }}>
+        <ModalHeader title="Direct BPU Network Message" onClose={() => { setShowMessage(false); setMsgError(null); }} />
         <form
-          onSubmit={e => { e.preventDefault(); setShowMessage(false); openToast(`Message sent to ${name}!`); setMsgText(''); setMsgSubject(''); }}
+          onSubmit={async e => {
+            e.preventDefault();
+            setMsgSending(true);
+            setMsgError(null);
+            try {
+              const res = await fetch('/api/member/message', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_username: username, subject: msgSubject, message: msgText }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Message could not be sent.');
+              setShowMessage(false);
+              setMsgText('');
+              setMsgSubject('');
+              openToast(`Message sent to ${name}!`);
+            } catch (err: unknown) {
+              setMsgError(err instanceof Error ? err.message : 'Could not send message.');
+            } finally {
+              setMsgSending(false);
+            }
+          }}
           className="p-6 space-y-4"
         >
           <div>
@@ -748,9 +800,12 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
             <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Message <span style={{ color: OCHRE }}>*</span></label>
             <textarea required rows={4} value={msgText} onChange={e => setMsgText(e.target.value)} placeholder="Type your message…" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
           </div>
+          {msgError && <p className="text-xs font-bold text-red-600">{msgError}</p>}
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowMessage(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
-            <button type="submit" className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Send ↗</button>
+            <button type="button" onClick={() => { setShowMessage(false); setMsgError(null); }} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+            <button type="submit" disabled={msgSending} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: msgSending ? 0.7 : 1 }}>
+              {msgSending ? 'Sending…' : 'Send ↗'}
+            </button>
           </div>
         </form>
       </Modal>
@@ -841,6 +896,72 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
             <button onClick={() => setShowShare(false)} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Close</button>
           </div>
         </div>
+      </Modal>
+
+      {/* Write Recommendation modal */}
+      <Modal id="modal-recommendation" open={showRecommendation} onClose={() => { setShowRecommendation(false); setRecError(null); }}>
+        <ModalHeader title="Write a Recommendation" onClose={() => { setShowRecommendation(false); setRecError(null); }} />
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            setRecSubmitting(true);
+            setRecError(null);
+            try {
+              const res = await fetch('/api/member/testimonial', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ to_username: username, quote: recText, author_name: recAuthor, role: recRole }),
+              });
+              const data = await res.json();
+              if (!res.ok) throw new Error(data.error || 'Could not save recommendation.');
+              // Optimistically append to local testimonials list
+              setTestimonials(prev => [...prev, { quote: recText, author: recAuthor, role: recRole }]);
+              setShowRecommendation(false);
+              setRecText('');
+              setRecRole('');
+              openToast('Your recommendation has been published!');
+            } catch (err: unknown) {
+              setRecError(err instanceof Error ? err.message : 'Could not submit recommendation.');
+            } finally {
+              setRecSubmitting(false);
+            }
+          }}
+          className="p-6 space-y-4"
+        >
+          <div className="p-3 rounded text-xs font-medium" style={{ background: `${PAPER}80`, border: `1px solid ${BORDER}` }}>
+            You are writing a recommendation for <strong>{name}</strong>. It will appear on their public profile immediately.
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your name <span style={{ color: OCHRE }}>*</span></label>
+              <input required value={recAuthor} onChange={e => setRecAuthor(e.target.value)} placeholder="Your full name" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
+            </div>
+            <div>
+              <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Your title &amp; org</label>
+              <input value={recRole} onChange={e => setRecRole(e.target.value)} placeholder="e.g. Senior Engineer at HSBC" className="w-full p-2.5 rounded font-medium text-xs focus:outline-none" style={{ border: `3px solid ${BORDER}` }} />
+            </div>
+          </div>
+          <div>
+            <label className="block font-black text-xs uppercase mb-1" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Recommendation <span style={{ color: OCHRE }}>*</span></label>
+            <textarea
+              required
+              rows={5}
+              value={recText}
+              onChange={e => setRecText(e.target.value)}
+              placeholder={`Share how you know ${name.split(' ')[0]} and what makes them stand out professionally…`}
+              className="w-full p-2.5 rounded font-medium text-xs focus:outline-none"
+              style={{ border: `3px solid ${BORDER}` }}
+            />
+            <p className="text-[10px] text-gray-500 mt-1 font-mono uppercase">Minimum 50 characters. Be specific — great recommendations mention impact.</p>
+          </div>
+          {recError && <p className="text-xs font-bold text-red-600">{recError}</p>}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => { setShowRecommendation(false); setRecError(null); }} className="px-4 py-2 rounded font-black text-xs uppercase" style={{ border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
+            <button type="submit" disabled={recSubmitting || recText.length < 50} className="px-6 py-2 rounded font-black text-xs uppercase text-white" style={{ background: OCHRE, border: `3px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', opacity: (recSubmitting || recText.length < 50) ? 0.6 : 1 }}>
+              {recSubmitting ? 'Publishing…' : 'Publish Recommendation ↗'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Toast */}
