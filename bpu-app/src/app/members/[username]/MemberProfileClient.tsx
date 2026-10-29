@@ -233,6 +233,10 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
   const openToast = (msg: string) => setToast(msg);
 
   const handleEndorse = async (skill: string) => {
+    if (connectionState !== 'connected') {
+      setShowConnect(true);
+      return;
+    }
     try {
       const res = await fetch('/api/member/endorse', {
         method: 'POST',
@@ -433,13 +437,15 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                         Connected ✓
                       </button>
                     )}
-                    <button
-                      onClick={() => setShowMessage(true)}
-                      className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
-                      style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-                    >
-                      ✉ Message
-                    </button>
+                    {connectionState === 'connected' && (
+                      <button
+                        onClick={() => setShowMessage(true)}
+                        className="flex-1 md:flex-initial px-6 py-3 text-xs font-black uppercase rounded-xl text-white flex items-center justify-center gap-2"
+                        style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                      >
+                        ✉ Message
+                      </button>
+                    )}
                     {m.mentorship_status === 'Accepting Mentees' && (
                       <Link
                         href={`/paired/mentors/${m.id}`}
@@ -730,7 +736,7 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
                 <h2 className="font-black text-xl uppercase flex items-center gap-2" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                   <span style={{ color: OCHRE, fontSize: '1.25rem', lineHeight: 1 }}>&ldquo;&rdquo;</span> Recommendations &amp; Testimonials
                 </h2>
-                {viewer && !isOwner && (
+                {viewer && !isOwner && connectionState === 'connected' && (
                   <button
                     onClick={() => setShowRecommendation(true)}
                     className="font-mono font-extrabold text-[10px] uppercase px-3 py-1.5 rounded"
@@ -743,13 +749,22 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
               {testimonials.length === 0 ? (
                 <div className="py-8 text-center space-y-2">
                   <p className="font-mono text-xs text-gray-500 uppercase">No recommendations yet.</p>
-                  {viewer && !isOwner && (
+                  {viewer && !isOwner && connectionState === 'connected' && (
                     <button
                       onClick={() => setShowRecommendation(true)}
                       className="font-black text-xs uppercase px-4 py-2 rounded text-white mt-2"
                       style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
                     >
                       Be the first to recommend {name.split(' ')[0]} ↗
+                    </button>
+                  )}
+                  {viewer && !isOwner && connectionState !== 'connected' && (
+                    <button
+                      onClick={() => setShowConnect(true)}
+                      className="font-black text-xs uppercase px-4 py-2 rounded mt-2"
+                      style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif', color: SLATE }}
+                    >
+                      Connect to write a recommendation ↗
                     </button>
                   )}
                 </div>
