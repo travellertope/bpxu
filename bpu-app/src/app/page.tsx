@@ -9,16 +9,6 @@ import {
   LinkedinLogo, TwitterLogo, InstagramLogo,
 } from '@phosphor-icons/react';
 
-/* ─── Featured member shape ─── */
-interface FeaturedMember {
-  id: number;
-  username: string;
-  display_name: string;
-  photo_url?: string;
-  job_title?: string;
-  industry?: string;
-}
-
 /* ─── WordPress post shape (minimal) ─── */
 interface WpPost {
   id: number;
@@ -100,11 +90,8 @@ function useCounter(target: number, active: boolean) {
   return val;
 }
 
-const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
-
-/* ─── Static fallback showcase members (while API loads / no featured flag) ─── */
-interface StaticMember { name: string; role: string; img: string; }
-const STATIC_MEMBERS: StaticMember[] = [
+/* ─── Static showcase members ─── */
+const STATIC_MEMBERS = [
   { name: 'Wosilat Zachariah',       role: 'Mental Health Nurse',                  img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/e85e2496-aefb-48ec-9092-25cd3f3316b8-Wosilat-Zachariah.jpeg' },
   { name: 'Edward Enejoh',            role: 'Project Manager / Business Analyst',   img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/IMG_1918-Edward-Enejoh-scaled.jpeg' },
   { name: 'Bukola Osuntuyi',          role: 'Tech Business Operations',             img: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/photo-output-Olubukola-Osuntuyi.jpeg' },
@@ -124,7 +111,6 @@ const STATIC_MEMBERS: StaticMember[] = [
 
 export default function HomePageClient() {
   const [posts, setPosts] = useState<WpPost[]>([]);
-  const [featuredMembers, setFeaturedMembers] = useState<FeaturedMember[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -140,12 +126,6 @@ export default function HomePageClient() {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    fetch(`${WP_URL}/wp-json/bpu/v1/members?per_page=15&featured=1`)
-      .then(r => r.ok ? r.json() : null)
-      .then((data: FeaturedMember[] | null) => { if (data?.length) setFeaturedMembers(data); })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     const id = setInterval(() => {
@@ -396,33 +376,24 @@ export default function HomePageClient() {
           id="members-carousel"
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
-          {(featuredMembers.length > 0 ? featuredMembers : STATIC_MEMBERS).map(m => {
-            const photo = 'photo_url' in m && m.photo_url ? m.photo_url
-              : ('img' in m ? (m as StaticMember).img : `https://www.gravatar.com/avatar/${encodeURIComponent((m as FeaturedMember).username)}?s=300&d=mp`);
-            const name = 'display_name' in m ? m.display_name : (m as StaticMember).name;
-            const role = 'job_title' in m ? ((m as FeaturedMember).job_title || (m as FeaturedMember).industry || '') : (m as StaticMember).role;
-            const href = 'username' in m && m.username
-              ? `/members/${encodeURIComponent((m as FeaturedMember).username)}`
-              : `/members?search=${encodeURIComponent(name)}`;
-            return (
-              <a
-                key={name}
-                href={href}
-                className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start"
-                style={{ textDecoration: 'none', color: 'inherit' }}
-              >
-                <div className="aspect-square w-full bg-hp-dark rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={photo} alt={name} className="w-full h-full object-cover" />
-                </div>
-                <h3 className="font-black text-xl leading-tight flex-grow">{name}</h3>
-                {role && <p className="text-sm font-bold text-gray-500 uppercase mt-1 mb-3">{role}</p>}
-                <span className="mt-auto inline-block bg-hp-dark text-white text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border-2 border-hp-dark w-max">
-                  View Profile →
-                </span>
-              </a>
-            );
-          })}
+          {STATIC_MEMBERS.map(({ name, role, img }) => (
+            <a
+              key={name}
+              href={`/members?search=${encodeURIComponent(name)}`}
+              className="flex-shrink-0 w-72 bg-white rounded-2xl border-brutal shadow-brutal p-4 flex flex-col interactive-card scroll-snap-align-start"
+              style={{ textDecoration: 'none', color: 'inherit' }}
+            >
+              <div className="aspect-square w-full bg-hp-dark rounded-xl mb-4 overflow-hidden border-2 border-hp-dark">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={img} alt={name} className="w-full h-full object-cover" />
+              </div>
+              <h3 className="font-black text-xl leading-tight flex-grow">{name}</h3>
+              <p className="text-sm font-bold text-gray-500 uppercase mt-1 mb-3">{role}</p>
+              <span className="inline-block bg-hp-dark text-white text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-lg border-2 border-hp-dark w-max">
+                View Profile →
+              </span>
+            </a>
+          ))}
           {/* end padding so last card doesn't sit against the edge */}
           <div className="flex-shrink-0 w-4" />
         </div>
