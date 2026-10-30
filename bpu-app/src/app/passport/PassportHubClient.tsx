@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Image from 'next/image';
 
 interface PassportMember {
     id: number;
@@ -119,7 +120,7 @@ function PassportCard({ member }: { member: PassportMember }) {
     const badge = passportBadge(member);
     const pno = passportNumber(member);
     const loc = memberLocation(member);
-    const photo = member.photo_url || `https://www.gravatar.com/avatar/${encodeURIComponent(member.username)}?s=128&d=mp`;
+    const photo = member.photo_url || `https://www.gravatar.com/avatar/${encodeURIComponent(member.username)}?s=64&d=mp`;
 
     return (
         <a
@@ -170,8 +171,7 @@ function PassportCard({ member }: { member: PassportMember }) {
                     overflow: 'hidden',
                     background: '#1a1a1a',
                 }}>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={photo} alt={member.display_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <Image src={photo} alt={member.display_name} width={52} height={52} style={{ objectFit: 'cover', width: '100%', height: '100%' }} loading="lazy" />
                 </div>
                 <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.2, marginBottom: 2, color: '#1a1a1a' }}>
@@ -214,9 +214,9 @@ function PassportCard({ member }: { member: PassportMember }) {
     );
 }
 
-export default function PassportHubClient() {
-    const [members, setMembers] = useState<PassportMember[]>([]);
-    const [loading, setLoading] = useState(true);
+export default function PassportHubClient({ initialMembers = [] }: { initialMembers?: PassportMember[] }) {
+    const [members, setMembers] = useState<PassportMember[]>(initialMembers);
+    const [loading, setLoading] = useState(false);
     const [sector, setSector] = useState('');
     const [city, setCity] = useState('');
     const [search, setSearch] = useState('');
@@ -242,7 +242,14 @@ export default function PassportHubClient() {
         }
     }, []);
 
+    // On mount, skip fetch if we have SSR data (no filters active yet).
+    // Re-fetch whenever sector/city filter changes.
+    const didMountRef = useRef(false);
     useEffect(() => {
+        if (!didMountRef.current) {
+            didMountRef.current = true;
+            if (initialMembers.length > 0 && !sector && !city) return;
+        }
         fetchMembers(sector, city, search, 1);
         setPage(1);
     }, [sector, city, fetchMembers]); // eslint-disable-line react-hooks/exhaustive-deps
