@@ -393,71 +393,97 @@ export default function PassportHubClient() {
                         </div>
                     </div>
 
-                    {/* Stats / badge cluster */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, flex: '0 0 auto' }}>
-                        <div style={{
-                            background: '#1a1a1a', border: '1.5px solid #2a2a2a',
-                            borderRadius: 12, padding: '20px 28px', textAlign: 'center', minWidth: 160,
-                        }}>
-                            <div style={{ fontSize: 11, fontWeight: 800, color: '#d9381e', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 6 }}>10th</div>
-                            <div style={{ fontSize: 9, fontWeight: 800, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase' }}>Anniversary</div>
-                            <div style={{ fontSize: 9, color: '#555', marginTop: 8, letterSpacing: '0.06em' }}>2016 — 2026</div>
+                    {/* Vertical scrolling card gallery */}
+                    <div style={{ display: 'flex', gap: 10, flex: '0 0 auto', height: 420, overflow: 'hidden', position: 'relative' }}>
+                        {/* top + bottom fade masks */}
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to bottom, #0d0d0d, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to top, #0d0d0d, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+
+                        {/* Column 1 — dark tall member cards, scroll up */}
+                        <div className="hero-scroll-col1" style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'heroScrollUp 22s linear infinite' }}>
+                            {[
+                                { name: 'Carol Anderson', role: '10-Yr Leader', anniversary: true },
+                                { name: 'James Okafor', role: 'Alumni Mentor' },
+                                { name: 'Priya Mensah', role: '10-Yr Member' },
+                                { name: 'David Eze', role: 'Placement Lead' },
+                                { name: 'Amara Diallo', role: 'Pro Member' },
+                                /* duplicate for seamless loop */
+                                { name: 'Carol Anderson', role: '10-Yr Leader', anniversary: true },
+                                { name: 'James Okafor', role: 'Alumni Mentor' },
+                                { name: 'Priya Mensah', role: '10-Yr Member' },
+                                { name: 'David Eze', role: 'Placement Lead' },
+                                { name: 'Amara Diallo', role: 'Pro Member' },
+                            ].map((c, i) => (
+                                <div key={i} style={{
+                                    width: 160, flexShrink: 0,
+                                    background: '#1a1a1a', borderRadius: 12,
+                                    border: '1.5px solid #2a2a2a',
+                                    padding: '14px 14px 18px',
+                                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                                    height: 200,
+                                    position: 'relative',
+                                }}>
+                                    {/* Anniversary badge overlay on first card */}
+                                    {c.anniversary && (
+                                        <div style={{
+                                            position: 'absolute', top: 10, left: 10,
+                                            background: '#1a1a1a', border: '1.5px solid #333',
+                                            borderRadius: 8, padding: '8px 10px',
+                                        }}>
+                                            <div style={{ fontSize: 14, fontWeight: 900, color: '#d9381e', lineHeight: 1, letterSpacing: '-0.01em' }}>10th</div>
+                                            <div style={{ fontSize: 7, fontWeight: 800, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 1 }}>Anniversary</div>
+                                            <div style={{ fontSize: 7, color: '#555', marginTop: 5, letterSpacing: '0.06em' }}>2016 — 2026</div>
+                                        </div>
+                                    )}
+                                    <div />
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{c.name}</div>
+                                        <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>({c.role})</div>
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                        <div style={{
-                            background: '#1a1a1a', border: '1.5px solid #2a2a2a',
-                            borderRadius: 12, padding: '18px 28px', textAlign: 'center',
-                        }}>
-                            <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1 }}>7,000+</div>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>Professionals</div>
-                        </div>
-                        <div style={{
-                            background: '#1a1a1a', border: '1.5px solid #2a2a2a',
-                            borderRadius: 12, padding: '18px 28px', textAlign: 'center',
-                        }}>
-                            <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', lineHeight: 1 }}>10 Yrs</div>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: '#666', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>Empowering UK Talent</div>
+
+                        {/* Column 2 — mix of light label cards + dark member cards, scroll up slower */}
+                        <div className="hero-scroll-col2" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 40, animation: 'heroScrollUp 30s linear infinite' }}>
+                            {[
+                                { label: '10-Year Summit', light: true },
+                                { name: 'Lawrence Dada', role: '10-Yr Alumni' },
+                                { label: 'Alumni Network', light: true },
+                                { name: 'Yemi Adeyemi', role: 'Mentor' },
+                                { label: 'Scotland Hub', light: true },
+                                { name: 'Tunde Williams', role: '10-Yr Leader' },
+                                /* duplicate */
+                                { label: '10-Year Summit', light: true },
+                                { name: 'Lawrence Dada', role: '10-Yr Alumni' },
+                                { label: 'Alumni Network', light: true },
+                                { name: 'Yemi Adeyemi', role: 'Mentor' },
+                                { label: 'Scotland Hub', light: true },
+                                { name: 'Tunde Williams', role: '10-Yr Leader' },
+                            ].map((c, i) => (
+                                <div key={i} style={{
+                                    width: 150, flexShrink: 0,
+                                    background: (c as {light?: boolean}).light ? '#f0ece4' : '#1a1a1a',
+                                    border: `1.5px solid ${ (c as {light?: boolean}).light ? '#ddd' : '#2a2a2a'}`,
+                                    borderRadius: 12,
+                                    padding: '16px 14px',
+                                    display: 'flex', flexDirection: 'column', justifyContent: (c as {light?: boolean}).light ? 'center' : 'flex-end',
+                                    height: (c as {light?: boolean}).light ? 120 : 160,
+                                }}>
+                                    {(c as {label?: string}).label ? (
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', lineHeight: 1.2 }}>{(c as {label: string}).label}</div>
+                                    ) : (
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{(c as {name: string}).name}</div>
+                                            <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>({(c as {role: string}).role})</div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
             </section>
-
-            {/* ── SCROLLING GALLERY BANNER ── */}
-            <div style={{ background: '#111', borderBottom: '1.5px solid #2a2a2a', overflow: 'hidden', padding: '0', position: 'relative' }}>
-                {/* gradient fades */}
-                <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(to right, #111, transparent)', zIndex: 2, pointerEvents: 'none' }} />
-                <div style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 80, background: 'linear-gradient(to left, #111, transparent)', zIndex: 2, pointerEvents: 'none' }} />
-                <div className="passport-marquee" style={{ display: 'flex', gap: 0, padding: '16px 0', width: 'max-content', animation: 'passportMarquee 36s linear infinite' }}>
-                    {/* Anniversary banner card — always first */}
-                    {[0, 1].map(set => (
-                        <div key={set} style={{ display: 'flex', gap: 0 }}>
-                            <div style={{
-                                flexShrink: 0, width: 200, margin: '0 8px',
-                                background: '#1a1a1a', border: '1.5px solid #d9381e',
-                                borderRadius: 10, padding: '18px 20px',
-                                display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                                minHeight: 100,
-                            }}>
-                                <div>
-                                    <div style={{ fontSize: 26, fontWeight: 900, color: '#d9381e', lineHeight: 1, letterSpacing: '-0.02em' }}>10th</div>
-                                    <div style={{ fontSize: 9, fontWeight: 800, color: '#888', letterSpacing: '0.16em', textTransform: 'uppercase', marginTop: 2 }}>Anniversary</div>
-                                </div>
-                                <div style={{ fontSize: 9, color: '#555', letterSpacing: '0.08em', marginTop: 12 }}>2016 — 2026</div>
-                            </div>
-                            {['10-Year Summit', 'Alumni Mentors', 'Placement Cohort 2026', 'Community Leaders', 'Scotland Hub', 'London Network', '7,000+ Members'].map(label => (
-                                <div key={label} style={{
-                                    flexShrink: 0, margin: '0 8px',
-                                    background: '#1a1a1a', border: '1.5px solid #2a2a2a',
-                                    borderRadius: 10, padding: '14px 20px',
-                                    display: 'flex', alignItems: 'center',
-                                    minHeight: 100, whiteSpace: 'nowrap',
-                                }}>
-                                    <span style={{ fontSize: 12, fontWeight: 700, color: '#aaa', letterSpacing: '0.04em' }}>{label}</span>
-                                </div>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-            </div>
 
             {/* ── DIRECTORY ── */}
             <div style={{ background: '#f5f0e8', minHeight: '60vh' }}>
@@ -584,11 +610,14 @@ export default function PassportHubClient() {
             </div>
 
             <style>{`
-                @keyframes passportMarquee {
-                    from { transform: translateX(0); }
-                    to { transform: translateX(-50%); }
+                @keyframes heroScrollUp {
+                    from { transform: translateY(0); }
+                    to { transform: translateY(-50%); }
                 }
-                .passport-marquee:hover { animation-play-state: paused; }
+                .hero-scroll-col1:hover, .hero-scroll-col2:hover { animation-play-state: paused; }
+                @media (max-width: 900px) {
+                    .hero-scroll-col1, .hero-scroll-col2 { display: none !important; }
+                }
                 @media (max-width: 768px) {
                     .passport-nav-desktop { display: none !important; }
                     .passport-nav-burger { display: flex !important; }
