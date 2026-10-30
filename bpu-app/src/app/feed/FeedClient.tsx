@@ -510,8 +510,8 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
             </Link>
           </div>
 
-          {/* Feed tabs */}
-          <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
+          {/* Feed tabs — desktop sidebar only */}
+          <div className="hidden lg:block rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
             <span className="block text-[10px] text-gray-500 font-mono font-bold uppercase tracking-wider px-2 mb-1">Feed Views</span>
             {FILTER_TABS.map(t => (
               <button key={t.key} onClick={() => setFilter(t.key)}
@@ -586,9 +586,41 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
               </svg>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: SLATE, textTransform: 'uppercase' }}>
                 Filter
-                {category !== 'ALL' && (
-                  <span style={{ marginLeft: 5, background: OCHRE, color: '#fff', borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900 }}>1</span>
+                {(category !== 'ALL' || filter !== 'connections') && (
+                  <span style={{ marginLeft: 5, background: OCHRE, color: '#fff', borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900 }}>
+                    {[category !== 'ALL', filter !== 'connections'].filter(Boolean).length}
+                  </span>
                 )}
+              </span>
+            </div>
+
+            {/* Feed view dropdown */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: 10, pointerEvents: 'none', display: 'flex', color: filter !== 'connections' ? OCHRE : '#6B7280' }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </span>
+              <select
+                value={filter}
+                onChange={e => setFilter(e.target.value as FeedFilter)}
+                style={{
+                  appearance: 'none', WebkitAppearance: 'none',
+                  border: `2px solid ${filter !== 'connections' ? OCHRE : BORDER}`,
+                  borderRadius: 6, padding: '7px 32px 7px 32px',
+                  fontSize: 11, fontWeight: 700, color: SLATE,
+                  background: '#ffffff', cursor: 'pointer', outline: 'none',
+                  letterSpacing: '0.04em', minWidth: 150,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  boxShadow: filter !== 'connections' ? `2px 2px 0 ${OCHRE}` : `2px 2px 0 ${BORDER}`,
+                }}
+              >
+                {FILTER_TABS.map(t => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
+              </select>
+              <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
               </span>
             </div>
 
@@ -653,9 +685,9 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
             </div>
 
             {/* Clear */}
-            {category !== 'ALL' && (
+            {(category !== 'ALL' || filter !== 'connections') && (
               <button
-                onClick={() => setCategory('ALL')}
+                onClick={() => { setCategory('ALL'); setFilter('connections'); }}
                 style={{
                   border: `2px solid #D1D5DB`, borderRadius: 6, padding: '7px 12px',
                   fontSize: 11, fontWeight: 700, cursor: 'pointer',
