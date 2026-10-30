@@ -54,16 +54,22 @@ interface Props {
 
 export default function MembersDirectoryClient({ viewer, isAuthenticated }: Props) {
   const searchParams = useSearchParams();
+  const urlSearch = searchParams?.get('search') ?? '';
   const [members, setMembers] = useState<PublicMemberProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
-  const [search, setSearch] = useState(searchParams?.get('search') ?? '');
+  const [search, setSearch] = useState(urlSearch);
   const [sector, setSector] = useState('');
   const [city, setCity] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sync search state when header search bar updates the URL
+  useEffect(() => {
+    setSearch(urlSearch);
+  }, [urlSearch]);
 
   const fetchMembers = useCallback(async (
     pageNum: number,

@@ -1,4 +1,6 @@
 import { getBPUSession } from '@/lib/auth';
+import { Suspense } from 'react';
+import MembersSearchBar from './MembersSearchBar';
 
 export default async function MembersLayout({ children }: { children: React.ReactNode }) {
     const session = await getBPUSession();
@@ -11,20 +13,25 @@ export default async function MembersLayout({ children }: { children: React.Reac
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals UK" />
                     </a>
-                    <nav className="flex items-center gap-3">
-                        <a href="/members" className="btn btn-ghost btn-sm">Member Directory</a>
-                        {session.authenticated ? (
-                            <>
-                                <a href="/dashboard" className="btn btn-ghost btn-sm">Dashboard</a>
-                                <a href="/feed" className="btn btn-ghost btn-sm">Network Feed</a>
-                            </>
-                        ) : (
-                            <>
-                                <a href="/register" className="btn btn-ghost btn-sm">Join</a>
-                                <a href="/login" className="btn btn-amber btn-sm">Sign in</a>
-                            </>
-                        )}
-                    </nav>
+                    <div className="flex items-center gap-3 flex-1 justify-end">
+                        <Suspense>
+                            <MembersSearchBar />
+                        </Suspense>
+                        <nav className="flex items-center gap-2">
+                            <a href="/members" className="btn btn-ghost btn-sm hidden sm:inline-flex">Directory</a>
+                            {session.authenticated ? (
+                                <>
+                                    <a href="/dashboard" className="btn btn-ghost btn-sm hidden md:inline-flex">Dashboard</a>
+                                    <a href="/feed" className="btn btn-ghost btn-sm hidden sm:inline-flex">Network Feed</a>
+                                </>
+                            ) : (
+                                <>
+                                    <a href="/register" className="btn btn-ghost btn-sm hidden sm:inline-flex">Join</a>
+                                    <a href="/login" className="btn btn-amber btn-sm">Sign in</a>
+                                </>
+                            )}
+                        </nav>
+                    </div>
                 </div>
             </header>
 
