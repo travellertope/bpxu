@@ -18,7 +18,11 @@ export async function GET(request: NextRequest) {
     if (jwt) headers['Authorization'] = `Bearer ${jwt}`;
 
     try {
-        const res = await fetch(`${WP_URL}/wp-json/bpu/v1/members?${params}`, { headers, cache: 'no-store' });
+        const isSearch = searchParams.get('search');
+        const res = await fetch(`${WP_URL}/wp-json/bpu/v1/members?${params}`, {
+            headers,
+            next: isSearch ? { revalidate: 0 } : { revalidate: 60 },
+        });
         const data = await res.json();
         const resp = NextResponse.json(data, { status: res.status });
         const total = res.headers.get('X-WP-Total');
