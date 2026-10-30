@@ -510,8 +510,8 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
             </Link>
           </div>
 
-          {/* Feed tabs */}
-          <div className="rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
+          {/* Feed tabs — desktop sidebar only */}
+          <div className="hidden lg:block rounded-2xl p-4 space-y-2" style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
             <span className="block text-[10px] text-gray-500 font-mono font-bold uppercase tracking-wider px-2 mb-1">Feed Views</span>
             {FILTER_TABS.map(t => (
               <button key={t.key} onClick={() => setFilter(t.key)}
@@ -566,47 +566,140 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
                 Share a milestone, placement update, or insight…
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-2 pt-2 border-t-2" style={{ borderColor: `${BORDER}30` }}>
-              {['Placement News', 'Milestone', 'Technical Insight', 'Interactive Poll'].map(cat => (
-                <button key={cat} onClick={() => { setPostCategory(cat); setShowComposer(true); }}
-                  className="px-2.5 py-1.5 rounded-lg border text-xs font-black uppercase"
-                  style={{ border: `2px solid ${BORDER}`, background: `${PAPER}50`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                  {cat === 'Placement News' ? '💼' : cat === 'Milestone' ? '🏆' : cat === 'Technical Insight' ? '💻' : '📊'} {cat.split(' ')[0]}
-                </button>
-              ))}
+            <div className="flex justify-end pt-2 border-t-2" style={{ borderColor: `${BORDER}30` }}>
               <button onClick={() => setShowComposer(true)}
-                className="ml-auto px-4 py-1.5 rounded-lg text-xs font-black uppercase text-white"
+                className="px-4 py-1.5 rounded-lg text-xs font-black uppercase text-white"
                 style={{ background: OCHRE, border: `2px solid ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                 Post ↗
               </button>
             </div>
           </div>
 
-          {/* Category + sort */}
-          <div className="rounded-2xl p-3 flex flex-col sm:flex-row justify-between items-center gap-3"
+          {/* Category + sort — dropdown bar */}
+          <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-2xl"
             style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}` }}>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {CATEGORIES.map(cat => (
-                <button key={cat} onClick={() => setCategory(cat)}
-                  className="px-3 py-1 rounded-lg text-xs font-black uppercase"
-                  style={{
-                    border: `2px solid ${BORDER}`,
-                    background: category === cat ? OCHRE : PAPER,
-                    color: category === cat ? '#fff' : SLATE,
-                    fontFamily: 'Plus Jakarta Sans, sans-serif',
-                  }}>
-                  {cat === 'ALL' ? 'All' : cat === 'Interactive Poll' ? 'Polls' : cat}
-                </button>
-              ))}
+
+            {/* Filter label */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 2 }}>
+              <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke={BORDER} strokeWidth={2}>
+                <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+              </svg>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: SLATE, textTransform: 'uppercase' }}>
+                Filter
+                {(category !== 'ALL' || filter !== 'connections') && (
+                  <span style={{ marginLeft: 5, background: OCHRE, color: '#fff', borderRadius: '50%', width: 16, height: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900 }}>
+                    {[category !== 'ALL', filter !== 'connections'].filter(Boolean).length}
+                  </span>
+                )}
+              </span>
             </div>
-            <div className="flex items-center gap-2 text-xs font-black uppercase border-t sm:border-t-0 sm:border-l-2 pt-2 sm:pt-0 sm:pl-3 w-full sm:w-auto" style={{ borderColor: BORDER }}>
-              <span className="text-gray-500">Sort:</span>
-              <select value={sort} onChange={e => setSort(e.target.value as SortOption)}
-                className="bg-transparent font-black text-xs uppercase cursor-pointer focus:outline-none" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+
+            {/* Feed view dropdown */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: 10, pointerEvents: 'none', display: 'flex', color: filter !== 'connections' ? OCHRE : '#6B7280' }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                </svg>
+              </span>
+              <select
+                value={filter}
+                onChange={e => setFilter(e.target.value as FeedFilter)}
+                style={{
+                  appearance: 'none', WebkitAppearance: 'none',
+                  border: `2px solid ${filter !== 'connections' ? OCHRE : BORDER}`,
+                  borderRadius: 6, padding: '7px 32px 7px 32px',
+                  fontSize: 11, fontWeight: 700, color: SLATE,
+                  background: '#ffffff', cursor: 'pointer', outline: 'none',
+                  letterSpacing: '0.04em', minWidth: 150,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  boxShadow: filter !== 'connections' ? `2px 2px 0 ${OCHRE}` : `2px 2px 0 ${BORDER}`,
+                }}
+              >
+                {FILTER_TABS.map(t => (
+                  <option key={t.key} value={t.key}>{t.label}</option>
+                ))}
+              </select>
+              <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </div>
+
+            {/* Category dropdown */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: 10, pointerEvents: 'none', display: 'flex', color: category !== 'ALL' ? OCHRE : '#6B7280' }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M4 6h16M4 12h8M4 18h4"/>
+                </svg>
+              </span>
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value as CategoryFilter)}
+                style={{
+                  appearance: 'none', WebkitAppearance: 'none',
+                  border: `2px solid ${category !== 'ALL' ? OCHRE : BORDER}`,
+                  borderRadius: 6, padding: '7px 32px 7px 32px',
+                  fontSize: 11, fontWeight: 700, color: SLATE,
+                  background: '#ffffff', cursor: 'pointer', outline: 'none',
+                  letterSpacing: '0.04em', minWidth: 160,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  boxShadow: category !== 'ALL' ? `2px 2px 0 ${OCHRE}` : `2px 2px 0 ${BORDER}`,
+                }}
+              >
+                <option value="ALL">All Categories</option>
+                {CATEGORIES.filter(c => c !== 'ALL').map(c => (
+                  <option key={c} value={c}>{c === 'Interactive Poll' ? 'Polls' : c}</option>
+                ))}
+              </select>
+              <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </div>
+
+            {/* Sort dropdown */}
+            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+              <span style={{ position: 'absolute', left: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path d="M3 6h18M6 12h12M9 18h6"/>
+                </svg>
+              </span>
+              <select
+                value={sort}
+                onChange={e => setSort(e.target.value as SortOption)}
+                style={{
+                  appearance: 'none', WebkitAppearance: 'none',
+                  border: `2px solid ${BORDER}`,
+                  borderRadius: 6, padding: '7px 32px 7px 32px',
+                  fontSize: 11, fontWeight: 700, color: SLATE,
+                  background: '#ffffff', cursor: 'pointer', outline: 'none',
+                  letterSpacing: '0.04em', minWidth: 150,
+                  fontFamily: 'JetBrains Mono, monospace',
+                  boxShadow: `2px 2px 0 ${BORDER}`,
+                }}
+              >
                 <option value="recent">Most Recent</option>
                 <option value="top">Top Engagement</option>
               </select>
+              <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+                <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
             </div>
+
+            {/* Clear */}
+            {(category !== 'ALL' || filter !== 'connections') && (
+              <button
+                onClick={() => { setCategory('ALL'); setFilter('connections'); }}
+                style={{
+                  border: `2px solid #D1D5DB`, borderRadius: 6, padding: '7px 12px',
+                  fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  background: 'transparent', color: '#6B7280',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.04em',
+                }}
+              >
+                <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Clear
+              </button>
+            )}
           </div>
 
           {/* Feed label */}
