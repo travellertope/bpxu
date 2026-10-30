@@ -8,7 +8,7 @@ import { BPUUser } from '@/lib/auth';
 /* ── colour constants (match PassportCard) ── */
 const OCHRE  = '#C5491F';
 const SLATE  = '#111317';
-const PAPER  = '#F3ECE0';
+const PAPER  = '#ffffff';
 const BORDER = '#1E2229';
 const BPU_RED = '#C8102E';
 

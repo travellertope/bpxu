@@ -486,7 +486,7 @@ export default function PassportHubClient() {
             </section>
 
             {/* ── DIRECTORY ── */}
-            <div style={{ background: '#f5f0e8', minHeight: '60vh' }}>
+            <div style={{ background: '#ffffff', minHeight: '60vh' }}>
                 <div style={{ maxWidth: 1200, margin: '0 auto', padding: '32px 24px' }}>
 
                     {/* Filter bar */}
