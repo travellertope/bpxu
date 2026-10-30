@@ -118,7 +118,7 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#F3ECE0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
       {/* Page header */}
       <div style={{
         background: '#111317',
@@ -186,7 +186,7 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
                 border: `2px solid ${sector ? '#C5491F' : '#1E2229'}`,
                 borderRadius: 6, padding: '7px 32px 7px 32px',
                 fontSize: 11, fontWeight: 700, color: '#111317',
-                background: '#F9F6F0', cursor: 'pointer', outline: 'none',
+                background: '#ffffff', cursor: 'pointer', outline: 'none',
                 letterSpacing: '0.04em', minWidth: 160,
                 fontFamily: 'JetBrains Mono, monospace',
                 boxShadow: sector ? '2px 2px 0 #C5491F' : '2px 2px 0 #1E2229',
@@ -215,7 +215,7 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
                 border: `2px solid ${city ? '#C5491F' : '#1E2229'}`,
                 borderRadius: 6, padding: '7px 32px 7px 32px',
                 fontSize: 11, fontWeight: 700, color: '#111317',
-                background: '#F9F6F0', cursor: 'pointer', outline: 'none',
+                background: '#ffffff', cursor: 'pointer', outline: 'none',
                 letterSpacing: '0.04em', minWidth: 140,
                 fontFamily: 'JetBrains Mono, monospace',
                 boxShadow: city ? '2px 2px 0 #C5491F' : '2px 2px 0 #1E2229',
@@ -246,27 +246,6 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
             </button>
           )}
 
-          {/* Search — pushed right */}
-          <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', alignItems: 'center' }}>
-            <svg style={{ position: 'absolute', left: 10, color: '#6B7280' }} width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <circle cx={11} cy={11} r={8}/><path d="m21 21-4.35-4.35"/>
-            </svg>
-            <input
-              type="text"
-              defaultValue={search}
-              placeholder="Search name, role, or skill..."
-              onChange={e => handleSearch(e.target.value)}
-              style={{
-                paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
-                border: '2px solid #1E2229', borderRadius: 6,
-                fontSize: 11, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
-                background: '#F9F6F0', outline: 'none', width: 230,
-                boxSizing: 'border-box', letterSpacing: '0.02em',
-              }}
-              onFocus={e => (e.target.style.borderColor = '#111317')}
-              onBlur={e => (e.target.style.borderColor = '#1E2229')}
-            />
-          </div>
         </div>
       </div>
 
@@ -474,7 +453,7 @@ function MemberCard({ member: m }: { member: PublicMemberProfile }) {
                 padding: '3px 8px',
                 border: '1px solid #D1D5DB',
                 borderRadius: 4,
-                background: '#F9F6F0',
+                background: '#ffffff',
                 color: '#374151',
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em',
