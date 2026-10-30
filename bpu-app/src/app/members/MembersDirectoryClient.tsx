@@ -9,16 +9,19 @@ const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk'
 const PER_PAGE = 12;
 
 const SECTORS = [
-  'All Sectors',
-  'Technology',
-  'Engineering',
-  'Finance & Banking',
-  'Healthcare',
-  'Legal',
-  'Leadership',
-  'Marketing',
-  'Education',
-  'Early Career',
+  'Technology', 'Engineering', 'Finance & Banking', 'Healthcare',
+  'Legal', 'Leadership', 'Marketing', 'Education', 'Early Career',
+  'HR & People', 'Creative & Media', 'Science & Research',
+  'Property & Construction', 'Retail & Consumer', 'Public Sector',
+  'Charity & NGO', 'Consulting', 'Supply Chain & Logistics',
+];
+
+const UK_CITIES = [
+  'London', 'Birmingham', 'Manchester', 'Leeds', 'Edinburgh',
+  'Glasgow', 'Bristol', 'Cardiff', 'Liverpool', 'Nottingham',
+  'Sheffield', 'Leicester', 'Newcastle', 'Brighton', 'Oxford',
+  'Cambridge', 'Southampton', 'Reading', 'Aberdeen', 'Dundee',
+  'Coventry', 'Hull', 'Derby', 'Stoke-on-Trent', 'Wolverhampton',
 ];
 
 function gravatarUrl(username: string) {
@@ -57,7 +60,8 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [search, setSearch] = useState(searchParams?.get('search') ?? '');
-  const [sector, setSector] = useState('All Sectors');
+  const [sector, setSector] = useState('');
+  const [city, setCity] = useState('');
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -65,6 +69,7 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
     pageNum: number,
     searchVal: string,
     sectorVal: string,
+    cityVal: string,
     replace: boolean,
   ) => {
     const params = new URLSearchParams({
@@ -72,7 +77,8 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
       per_page: String(PER_PAGE),
     });
     if (searchVal) params.set('search', searchVal);
-    if (sectorVal && sectorVal !== 'All Sectors') params.set('sector', sectorVal);
+    if (sectorVal) params.set('sector', sectorVal);
+    if (cityVal) params.set('city', cityVal);
 
     try {
       const res = await fetch(
@@ -90,13 +96,13 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
     }
   }, []);
 
-  // Initial load + search/sector changes
+  // Initial load + filter changes
   useEffect(() => {
     setLoading(true);
     setPage(1);
-    fetchMembers(1, search, sector, true).finally(() => setLoading(false));
+    fetchMembers(1, search, sector, city, true).finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [search, sector]);
+  }, [search, sector, city]);
 
   const handleSearch = (val: string) => {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -106,7 +112,7 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
   const loadMore = async () => {
     const next = page + 1;
     setLoadingMore(true);
-    await fetchMembers(next, search, sector, false);
+    await fetchMembers(next, search, sector, city, false);
     setPage(next);
     setLoadingMore(false);
   };
@@ -138,44 +144,112 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
       <div style={{
         background: '#fff',
         borderBottom: '3px solid #1E2229',
-        padding: '16px 24px',
+        padding: '14px 24px',
         position: 'sticky',
         top: 0,
         zIndex: 40,
         boxShadow: '0 4px 0 #1E2229',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Sector pills */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {SECTORS.map(s => (
-              <button
-                key={s}
-                onClick={() => setSector(s)}
-                style={{
-                  padding: '6px 14px',
-                  border: '2px solid #1E2229',
-                  borderRadius: 6,
-                  fontWeight: 700,
-                  fontSize: 11,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  cursor: 'pointer',
-                  background: sector === s ? '#111317' : '#fff',
-                  color: sector === s ? '#F3ECE0' : '#111317',
-                  boxShadow: sector === s ? '3px 3px 0 #1E2229' : 'none',
-                  transition: 'all 0.15s',
-                  fontFamily: 'JetBrains Mono, monospace',
-                }}
-              >
-                {s}
-              </button>
-            ))}
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+
+          {/* Filter icon + active count */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 4 }}>
+            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#1E2229" strokeWidth={2}>
+              <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
+            </svg>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: '#1E2229', textTransform: 'uppercase' }}>
+              Filter
+              {(sector || city) && (
+                <span style={{
+                  marginLeft: 5, background: '#C5491F', color: '#fff',
+                  borderRadius: '50%', width: 16, height: 16,
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 9, fontWeight: 900,
+                }}>{[sector, city].filter(Boolean).length}</span>
+              )}
+            </span>
           </div>
 
-          {/* Search input */}
-          <div style={{ position: 'relative', width: 260 }}>
-            <svg style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#6B7280' }} width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <circle cx={11} cy={11} r={8} /><path d="m21 21-4.35-4.35" />
+          {/* Sector dropdown */}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: 10, pointerEvents: 'none', display: 'flex', color: sector ? '#C5491F' : '#6B7280' }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <rect x="2" y="3" width="6" height="6"/><rect x="9" y="3" width="6" height="6"/><rect x="16" y="3" width="6" height="6"/>
+                <rect x="2" y="10" width="6" height="6"/><rect x="9" y="10" width="6" height="6"/>
+              </svg>
+            </span>
+            <select
+              value={sector}
+              onChange={e => setSector(e.target.value)}
+              style={{
+                appearance: 'none', WebkitAppearance: 'none',
+                border: `2px solid ${sector ? '#C5491F' : '#1E2229'}`,
+                borderRadius: 6, padding: '7px 32px 7px 32px',
+                fontSize: 11, fontWeight: 700, color: '#111317',
+                background: '#F9F6F0', cursor: 'pointer', outline: 'none',
+                letterSpacing: '0.04em', minWidth: 160,
+                fontFamily: 'JetBrains Mono, monospace',
+                boxShadow: sector ? '2px 2px 0 #C5491F' : '2px 2px 0 #1E2229',
+              }}
+            >
+              <option value="">All Industries</option>
+              {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+            <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+
+          {/* City dropdown */}
+          <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <span style={{ position: 'absolute', left: 10, pointerEvents: 'none', display: 'flex', color: city ? '#C5491F' : '#6B7280' }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+              </svg>
+            </span>
+            <select
+              value={city}
+              onChange={e => setCity(e.target.value)}
+              style={{
+                appearance: 'none', WebkitAppearance: 'none',
+                border: `2px solid ${city ? '#C5491F' : '#1E2229'}`,
+                borderRadius: 6, padding: '7px 32px 7px 32px',
+                fontSize: 11, fontWeight: 700, color: '#111317',
+                background: '#F9F6F0', cursor: 'pointer', outline: 'none',
+                letterSpacing: '0.04em', minWidth: 140,
+                fontFamily: 'JetBrains Mono, monospace',
+                boxShadow: city ? '2px 2px 0 #C5491F' : '2px 2px 0 #1E2229',
+              }}
+            >
+              <option value="">All Cities</option>
+              {UK_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <span style={{ position: 'absolute', right: 10, pointerEvents: 'none', display: 'flex', color: '#6B7280' }}>
+              <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+
+          {/* Clear filters */}
+          {(sector || city) && (
+            <button
+              onClick={() => { setSector(''); setCity(''); }}
+              style={{
+                border: '2px solid #D1D5DB', borderRadius: 6, padding: '7px 12px',
+                fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                background: 'transparent', color: '#6B7280',
+                display: 'flex', alignItems: 'center', gap: 4,
+                fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.04em',
+              }}
+            >
+              <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              Clear
+            </button>
+          )}
+
+          {/* Search — pushed right */}
+          <div style={{ marginLeft: 'auto', position: 'relative', display: 'flex', alignItems: 'center' }}>
+            <svg style={{ position: 'absolute', left: 10, color: '#6B7280' }} width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <circle cx={11} cy={11} r={8}/><path d="m21 21-4.35-4.35"/>
             </svg>
             <input
               type="text"
@@ -183,20 +257,14 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
               placeholder="Search name, role, or skill..."
               onChange={e => handleSearch(e.target.value)}
               style={{
-                width: '100%',
-                paddingLeft: 32,
-                paddingRight: 12,
-                paddingTop: 8,
-                paddingBottom: 8,
-                border: '2px solid #1E2229',
-                borderRadius: 6,
-                fontSize: 12,
-                fontWeight: 600,
-                fontFamily: 'inherit',
-                background: '#F9F6F0',
-                outline: 'none',
-                boxSizing: 'border-box',
+                paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7,
+                border: '2px solid #1E2229', borderRadius: 6,
+                fontSize: 11, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace',
+                background: '#F9F6F0', outline: 'none', width: 230,
+                boxSizing: 'border-box', letterSpacing: '0.02em',
               }}
+              onFocus={e => (e.target.style.borderColor = '#111317')}
+              onBlur={e => (e.target.style.borderColor = '#1E2229')}
             />
           </div>
         </div>
