@@ -458,42 +458,32 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals UK" />
           </a>
-          <nav className="flex items-center gap-2">
-            <a href="/members" className="btn btn-ghost btn-sm hidden sm:inline-flex">Directory</a>
-            <a href="/passport" className="btn btn-ghost btn-sm hidden md:inline-flex">Passports</a>
-            <a href="/dashboard" className="btn btn-ghost btn-sm hidden sm:inline-flex">Dashboard</a>
-            {viewer && (
-              <a href={`/members/${encodeURIComponent(viewer.username)}`} className="btn btn-ghost btn-sm">Profile</a>
-            )}
-          </nav>
+          <div className="flex items-center gap-3 flex-1 justify-end">
+            {/* Search in header */}
+            <div className="relative hidden sm:flex items-center">
+              <svg className="absolute left-3 text-gray-400" width={13} height={13} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <circle cx={11} cy={11} r={8}/><path d="m21 21-4.35-4.35"/>
+              </svg>
+              <input
+                value={search} onChange={e => handleSearch(e.target.value)}
+                placeholder="Search posts, tags…"
+                className="pl-8 pr-3 py-1.5 rounded-lg text-xs font-medium focus:outline-none"
+                style={{ border: `2px solid ${BORDER}`, background: '#fff', width: 200 }} />
+            </div>
+            <nav className="flex items-center gap-2">
+              <a href="/members" className="btn btn-ghost btn-sm hidden sm:inline-flex">Directory</a>
+              <a href="/passport" className="btn btn-ghost btn-sm hidden md:inline-flex">Passports</a>
+              <a href="/dashboard" className="btn btn-ghost btn-sm hidden sm:inline-flex">Dashboard</a>
+              {viewer && (
+                <a href={`/members/${encodeURIComponent(viewer.username)}`} className="btn btn-ghost btn-sm">Profile</a>
+              )}
+            </nav>
+          </div>
         </div>
       </header>
 
       {/* ── Main content ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-
-      {/* Page header */}
-      <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="font-black text-2xl uppercase" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            Network Feed
-          </h1>
-          <p className="text-xs font-bold text-gray-500 mt-1">Updates from your connections and the BPU community</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <input
-            value={search} onChange={e => handleSearch(e.target.value)}
-            placeholder="Search posts, tags…"
-            className="px-3 py-2 rounded-xl text-xs font-medium focus:outline-none"
-            style={{ border: `3px solid ${BORDER}`, background: '#fff', width: 200 }} />
-          <button
-            onClick={() => setShowComposer(true)}
-            className="px-5 py-2.5 rounded-xl text-xs font-black uppercase text-white flex items-center gap-2"
-            style={{ background: OCHRE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            + Post Update
-          </button>
-        </div>
-      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
