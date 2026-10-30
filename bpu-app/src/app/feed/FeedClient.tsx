@@ -121,9 +121,32 @@ function PostCard({
   const [submitting, setSubmitting] = useState(false);
 
   const reactions = [
-    { key: 'celebrate' as const, emoji: '👏', label: 'Celebrate' },
-    { key: 'insightful' as const, emoji: '💡', label: 'Insightful' },
-    { key: 'support' as const, emoji: '🙌', label: 'Support' },
+    {
+      key: 'celebrate' as const, label: 'Celebrate',
+      icon: (active: boolean) => (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z"/>
+          <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+        </svg>
+      ),
+    },
+    {
+      key: 'insightful' as const, label: 'Insightful',
+      icon: (active: boolean) => (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="9" y1="18" x2="15" y2="18"/><line x1="10" y1="22" x2="14" y2="22"/>
+          <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"/>
+        </svg>
+      ),
+    },
+    {
+      key: 'support' as const, label: 'Support',
+      icon: (active: boolean) => (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={active ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -191,21 +214,22 @@ function PostCard({
                 color: post.user_reaction === r.key ? '#fff' : SLATE,
                 fontFamily: 'Plus Jakarta Sans, sans-serif',
               }}>
-              {r.emoji} <span>{post.reactions[r.key]}</span>
+              {r.icon(post.user_reaction === r.key)} <span>{post.reactions[r.key]}</span>
             </button>
           ))}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowComments(s => !s)}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase flex items-center gap-1"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase flex items-center gap-1.5"
             style={{ border: `2px solid ${BORDER}`, background: showComments ? PAPER : '#fff', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-            💬 {post.comments.length}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            {post.comments.length}
           </button>
           <button onClick={() => onBookmark(post.id)}
             className="p-1.5 rounded-lg"
             style={{ border: `2px solid ${BORDER}`, background: post.is_bookmarked ? OCHRE : '#fff', color: post.is_bookmarked ? '#fff' : SLATE }}
             title="Bookmark">
-            {post.is_bookmarked ? '🔖' : '📑'}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={post.is_bookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
           </button>
         </div>
       </div>
@@ -425,7 +449,28 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
   const TRENDING = ['#ScotlandTech2026', '#ExperiencedTalent', '#BPUInternSpotlight', '#CloudArchitecture', '#DEIStrategy'];
 
   return (
-    <div className="min-h-full" style={{ background: PAPER, fontFamily: '"DM Sans", sans-serif', color: SLATE }}>
+    <div className="min-h-screen" style={{ background: PAPER, fontFamily: '"DM Sans", sans-serif', color: SLATE }}>
+
+      {/* ── Topbar ── */}
+      <header className="topbar" style={{ borderBottom: `2px solid ${BORDER}` }}>
+        <div className="topbar-inner">
+          <a href="/" className="topbar-brand">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals UK" />
+          </a>
+          <nav className="flex items-center gap-3">
+            <a href="/members" className="btn btn-ghost btn-sm">Directory</a>
+            <a href="/passport" className="btn btn-ghost btn-sm">Passports</a>
+            <a href="/dashboard" className="btn btn-ghost btn-sm">Dashboard</a>
+            {viewer && (
+              <a href={`/members/${encodeURIComponent(viewer.username)}`} className="btn btn-ghost btn-sm">My Profile</a>
+            )}
+          </nav>
+        </div>
+      </header>
+
+      {/* ── Main content ── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
       {/* Page header */}
       <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -741,6 +786,8 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
       )}
 
       {toast && <Toast msg={toast} onClose={() => setToast(null)} />}
+
+      </div>{/* end max-w container */}
     </div>
   );
 }
