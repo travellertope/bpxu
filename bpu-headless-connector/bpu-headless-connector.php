@@ -4857,7 +4857,8 @@ Rules:
 
         $data = array(
             'id'                      => $user_id,
-            'username'                => $user->user_login,
+            'username'                => $user->user_nicename, // URL slug — always safe; profile lookup handles login/slug/id
+            'user_login'              => $user->user_login,
             'display_name'            => $display_name,
             'photo_url'               => $photo_url,
             // Passport
@@ -4926,8 +4927,10 @@ Rules:
      */
     public function get_public_member_profile( WP_REST_Request $request ) {
         $username = $request->get_param( 'username' );
-        // Try user_login first, then user_nicename (URL slug) as fallback.
-        $user = get_user_by( 'login', $username ) ?: get_user_by( 'slug', $username );
+        // Try login → URL slug → numeric ID (handles all WP username formats).
+        $user = get_user_by( 'login', $username )
+             ?: get_user_by( 'slug',  $username )
+             ?: ( ctype_digit( $username ) ? get_user_by( 'id', intval( $username ) ) : false );
 
         if ( ! $user ) {
             return new WP_Error( 'bpu_member_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );

@@ -615,9 +615,6 @@ export default function PassportHubClient() {
                     to { transform: translateY(-50%); }
                 }
                 .hero-scroll-col1:hover, .hero-scroll-col2:hover { animation-play-state: paused; }
-                @media (max-width: 900px) {
-                    .hero-scroll-col1, .hero-scroll-col2 { display: none !important; }
-                }
                 @media (max-width: 768px) {
                     .passport-nav-desktop { display: none !important; }
                     .passport-nav-burger { display: flex !important; }
