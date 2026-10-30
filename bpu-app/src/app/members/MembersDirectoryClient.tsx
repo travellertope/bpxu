@@ -125,45 +125,33 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
 
   return (
     <div style={{ minHeight: '100vh', background: '#ffffff', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-      {/* Page header */}
+      {/* Slim header bar — title left, filters right */}
       <div style={{
         background: '#111317',
-        color: '#F3ECE0',
         borderBottom: '4px solid #1E2229',
-        padding: '60px 24px 48px',
-      }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-          <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, letterSpacing: '0.2em', color: '#C5491F', fontWeight: 700, marginBottom: 12, textTransform: 'uppercase' }}>
-            BPU · VERIFIED NETWORK
-          </p>
-          <h1 style={{ fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1, margin: 0 }}>
-            The Network
-          </h1>
-          <p style={{ marginTop: 12, fontSize: 16, fontWeight: 600, color: '#9CA3AF' }}>
-            Highlighting the talent driving the UK forward
-            {totalCount ? ` · ${totalCount.toLocaleString()} members` : ''}
-          </p>
-        </div>
-      </div>
-
-      {/* Controls bar */}
-      <div style={{
-        background: '#fff',
-        borderBottom: '3px solid #1E2229',
-        padding: '14px 24px',
+        padding: '0 24px',
         position: 'sticky',
         top: 0,
         zIndex: 40,
         boxShadow: '0 4px 0 #1E2229',
       }}>
-        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+        <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', minHeight: 56 }}>
+
+          {/* Title */}
+          <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 900, letterSpacing: '0.12em', color: '#fff', textTransform: 'uppercase', marginRight: 8 }}>
+            The Network
+            {totalCount ? <span style={{ color: '#6B7280', fontWeight: 600, marginLeft: 10, fontSize: 11 }}>{totalCount.toLocaleString()}</span> : null}
+          </span>
+
+          {/* Spacer */}
+          <div style={{ flex: 1 }} />
 
           {/* Filter icon + active count */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginRight: 4 }}>
-            <svg width={15} height={15} viewBox="0 0 24 24" fill="none" stroke="#1E2229" strokeWidth={2}>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth={2}>
               <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>
             </svg>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: '#1E2229', textTransform: 'uppercase' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', color: '#9CA3AF', textTransform: 'uppercase' }}>
               Filter
               {(sector || city) && (
                 <span style={{
@@ -240,9 +228,9 @@ export default function MembersDirectoryClient({ viewer, isAuthenticated }: Prop
             <button
               onClick={() => { setSector(''); setCity(''); }}
               style={{
-                border: '2px solid #D1D5DB', borderRadius: 6, padding: '7px 12px',
+                border: '2px solid #374151', borderRadius: 6, padding: '7px 12px',
                 fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                background: 'transparent', color: '#6B7280',
+                background: 'transparent', color: '#9CA3AF',
                 display: 'flex', alignItems: 'center', gap: 4,
                 fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.04em',
               }}
