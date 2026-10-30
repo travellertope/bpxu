@@ -458,12 +458,12 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals UK" />
           </a>
-          <nav className="flex items-center gap-3">
-            <a href="/members" className="btn btn-ghost btn-sm">Directory</a>
-            <a href="/passport" className="btn btn-ghost btn-sm">Passports</a>
-            <a href="/dashboard" className="btn btn-ghost btn-sm">Dashboard</a>
+          <nav className="flex items-center gap-2">
+            <a href="/members" className="btn btn-ghost btn-sm hidden sm:inline-flex">Directory</a>
+            <a href="/passport" className="btn btn-ghost btn-sm hidden md:inline-flex">Passports</a>
+            <a href="/dashboard" className="btn btn-ghost btn-sm hidden sm:inline-flex">Dashboard</a>
             {viewer && (
-              <a href={`/members/${encodeURIComponent(viewer.username)}`} className="btn btn-ghost btn-sm">My Profile</a>
+              <a href={`/members/${encodeURIComponent(viewer.username)}`} className="btn btn-ghost btn-sm">Profile</a>
             )}
           </nav>
         </div>
@@ -498,7 +498,7 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 
         {/* LEFT sidebar */}
-        <aside className="lg:col-span-3 space-y-5">
+        <aside className="order-2 lg:order-1 lg:col-span-3 space-y-5">
 
           {/* Viewer card */}
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
@@ -561,7 +561,7 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
         </aside>
 
         {/* CENTER feed */}
-        <div className="lg:col-span-6 space-y-5">
+        <div className="order-1 lg:order-2 lg:col-span-6 space-y-5">
 
           {/* Quick composer */}
           <div className="rounded-2xl p-5 space-y-4" style={{ background: '#fff', border: `4px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
@@ -670,7 +670,7 @@ export default function FeedClient({ viewer, initialPosts }: Props) {
         </div>
 
         {/* RIGHT sidebar */}
-        <aside className="lg:col-span-3 space-y-5">
+        <aside className="order-3 lg:col-span-3 space-y-5">
 
           {/* BPU Members Directory link */}
           <div className="rounded-2xl p-5 space-y-3" style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `5px 5px 0 ${BORDER}` }}>
