@@ -342,48 +342,145 @@ export default function PassportHubClient() {
             {/* ── HERO ── */}
             <section style={{
                 background: '#0d0d0d',
-                padding: '56px 24px 48px',
+                padding: '64px 24px 56px',
                 borderBottom: '1.5px solid #2a2a2a',
             }}>
-                <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 32, flexWrap: 'wrap' }}>
-                    <div style={{ maxWidth: 620 }}>
-                        <div style={{
-                            display: 'inline-flex', alignItems: 'center', gap: 7,
-                            border: '1.5px solid #d9381e', borderRadius: 4,
-                            padding: '4px 12px', marginBottom: 24,
-                        }}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="#d9381e"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-                            <span style={{ fontSize: 11, fontWeight: 800, color: '#d9381e', letterSpacing: '0.14em', textTransform: 'uppercase' }}>
-                                Verified Community Pass
-                            </span>
-                        </div>
+                <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 48, flexWrap: 'wrap' }}>
+                    <div style={{ maxWidth: 580, flex: '1 1 380px' }}>
                         <h1 style={{
-                            fontSize: 'clamp(42px, 7vw, 72px)',
+                            fontSize: 'clamp(48px, 8vw, 84px)',
                             fontWeight: 900, color: '#ffffff',
-                            lineHeight: 0.95, letterSpacing: '-0.03em',
-                            margin: '0 0 20px', textTransform: 'uppercase',
+                            lineHeight: 0.92, letterSpacing: '-0.03em',
+                            margin: '0 0 28px', textTransform: 'uppercase',
                         }}>
-                            BPU Digital Passport
+                            Decade of<br />
+                            <span style={{ color: '#d9381e' }}>Inclusion.</span><br />
+                            Growth.
                         </h1>
-                        <p style={{ fontSize: 15, color: '#9a9a9a', lineHeight: 1.65, maxWidth: 500, fontWeight: 400, margin: 0 }}>
-                            A concise, high-impact, shareable snapshot of professional credentials designed for Black professionals across the UK.
-                            Zero fluff. Pure, verified career proof.
+                        <p style={{
+                            fontSize: 15, color: '#b0b0b0', lineHeight: 1.7,
+                            maxWidth: 460, fontWeight: 400, margin: '0 0 32px',
+                            paddingLeft: 16, borderLeft: '3px solid #d9381e',
+                        }}>
+                            For 10 years, Black Professionals UK has empowered 7,000+ professionals across Scotland and the UK with skills, placements, and mentorship to thrive in their careers.
                         </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                            <a href="/profile" style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 8,
+                                background: '#d9381e', color: '#fff',
+                                border: '2px solid #d9381e', borderRadius: 8,
+                                padding: '12px 22px', fontWeight: 800, fontSize: 13,
+                                letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none', whiteSpace: 'nowrap',
+                            }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.color = '#d9381e'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#d9381e'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+                            >
+                                Generate Yours Now
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
+                            </a>
+                            <a href="/members" style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6,
+                                border: '1.5px solid #3a3a3a', borderRadius: 8,
+                                padding: '11px 18px', fontWeight: 700, fontSize: 13,
+                                letterSpacing: '0.04em', textTransform: 'uppercase',
+                                color: '#aaa', textDecoration: 'none', whiteSpace: 'nowrap',
+                            }}
+                                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.borderColor = '#fff'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
+                                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.borderColor = '#3a3a3a'; (e.currentTarget as HTMLElement).style.color = '#aaa'; }}
+                            >
+                                Browse Directory
+                            </a>
+                        </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-start', paddingTop: 8 }}>
-                        <a href="/profile" style={{
-                            display: 'flex', alignItems: 'center', gap: 8,
-                            background: '#fff', color: '#0d0d0d',
-                            border: '2px solid #fff', borderRadius: 8,
-                            padding: '12px 20px', fontWeight: 800, fontSize: 13,
-                            letterSpacing: '0.06em', textTransform: 'uppercase', textDecoration: 'none', whiteSpace: 'nowrap',
-                        }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = '#d9381e'; (e.currentTarget as HTMLElement).style.borderColor = '#d9381e'; (e.currentTarget as HTMLElement).style.color = '#fff'; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = '#fff'; (e.currentTarget as HTMLElement).style.borderColor = '#fff'; (e.currentTarget as HTMLElement).style.color = '#0d0d0d'; }}
-                        >
-                            Generate Yours Now
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>
-                        </a>
+
+                    {/* Vertical scrolling card gallery */}
+                    <div style={{ display: 'flex', gap: 10, flex: '0 0 auto', height: 420, overflow: 'hidden', position: 'relative' }}>
+                        {/* top + bottom fade masks */}
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to bottom, #0d0d0d, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to top, #0d0d0d, transparent)', zIndex: 2, pointerEvents: 'none' }} />
+
+                        {/* Column 1 — dark tall member cards, scroll up */}
+                        <div className="hero-scroll-col1" style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'heroScrollUp 22s linear infinite' }}>
+                            {[
+                                { name: 'Carol Anderson', role: '10-Yr Leader', anniversary: true },
+                                { name: 'James Okafor', role: 'Alumni Mentor' },
+                                { name: 'Priya Mensah', role: '10-Yr Member' },
+                                { name: 'David Eze', role: 'Placement Lead' },
+                                { name: 'Amara Diallo', role: 'Pro Member' },
+                                /* duplicate for seamless loop */
+                                { name: 'Carol Anderson', role: '10-Yr Leader', anniversary: true },
+                                { name: 'James Okafor', role: 'Alumni Mentor' },
+                                { name: 'Priya Mensah', role: '10-Yr Member' },
+                                { name: 'David Eze', role: 'Placement Lead' },
+                                { name: 'Amara Diallo', role: 'Pro Member' },
+                            ].map((c, i) => (
+                                <div key={i} style={{
+                                    width: 160, flexShrink: 0,
+                                    background: '#1a1a1a', borderRadius: 12,
+                                    border: '1.5px solid #2a2a2a',
+                                    padding: '14px 14px 18px',
+                                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+                                    height: 200,
+                                    position: 'relative',
+                                }}>
+                                    {/* Anniversary badge overlay on first card */}
+                                    {c.anniversary && (
+                                        <div style={{
+                                            position: 'absolute', top: 10, left: 10,
+                                            background: '#1a1a1a', border: '1.5px solid #333',
+                                            borderRadius: 8, padding: '8px 10px',
+                                        }}>
+                                            <div style={{ fontSize: 14, fontWeight: 900, color: '#d9381e', lineHeight: 1, letterSpacing: '-0.01em' }}>10th</div>
+                                            <div style={{ fontSize: 7, fontWeight: 800, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 1 }}>Anniversary</div>
+                                            <div style={{ fontSize: 7, color: '#555', marginTop: 5, letterSpacing: '0.06em' }}>2016 — 2026</div>
+                                        </div>
+                                    )}
+                                    <div />
+                                    <div>
+                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{c.name}</div>
+                                        <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>({c.role})</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Column 2 — mix of light label cards + dark member cards, scroll up slower */}
+                        <div className="hero-scroll-col2" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 40, animation: 'heroScrollUp 30s linear infinite' }}>
+                            {[
+                                { label: '10-Year Summit', light: true },
+                                { name: 'Lawrence Dada', role: '10-Yr Alumni' },
+                                { label: 'Alumni Network', light: true },
+                                { name: 'Yemi Adeyemi', role: 'Mentor' },
+                                { label: 'Scotland Hub', light: true },
+                                { name: 'Tunde Williams', role: '10-Yr Leader' },
+                                /* duplicate */
+                                { label: '10-Year Summit', light: true },
+                                { name: 'Lawrence Dada', role: '10-Yr Alumni' },
+                                { label: 'Alumni Network', light: true },
+                                { name: 'Yemi Adeyemi', role: 'Mentor' },
+                                { label: 'Scotland Hub', light: true },
+                                { name: 'Tunde Williams', role: '10-Yr Leader' },
+                            ].map((c, i) => (
+                                <div key={i} style={{
+                                    width: 150, flexShrink: 0,
+                                    background: (c as {light?: boolean}).light ? '#f0ece4' : '#1a1a1a',
+                                    border: `1.5px solid ${ (c as {light?: boolean}).light ? '#ddd' : '#2a2a2a'}`,
+                                    borderRadius: 12,
+                                    padding: '16px 14px',
+                                    display: 'flex', flexDirection: 'column', justifyContent: (c as {light?: boolean}).light ? 'center' : 'flex-end',
+                                    height: (c as {light?: boolean}).light ? 120 : 160,
+                                }}>
+                                    {(c as {label?: string}).label ? (
+                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', lineHeight: 1.2 }}>{(c as {label: string}).label}</div>
+                                    ) : (
+                                        <div>
+                                            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{(c as {name: string}).name}</div>
+                                            <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>({(c as {role: string}).role})</div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
             </section>
@@ -513,6 +610,11 @@ export default function PassportHubClient() {
             </div>
 
             <style>{`
+                @keyframes heroScrollUp {
+                    from { transform: translateY(0); }
+                    to { transform: translateY(-50%); }
+                }
+                .hero-scroll-col1:hover, .hero-scroll-col2:hover { animation-play-state: paused; }
                 @media (max-width: 768px) {
                     .passport-nav-desktop { display: none !important; }
                     .passport-nav-burger { display: flex !important; }
