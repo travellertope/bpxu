@@ -121,8 +121,8 @@ const STATIC_MEMBERS = [
 
 export default function HomePageClient() {
   const [posts, setPosts] = useState<WpPost[]>([]);
-  /* name → resolved WP username (populated async after mount) */
-  const [resolvedUsernames, setResolvedUsernames] = useState<Record<string, string>>({});
+  /* name → resolved WP numeric member ID (populated async after mount) */
+  const [resolvedIds, setResolvedIds] = useState<Record<string, number>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -138,25 +138,25 @@ export default function HomePageClient() {
       .catch(() => {});
   }, []);
 
-  /* Resolve each hardcoded member to a WP username via name search */
+  /* Resolve each hardcoded member to a WP numeric ID via name search */
   useEffect(() => {
-    const results: Record<string, string> = {};
+    const results: Record<string, number> = {};
     Promise.allSettled(
       STATIC_MEMBERS.map(({ name }) =>
         fetch(`${WP_URL}/wp-json/bpu/v1/members?search=${encodeURIComponent(name)}&per_page=5`)
           .then(r => r.ok ? r.json() : [])
-          .then((candidates: Array<{ username: string; display_name: string }>) => {
+          .then((candidates: Array<{ id: number; username: string; display_name: string }>) => {
             /* Pick candidate with highest name token overlap, require ≥2 matching tokens */
             const best = candidates
-              .map(c => ({ username: c.username, score: nameMatchScore(c.display_name, name) }))
+              .map(c => ({ id: c.id, score: nameMatchScore(c.display_name, name) }))
               .filter(c => c.score >= 2)
               .sort((a, b) => b.score - a.score)[0];
-            if (best) results[name] = best.username;
+            if (best) results[name] = best.id;
           })
           .catch(() => {}),
       ),
     ).then(() => {
-      if (Object.keys(results).length > 0) setResolvedUsernames(results);
+      if (Object.keys(results).length > 0) setResolvedIds(results);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -267,11 +267,11 @@ export default function HomePageClient() {
       </nav>
 
       {/* ── Hero ── */}
-      <header className="pt-32 pb-0 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <header className="pt-24 pb-0 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
           {/* Text */}
-          <div className="space-y-8 z-10 pb-16">
+          <div className="space-y-5 z-10 pb-8">
             <div className="inline-flex items-center gap-2 border-brutal rounded-full px-4 py-2 bg-white shadow-brutal-sm">
               <div className="w-3 h-3 bg-hp-accent rounded-full animate-pulse" />
               <span className="font-bold text-sm uppercase tracking-wider flex items-center gap-1">
@@ -293,18 +293,18 @@ export default function HomePageClient() {
               GROWTH.
             </h1>
 
-            <p className="text-xl sm:text-2xl font-medium max-w-lg leading-snug border-l-4 border-hp-accent pl-4">
+            <p className="text-base sm:text-lg font-medium max-w-lg leading-snug border-l-4 border-hp-accent pl-4">
               For 10 years, Black Professionals UK has empowered 7,000+ professionals
               across Scotland and the UK with skills, placements, and mentorship to
               thrive in their careers.
             </p>
 
-            <div className="flex flex-wrap gap-4 pt-4">
+            <div className="flex flex-wrap gap-4">
               <a
                 href="/register"
                 className="bg-hp-accent text-white px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg"
               >
-                Join the Hub
+                Become a Member
               </a>
               <a
                 href="/partnerships"
@@ -413,9 +413,9 @@ export default function HomePageClient() {
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
           {STATIC_MEMBERS.map(({ name, role, img }) => {
-            const username = resolvedUsernames[name];
-            const href = username
-              ? `/members/${encodeURIComponent(username)}`
+            const memberId = resolvedIds[name];
+            const href = memberId
+              ? `/members/${memberId}`
               : `/members?search=${encodeURIComponent(name)}`;
             return (
             <a

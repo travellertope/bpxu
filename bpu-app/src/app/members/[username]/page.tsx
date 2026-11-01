@@ -28,7 +28,12 @@ export default async function MemberProfilePage({
     getBPUSession(),
   ]);
 
-  const isOwner = session.authenticated && session.user?.username === username;
+  /* Support both slug and numeric-ID URLs */
+  const isOwner = session.authenticated && !!session.user && (
+    session.user.username === username ||
+    (member !== null && String(member.id) === username) ||
+    session.user.username === member?.username
+  );
 
   return (
     <MemberProfileClient
