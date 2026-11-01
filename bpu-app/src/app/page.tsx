@@ -288,14 +288,15 @@ export default function HomePageClient() {
             </div>
 
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-[0.9] tracking-tighter">
-              INCLUDE.<br />
-              <span className="block text-4xl sm:text-5xl lg:text-6xl leading-[0.9]">COLLABORATE.</span>
-              <span className="text-hp-accent">GROW.</span>
+              DECADE OF<br />
+              <span className="text-hp-accent">INCLUSION.</span><br />
+              GROWTH.
             </h1>
 
-            <p className="text-xl sm:text-2xl font-medium max-w-lg leading-snug border-l-4 border-hp-dark pl-4">
-              A free platform where UK-based Black professionals are equipped with skills and
-              information to be the best they can within their chosen careers.
+            <p className="text-xl sm:text-2xl font-medium max-w-lg leading-snug border-l-4 border-hp-accent pl-4">
+              For 10 years, Black Professionals UK has empowered 7,000+ professionals
+              across Scotland and the UK with skills, placements, and mentorship to
+              thrive in their careers.
             </p>
 
             <div className="flex flex-wrap gap-4 pt-4">
