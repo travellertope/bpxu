@@ -267,11 +267,11 @@ export default function HomePageClient() {
       </nav>
 
       {/* ── Hero ── */}
-      <header className="pt-32 pb-0 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+      <header className="pt-24 pb-0 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
           {/* Text */}
-          <div className="space-y-8 z-10 pb-16">
+          <div className="space-y-5 z-10 pb-8">
             <div className="inline-flex items-center gap-2 border-brutal rounded-full px-4 py-2 bg-white shadow-brutal-sm">
               <div className="w-3 h-3 bg-hp-accent rounded-full animate-pulse" />
               <span className="font-bold text-sm uppercase tracking-wider flex items-center gap-1">
@@ -293,13 +293,13 @@ export default function HomePageClient() {
               GROWTH.
             </h1>
 
-            <p className="text-xl sm:text-2xl font-medium max-w-lg leading-snug border-l-4 border-hp-accent pl-4">
+            <p className="text-base sm:text-lg font-medium max-w-lg leading-snug border-l-4 border-hp-accent pl-4">
               For 10 years, Black Professionals UK has empowered 7,000+ professionals
               across Scotland and the UK with skills, placements, and mentorship to
               thrive in their careers.
             </p>
 
-            <div className="flex flex-wrap gap-4 pt-4">
+            <div className="flex flex-wrap gap-4">
               <a
                 href="/register"
                 className="bg-hp-accent text-white px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg"
