@@ -15,10 +15,6 @@ async function fetchJobs(): Promise<{ jobs: Job[]; total: number }> {
     }
 }
 
-// The listing changes constantly, and a cached copy of this document also
-// pins the JS bundle visitors run. Never let this page be prerendered or
-// reused — note this governs Next only; an edge/CDN cache in front of the app
-// has to be excluded there as well.
 export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
@@ -32,15 +28,14 @@ export default async function JobsPage() {
     const [session, { jobs, total }] = await Promise.all([getBPUSession(), fetchJobs()]);
 
     return (
-        <div className="min-h-screen flex flex-col">
-            {/* Topbar */}
+        <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
             <header className="topbar">
                 <div className="topbar-inner">
-                    <a href="/" className="topbar-brand"><img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" /></a>
+                    <a href="/" className="topbar-brand">
+                        <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" />
+                    </a>
                     <div className="flex items-center gap-3">
-                        <a href="/employer" className="btn btn-ghost btn-sm">
-                            Post a job
-                        </a>
+                        <a href="/employer" className="btn btn-ghost btn-sm">Post a job</a>
                         {session.authenticated
                             ? <a href="/" className="btn btn-ghost btn-sm">← Dashboard</a>
                             : <a href="/login" className="btn btn-amber btn-sm">Sign in</a>
@@ -50,43 +45,38 @@ export default async function JobsPage() {
             </header>
 
             <main className="flex-1">
-                {/* Hero */}
+                {/* Dark hero */}
                 <section
-                    className="py-20 text-center"
-                    style={{
-                        position: 'relative',
-                        overflow: 'hidden',
-                        borderBottom: '1px solid var(--border)',
-                    }}
+                    className="py-16 px-4 text-center"
+                    style={{ background: '#111317', borderBottom: '3px solid #111317' }}
                 >
-                    {/* Background image */}
-                    <div style={{
-                        position: 'absolute', inset: 0,
-                        backgroundImage: 'url(https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1600&q=80)',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center 30%',
-                    }} />
-                    {/* Dark overlay */}
-                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(10,10,20,0.62)' }} />
-
-                    <div className="wrap" style={{ position: 'relative', zIndex: 1 }}>
-                        <h1 className="text-4xl font-extrabold tracking-tight mb-4" style={{ color: '#fff' }}>
-                            Find your next opportunity
+                    <div className="max-w-5xl mx-auto">
+                        <div
+                            className="inline-block text-white text-xs font-bold uppercase px-3 py-1 rounded mb-5 tracking-widest"
+                            style={{ background: 'var(--brand)', border: '1px solid rgba(255,255,255,0.25)' }}
+                        >
+                            Verified Inclusive Employers
+                        </div>
+                        <h1
+                            className="font-black uppercase tracking-tight mb-4 text-white"
+                            style={{ fontSize: 'clamp(2.25rem, 5vw, 3.5rem)', lineHeight: 1.05 }}
+                        >
+                            Find Your Next<br />Opportunity
                         </h1>
-                        <p className="text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.82)' }}>
-                            Hundreds of jobs from organisations that prioritise diversity, equity, and inclusion, ensuring you have access to opportunities that value your unique skills and experiences. From technology and finance to arts and beyond, you can find opportunities in various industries.
+                        <p className="text-lg max-w-3xl mx-auto font-medium leading-relaxed" style={{ color: 'rgba(255,255,255,0.7)' }}>
+                            Hundreds of jobs from organisations that prioritise diversity, equity, and inclusion —
+                            ensuring you have access to opportunities that value your unique skills and experiences.
                         </p>
                     </div>
                 </section>
 
-                {/* Job board */}
-                <section className="wrap py-10">
-                    <JobBoard initialJobs={jobs} initialTotal={total} />
-                </section>
+                {/* Board — owns its floating filter and grid */}
+                <JobBoard initialJobs={jobs} initialTotal={total} />
             </main>
 
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border">
-                © {new Date().getFullYear()} Black Professionals United · <a href="/" className="hover:underline">Back to Portal</a>
+            <footer className="py-6 text-center text-xs border-t" style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}>
+                © {new Date().getFullYear()} Black Professionals United ·{' '}
+                <a href="/" className="hover:underline">Back to Portal</a>
             </footer>
         </div>
     );
