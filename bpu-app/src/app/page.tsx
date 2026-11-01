@@ -408,9 +408,10 @@ export default function HomePageClient() {
           </div>
         </div>
 
+        <div className="max-w-7xl mx-auto overflow-hidden">
         <div
           id="members-carousel"
-          className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
+          className="flex gap-6 overflow-x-auto pl-4 sm:pl-6 lg:pl-8 pr-4 pb-4 members-carousel"
         >
           {STATIC_MEMBERS.map(({ name, role, img }) => {
             const memberId = resolvedIds[name];
@@ -438,6 +439,7 @@ export default function HomePageClient() {
           })}
           {/* end padding so last card doesn't sit against the edge */}
           <div className="flex-shrink-0 w-4" />
+        </div>
         </div>
       </section>
 
