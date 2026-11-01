@@ -124,7 +124,7 @@ function PassportCard({ member }: { member: PassportMember }) {
 
     return (
         <a
-            href={`/members/${encodeURIComponent(member.username)}`}
+            href={`/members/${member.id}`}
             style={{
                 display: 'block',
                 border: '1.5px solid #1a1a1a',

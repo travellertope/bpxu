@@ -295,13 +295,22 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
         <p className="text-sm font-medium text-gray-600 max-w-sm">
           The profile for <strong>@{username}</strong> does not exist or has not been made public yet.
         </p>
-        <Link
-          href="/"
-          className="px-6 py-3 font-black text-xs uppercase rounded text-white"
-          style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}` }}
-        >
-          ← Back to BPU
-        </Link>
+        <div className="flex flex-wrap gap-3 justify-center">
+          <Link
+            href="/members"
+            className="px-6 py-3 font-black text-xs uppercase rounded text-white"
+            style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}` }}
+          >
+            ← Browse Directory
+          </Link>
+          <Link
+            href={`/members?search=${encodeURIComponent(username)}`}
+            className="px-6 py-3 font-black text-xs uppercase rounded"
+            style={{ background: PAPER, border: `3px solid ${BORDER}`, boxShadow: `4px 4px 0 ${BORDER}` }}
+          >
+            Search for this member
+          </Link>
+        </div>
       </div>
     );
   }

@@ -121,8 +121,8 @@ const STATIC_MEMBERS = [
 
 export default function HomePageClient() {
   const [posts, setPosts] = useState<WpPost[]>([]);
-  /* name → resolved WP username (populated async after mount) */
-  const [resolvedUsernames, setResolvedUsernames] = useState<Record<string, string>>({});
+  /* name → resolved WP numeric member ID (populated async after mount) */
+  const [resolvedIds, setResolvedIds] = useState<Record<string, number>>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const [navUp, setNavUp] = useState(false);
   const [counting, setCounting] = useState(false);
@@ -138,25 +138,25 @@ export default function HomePageClient() {
       .catch(() => {});
   }, []);
 
-  /* Resolve each hardcoded member to a WP username via name search */
+  /* Resolve each hardcoded member to a WP numeric ID via name search */
   useEffect(() => {
-    const results: Record<string, string> = {};
+    const results: Record<string, number> = {};
     Promise.allSettled(
       STATIC_MEMBERS.map(({ name }) =>
         fetch(`${WP_URL}/wp-json/bpu/v1/members?search=${encodeURIComponent(name)}&per_page=5`)
           .then(r => r.ok ? r.json() : [])
-          .then((candidates: Array<{ username: string; display_name: string }>) => {
+          .then((candidates: Array<{ id: number; username: string; display_name: string }>) => {
             /* Pick candidate with highest name token overlap, require ≥2 matching tokens */
             const best = candidates
-              .map(c => ({ username: c.username, score: nameMatchScore(c.display_name, name) }))
+              .map(c => ({ id: c.id, score: nameMatchScore(c.display_name, name) }))
               .filter(c => c.score >= 2)
               .sort((a, b) => b.score - a.score)[0];
-            if (best) results[name] = best.username;
+            if (best) results[name] = best.id;
           })
           .catch(() => {}),
       ),
     ).then(() => {
-      if (Object.keys(results).length > 0) setResolvedUsernames(results);
+      if (Object.keys(results).length > 0) setResolvedIds(results);
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -413,9 +413,9 @@ export default function HomePageClient() {
           className="flex gap-6 overflow-x-auto px-4 sm:px-6 lg:px-8 pb-4 members-carousel max-w-7xl mx-auto"
         >
           {STATIC_MEMBERS.map(({ name, role, img }) => {
-            const username = resolvedUsernames[name];
-            const href = username
-              ? `/members/${encodeURIComponent(username)}`
+            const memberId = resolvedIds[name];
+            const href = memberId
+              ? `/members/${memberId}`
               : `/members?search=${encodeURIComponent(name)}`;
             return (
             <a
