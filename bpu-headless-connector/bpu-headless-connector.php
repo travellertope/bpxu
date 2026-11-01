@@ -39,6 +39,9 @@ class BPU_Headless_Connector {
         add_action( 'init', array( $this, 'register_paired_referral_post_type' ) );
         add_action( 'init', array( $this, 'register_bpu_coupon_post_type' ) );
         add_action( 'init', array( $this, 'register_network_post_post_type' ) );
+        add_action( 'init', array( $this, 'register_bpu_support_ticket_post_type' ) );
+        add_action( 'init', array( $this, 'register_bpu_service_request_post_type' ) );
+        add_action( 'init', array( $this, 'register_bpu_ticket_statuses' ) );
 
         // Register bpu_pro role
         add_action( 'init', array( $this, 'register_pro_role' ) );
@@ -217,6 +220,82 @@ class BPU_Headless_Connector {
         );
 
         register_post_type( 'mentorship_booking', $args );
+    }
+
+    // ── Support Tickets CPT ────────────────────────────────────────────────────
+
+    public function register_bpu_support_ticket_post_type() {
+        register_post_type( 'bpu_support_ticket', array(
+            'labels' => array(
+                'name'               => _x( 'Support Tickets', 'post type general name', 'bpu' ),
+                'singular_name'      => _x( 'Support Ticket', 'post type singular name', 'bpu' ),
+                'menu_name'          => _x( 'Support Tickets', 'admin menu', 'bpu' ),
+                'add_new_item'       => __( 'Add New Ticket', 'bpu' ),
+                'edit_item'          => __( 'Edit Ticket', 'bpu' ),
+                'all_items'          => __( 'All Tickets', 'bpu' ),
+                'not_found'          => __( 'No tickets found', 'bpu' ),
+                'not_found_in_trash' => __( 'No tickets found in Trash', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => true,
+            'show_in_menu'        => true,
+            'query_var'           => true,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'menu_position'       => 27,
+            'menu_icon'           => 'dashicons-sos',
+            'supports'            => array( 'title', 'editor', 'custom-fields', 'comments' ),
+            'rewrite'             => false,
+        ) );
+    }
+
+    public function register_bpu_ticket_statuses() {
+        foreach ( array(
+            'ticket_open'     => array( 'Open',        'Open',        'Open ticket' ),
+            'ticket_progress' => array( 'In Progress', 'In Progress', 'In progress ticket' ),
+            'ticket_resolved' => array( 'Resolved',    'Resolved',    'Resolved ticket' ),
+            'ticket_closed'   => array( 'Closed',      'Closed',      'Closed ticket' ),
+        ) as $status => $labels ) {
+            register_post_status( $status, array(
+                'label'                     => $labels[0],
+                'public'                    => false,
+                'internal'                  => true,
+                'show_in_admin_all_list'    => true,
+                'show_in_admin_status_list' => true,
+                'label_count'               => _n_noop( $labels[1] . ' <span class="count">(%s)</span>', $labels[2] . ' <span class="count">(%s)</span>' ),
+            ) );
+        }
+    }
+
+    // ── Service Requests CPT (interview prep, work placement, ambassadorship) ──
+
+    public function register_bpu_service_request_post_type() {
+        register_post_type( 'bpu_service_request', array(
+            'labels' => array(
+                'name'               => _x( 'Service Requests', 'post type general name', 'bpu' ),
+                'singular_name'      => _x( 'Service Request', 'post type singular name', 'bpu' ),
+                'menu_name'          => _x( 'Service Requests', 'admin menu', 'bpu' ),
+                'add_new_item'       => __( 'Add New Request', 'bpu' ),
+                'edit_item'          => __( 'Edit Request', 'bpu' ),
+                'all_items'          => __( 'All Requests', 'bpu' ),
+                'not_found'          => __( 'No requests found', 'bpu' ),
+                'not_found_in_trash' => __( 'No requests found in Trash', 'bpu' ),
+            ),
+            'public'              => false,
+            'publicly_queryable'  => false,
+            'show_ui'             => true,
+            'show_in_menu'        => true,
+            'query_var'           => true,
+            'capability_type'     => 'post',
+            'has_archive'         => false,
+            'hierarchical'        => false,
+            'menu_position'       => 28,
+            'menu_icon'           => 'dashicons-forms',
+            'supports'            => array( 'title', 'editor', 'custom-fields' ),
+            'rewrite'             => false,
+        ) );
     }
 
     public function register_paired_session_post_type() {
@@ -1953,6 +2032,136 @@ class BPU_Headless_Connector {
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'vote_on_feed_poll' ),
             'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // Support Tickets — member endpoints
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/support/tickets', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'member_list_tickets' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'member_create_ticket' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/member/support/tickets/(?P<id>\d+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'member_get_ticket' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/member/support/tickets/(?P<id>\d+)/reply', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'member_reply_ticket' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // Support Tickets — admin endpoints
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/admin/support/tickets', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_tickets' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/support/tickets/(?P<id>\d+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_ticket' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/support/tickets/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_ticket_status' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/support/tickets/(?P<id>\d+)/reply', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_reply_ticket' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // Service Requests — member endpoints (submit + list)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/work-placement', array(
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'member_submit_work_placement' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'member_list_service_requests' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array(
+                    'type' => array( 'default' => 'work_placement', 'sanitize_callback' => 'sanitize_text_field' ),
+                ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/member/interview-prep-submit', array(
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'member_submit_interview_prep_request' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'member_list_service_requests' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array(
+                    'type' => array( 'default' => 'interview_prep', 'sanitize_callback' => 'sanitize_text_field' ),
+                ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/member/ambassadorship', array(
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'member_submit_ambassadorship' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'member_list_service_requests' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+                'args'                => array(
+                    'type' => array( 'default' => 'ambassadorship', 'sanitize_callback' => 'sanitize_text_field' ),
+                ),
+            ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // Service Requests — admin endpoints
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/admin/service-requests', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_service_requests' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'type'     => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'status'   => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '', 'sanitize_callback' => 'sanitize_text_field' ),
+                'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 25, 'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/service-requests/(?P<id>\d+)', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_get_service_request' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/service-requests/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_service_request_status' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/service-requests/(?P<id>\d+)/note', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_add_service_request_note' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
     }
 
@@ -16329,6 +16538,763 @@ PROMPT;
         }
 
         return $questions;
+    }
+
+    // -------------------------------------------------------------------------
+    // Support Ticket Helpers
+    // -------------------------------------------------------------------------
+
+    private function format_ticket( $post, $include_messages = false ) {
+        $pid     = $post->ID;
+        $status_map = array(
+            'ticket_open'     => 'open',
+            'ticket_progress' => 'in_progress',
+            'ticket_resolved' => 'resolved',
+            'ticket_closed'   => 'closed',
+        );
+        $raw_status = get_post_meta( $pid, '_bpu_ticket_status', true ) ?: 'open';
+        $status     = $status_map[ $raw_status ] ?? $raw_status;
+
+        $ticket = array(
+            'id'            => $pid,
+            'ref'           => get_post_meta( $pid, '_bpu_ticket_ref', true ) ?: '',
+            'category'      => get_post_meta( $pid, '_bpu_ticket_category', true ) ?: '',
+            'subject'       => get_the_title( $post ),
+            'urgency'       => get_post_meta( $pid, '_bpu_ticket_urgency', true ) ?: 'normal',
+            'status'        => $status,
+            'created_at'    => get_the_date( 'c', $post ),
+            'updated_at'    => get_the_modified_date( 'c', $post ),
+            'message_count' => (int) get_comments_number( $pid ),
+        );
+
+        if ( $include_messages ) {
+            $comments = get_comments( array(
+                'post_id'    => $pid,
+                'type'       => 'bpu_ticket_reply',
+                'status'     => 'approve',
+                'order'      => 'ASC',
+                'orderby'    => 'comment_date',
+            ) );
+            $messages = array();
+            foreach ( $comments as $c ) {
+                $author_type = get_comment_meta( $c->comment_ID, '_bpu_reply_author_type', true ) ?: 'member';
+                $messages[] = array(
+                    'id'          => (int) $c->comment_ID,
+                    'author'      => $c->comment_author,
+                    'author_type' => $author_type,
+                    'content'     => $c->comment_content,
+                    'created_at'  => mysql2date( 'c', $c->comment_date_gmt, false ),
+                );
+            }
+            $ticket['messages'] = $messages;
+        }
+
+        return $ticket;
+    }
+
+    private function generate_ticket_ref() {
+        return 'TKT-' . strtoupper( substr( uniqid(), -6 ) );
+    }
+
+    // -------------------------------------------------------------------------
+    // Member Support Ticket Endpoints
+    // -------------------------------------------------------------------------
+
+    public function member_list_tickets( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id  = (int) $payload['user_id'];
+        $page     = max( 1, (int) ( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = 20;
+
+        $query = new WP_Query( array(
+            'post_type'      => 'bpu_support_ticket',
+            'post_status'    => 'publish',
+            'author'         => $user_id,
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'modified',
+            'order'          => 'DESC',
+        ) );
+
+        $tickets = array();
+        foreach ( $query->posts as $post ) {
+            $tickets[] = $this->format_ticket( $post );
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'tickets'  => $tickets,
+            'total'    => $query->found_posts,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => ceil( $query->found_posts / $per_page ),
+        ), 200 );
+    }
+
+    public function member_create_ticket( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id = (int) $payload['user_id'];
+        $user    = get_userdata( $user_id );
+        if ( ! $user ) {
+            return new WP_Error( 'user_not_found', 'User not found.', array( 'status' => 404 ) );
+        }
+
+        $category = sanitize_text_field( $request->get_param( 'category' ) ?: '' );
+        $subject  = sanitize_text_field( $request->get_param( 'subject' ) ?: '' );
+        $message  = sanitize_textarea_field( $request->get_param( 'message' ) ?: '' );
+        $urgency  = in_array( $request->get_param( 'urgency' ), array( 'normal', 'high' ), true )
+            ? $request->get_param( 'urgency' ) : 'normal';
+
+        if ( ! $category || ! $subject || ! $message ) {
+            return new WP_Error( 'missing_fields', 'Category, subject and message are required.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_support_ticket',
+            'post_title'  => $subject,
+            'post_status' => 'publish',
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to create ticket.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_ticket_ref', $this->generate_ticket_ref() );
+        update_post_meta( $post_id, '_bpu_ticket_category', $category );
+        update_post_meta( $post_id, '_bpu_ticket_urgency', $urgency );
+        update_post_meta( $post_id, '_bpu_ticket_status', 'ticket_open' );
+
+        // Save the opening message as first comment/reply
+        $comment_id = wp_insert_comment( array(
+            'comment_post_ID'  => $post_id,
+            'comment_author'   => $user->display_name,
+            'comment_author_email' => $user->user_email,
+            'comment_content'  => $message,
+            'comment_type'     => 'bpu_ticket_reply',
+            'comment_approved' => 1,
+            'user_id'          => $user_id,
+        ) );
+        if ( $comment_id ) {
+            update_comment_meta( $comment_id, '_bpu_reply_author_type', 'member' );
+        }
+
+        // Handle optional file attachment
+        if ( ! empty( $_FILES['attachment']['tmp_name'] ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $attachment_id = media_handle_upload( 'attachment', $post_id );
+            if ( ! is_wp_error( $attachment_id ) ) {
+                update_post_meta( $post_id, '_bpu_ticket_attachment_id', $attachment_id );
+            }
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'id'      => $post_id,
+            'ref'     => get_post_meta( $post_id, '_bpu_ticket_ref', true ),
+        ), 201 );
+    }
+
+    public function member_get_ticket( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id   = (int) $payload['user_id'];
+        $ticket_id = (int) $request->get_param( 'id' );
+
+        $post = get_post( $ticket_id );
+        if ( ! $post || $post->post_type !== 'bpu_support_ticket' || (int) $post->post_author !== $user_id ) {
+            return new WP_Error( 'not_found', 'Ticket not found.', array( 'status' => 404 ) );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'ticket'  => $this->format_ticket( $post, true ),
+        ), 200 );
+    }
+
+    public function member_reply_ticket( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id   = (int) $payload['user_id'];
+        $ticket_id = (int) $request->get_param( 'id' );
+        $user      = get_userdata( $user_id );
+
+        $post = get_post( $ticket_id );
+        if ( ! $post || $post->post_type !== 'bpu_support_ticket' || (int) $post->post_author !== $user_id ) {
+            return new WP_Error( 'not_found', 'Ticket not found.', array( 'status' => 404 ) );
+        }
+
+        $raw_status = get_post_meta( $ticket_id, '_bpu_ticket_status', true ) ?: 'ticket_open';
+        if ( in_array( $raw_status, array( 'ticket_resolved', 'ticket_closed' ), true ) ) {
+            return new WP_Error( 'ticket_closed', 'This ticket is closed.', array( 'status' => 400 ) );
+        }
+
+        $message = sanitize_textarea_field( $request->get_param( 'message' ) ?: '' );
+        if ( ! $message ) {
+            return new WP_Error( 'missing_message', 'Message is required.', array( 'status' => 400 ) );
+        }
+
+        $comment_id = wp_insert_comment( array(
+            'comment_post_ID'      => $ticket_id,
+            'comment_author'       => $user ? $user->display_name : '',
+            'comment_author_email' => $user ? $user->user_email : '',
+            'comment_content'      => $message,
+            'comment_type'         => 'bpu_ticket_reply',
+            'comment_approved'     => 1,
+            'user_id'              => $user_id,
+        ) );
+
+        if ( ! $comment_id ) {
+            return new WP_Error( 'insert_failed', 'Failed to save reply.', array( 'status' => 500 ) );
+        }
+        update_comment_meta( $comment_id, '_bpu_reply_author_type', 'member' );
+
+        // Touch post modified date so ticket sorts to top
+        wp_update_post( array( 'ID' => $ticket_id ) );
+
+        // Handle optional attachment
+        if ( ! empty( $_FILES['attachment']['tmp_name'] ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            media_handle_upload( 'attachment', $ticket_id );
+        }
+
+        return new WP_REST_Response( array(
+            'success' => true,
+            'id'      => $comment_id,
+        ), 201 );
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Support Ticket Endpoints
+    // -------------------------------------------------------------------------
+
+    public function admin_list_tickets( WP_REST_Request $request ) {
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: 'all' );
+        $category = sanitize_text_field( $request->get_param( 'category' ) ?: '' );
+        $urgency  = sanitize_text_field( $request->get_param( 'urgency' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, (int) ( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = 25;
+
+        $status_map = array(
+            'open'        => 'ticket_open',
+            'in_progress' => 'ticket_progress',
+            'resolved'    => 'ticket_resolved',
+            'closed'      => 'ticket_closed',
+        );
+
+        $args = array(
+            'post_type'      => 'bpu_support_ticket',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'modified',
+            'order'          => 'DESC',
+            'meta_query'     => array( 'relation' => 'AND' ),
+        );
+
+        if ( $status !== 'all' && isset( $status_map[ $status ] ) ) {
+            $args['meta_query'][] = array(
+                'key'   => '_bpu_ticket_status',
+                'value' => $status_map[ $status ],
+            );
+        }
+        if ( $category ) {
+            $args['meta_query'][] = array(
+                'key'   => '_bpu_ticket_category',
+                'value' => $category,
+            );
+        }
+        if ( $urgency ) {
+            $args['meta_query'][] = array(
+                'key'   => '_bpu_ticket_urgency',
+                'value' => $urgency,
+            );
+        }
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query   = new WP_Query( $args );
+        $tickets = array();
+        foreach ( $query->posts as $post ) {
+            $t       = $this->format_ticket( $post );
+            $author  = get_userdata( (int) $post->post_author );
+            $t['member'] = $author ? array(
+                'id'           => (int) $post->post_author,
+                'display_name' => $author->display_name,
+                'email'        => $author->user_email,
+            ) : null;
+            $tickets[] = $t;
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'tickets'  => $tickets,
+            'total'    => $query->found_posts,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => ceil( $query->found_posts / $per_page ),
+        ), 200 );
+    }
+
+    public function admin_get_ticket( WP_REST_Request $request ) {
+        $ticket_id = (int) $request->get_param( 'id' );
+        $post = get_post( $ticket_id );
+        if ( ! $post || $post->post_type !== 'bpu_support_ticket' ) {
+            return new WP_Error( 'not_found', 'Ticket not found.', array( 'status' => 404 ) );
+        }
+        $ticket = $this->format_ticket( $post, true );
+        $author = get_userdata( (int) $post->post_author );
+        $ticket['member'] = $author ? array(
+            'id'           => (int) $post->post_author,
+            'display_name' => $author->display_name,
+            'email'        => $author->user_email,
+        ) : null;
+        return new WP_REST_Response( array( 'success' => true, 'ticket' => $ticket ), 200 );
+    }
+
+    public function admin_update_ticket_status( WP_REST_Request $request ) {
+        $ticket_id = (int) $request->get_param( 'id' );
+        $body      = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $status_map = array(
+            'open'        => 'ticket_open',
+            'in_progress' => 'ticket_progress',
+            'resolved'    => 'ticket_resolved',
+            'closed'      => 'ticket_closed',
+        );
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+        if ( ! isset( $status_map[ $new_status ] ) ) {
+            return new WP_Error( 'invalid_status', 'Invalid status.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $ticket_id );
+        if ( ! $post || $post->post_type !== 'bpu_support_ticket' ) {
+            return new WP_Error( 'not_found', 'Ticket not found.', array( 'status' => 404 ) );
+        }
+
+        update_post_meta( $ticket_id, '_bpu_ticket_status', $status_map[ $new_status ] );
+        wp_update_post( array( 'ID' => $ticket_id ) );
+
+        // Optionally notify member
+        $member = get_userdata( (int) $post->post_author );
+        if ( $member ) {
+            $subject = sprintf( '[BPU Support] Your ticket "%s" status updated', get_the_title( $post ) );
+            $body_text = sprintf( "Hi %s,\n\nYour support ticket has been updated to: %s.\n\nView it here: %s\n\nBPU Support Team",
+                $member->display_name, ucfirst( str_replace( '_', ' ', $new_status ) ),
+                home_url( '/support/' . $ticket_id ) );
+            wp_mail( $member->user_email, $subject, $body_text );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => $new_status ), 200 );
+    }
+
+    public function admin_reply_ticket( WP_REST_Request $request ) {
+        $payload   = $this->verify_jwt_bearer( $request );
+        $ticket_id = (int) $request->get_param( 'id' );
+        $body      = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $message = sanitize_textarea_field( $body['message'] ?? '' );
+        if ( ! $message ) {
+            return new WP_Error( 'missing_message', 'Message is required.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $ticket_id );
+        if ( ! $post || $post->post_type !== 'bpu_support_ticket' ) {
+            return new WP_Error( 'not_found', 'Ticket not found.', array( 'status' => 404 ) );
+        }
+
+        $admin_user_id = $payload ? ( $payload['user_id'] ?? 0 ) : 0;
+        $admin         = $admin_user_id ? get_userdata( (int) $admin_user_id ) : null;
+
+        $comment_id = wp_insert_comment( array(
+            'comment_post_ID'      => $ticket_id,
+            'comment_author'       => 'BPU Support',
+            'comment_author_email' => get_option( 'admin_email' ),
+            'comment_content'      => $message,
+            'comment_type'         => 'bpu_ticket_reply',
+            'comment_approved'     => 1,
+            'user_id'              => $admin_user_id,
+        ) );
+
+        if ( ! $comment_id ) {
+            return new WP_Error( 'insert_failed', 'Failed to save reply.', array( 'status' => 500 ) );
+        }
+        update_comment_meta( $comment_id, '_bpu_reply_author_type', 'staff' );
+
+        // If status is still open, move to in_progress
+        $current = get_post_meta( $ticket_id, '_bpu_ticket_status', true );
+        if ( $current === 'ticket_open' ) {
+            update_post_meta( $ticket_id, '_bpu_ticket_status', 'ticket_progress' );
+        }
+        wp_update_post( array( 'ID' => $ticket_id ) );
+
+        // Email the member
+        $member = get_userdata( (int) $post->post_author );
+        if ( $member ) {
+            $subject  = sprintf( '[BPU Support] New reply on your ticket: %s', get_the_title( $post ) );
+            $body_txt = sprintf( "Hi %s,\n\nBPU Support has replied to your ticket:\n\n---\n%s\n---\n\nView the full thread: %s\n\nBPU Support Team",
+                $member->display_name, $message, home_url( '/support/' . $ticket_id ) );
+            wp_mail( $member->user_email, $subject, $body_txt );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'id' => $comment_id ), 201 );
+    }
+
+    // -------------------------------------------------------------------------
+    // Service Request Helpers
+    // -------------------------------------------------------------------------
+
+    private function format_service_request( $post ) {
+        $pid = $post->ID;
+        return array(
+            'id'         => $pid,
+            'type'       => get_post_meta( $pid, '_bpu_sr_type', true ) ?: '',
+            'status'     => get_post_meta( $pid, '_bpu_sr_status', true ) ?: 'pending',
+            'data'       => json_decode( get_post_meta( $pid, '_bpu_sr_data', true ) ?: '{}', true ),
+            'notes'      => get_post_meta( $pid, '_bpu_sr_notes', true ) ?: '',
+            'created_at' => get_the_date( 'c', $post ),
+            'updated_at' => get_the_modified_date( 'c', $post ),
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // Member Service Request Endpoints (Work Placement, Interview Prep, Ambassadorship)
+    // -------------------------------------------------------------------------
+
+    public function member_list_service_requests( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id = (int) $payload['user_id'];
+        $type    = sanitize_text_field( $request->get_param( 'type' ) ?: '' );
+        $page    = max( 1, (int) ( $request->get_param( 'page' ) ?: 1 ) );
+
+        $meta_query = array( 'relation' => 'AND' );
+        if ( $type ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_type', 'value' => $type );
+        }
+
+        $query = new WP_Query( array(
+            'post_type'      => 'bpu_service_request',
+            'post_status'    => 'publish',
+            'author'         => $user_id,
+            'posts_per_page' => 20,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => $meta_query,
+        ) );
+
+        $items = array();
+        foreach ( $query->posts as $post ) {
+            $items[] = $this->format_service_request( $post );
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'requests' => $items,
+            'total'    => $query->found_posts,
+            'page'     => $page,
+        ), 200 );
+    }
+
+    public function member_submit_work_placement( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id = (int) $payload['user_id'];
+        $user    = get_userdata( $user_id );
+
+        $data = array(
+            'current_level'     => sanitize_text_field( $request->get_param( 'current_level' ) ?: '' ),
+            'areas_of_interest' => array_map( 'sanitize_text_field', (array) ( $request->get_param( 'areas_of_interest' ) ?: array() ) ),
+            'career_goals'      => sanitize_textarea_field( $request->get_param( 'career_goals' ) ?: '' ),
+            'how_heard'         => sanitize_text_field( $request->get_param( 'how_heard' ) ?: '' ),
+        );
+
+        if ( ! $data['current_level'] || empty( $data['areas_of_interest'] ) || ! $data['career_goals'] ) {
+            return new WP_Error( 'missing_fields', 'Required fields missing.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => 'Work Placement — ' . ( $user ? $user->display_name : '' ),
+            'post_status' => 'publish',
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to submit request.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type', 'work_placement' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'pending' );
+        update_post_meta( $post_id, '_bpu_sr_data', wp_json_encode( $data ) );
+
+        if ( ! empty( $_FILES['cv']['tmp_name'] ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $cv_id = media_handle_upload( 'cv', $post_id );
+            if ( ! is_wp_error( $cv_id ) ) {
+                update_post_meta( $post_id, '_bpu_sr_cv_id', $cv_id );
+                update_user_meta( $user_id, '_bpu_member_cv_id', $cv_id );
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'id' => $post_id ), 201 );
+    }
+
+    public function member_submit_interview_prep_request( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id = (int) $payload['user_id'];
+        $user    = get_userdata( $user_id );
+
+        $data = array(
+            'organisation'   => sanitize_text_field( $request->get_param( 'organisation' ) ?: '' ),
+            'role'           => sanitize_text_field( $request->get_param( 'role' ) ?: '' ),
+            'interview_type' => sanitize_text_field( $request->get_param( 'interview_type' ) ?: '' ),
+            'industry'       => sanitize_text_field( $request->get_param( 'industry' ) ?: '' ),
+            'interview_date' => sanitize_text_field( $request->get_param( 'interview_date' ) ?: '' ),
+            'rounds_completed' => sanitize_text_field( $request->get_param( 'rounds_completed' ) ?: '0' ),
+            'specific_help'  => sanitize_textarea_field( $request->get_param( 'specific_help' ) ?: '' ),
+        );
+
+        if ( ! $data['role'] || ! $data['interview_type'] || ! $data['specific_help'] ) {
+            return new WP_Error( 'missing_fields', 'Required fields missing.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => 'Interview Prep — ' . ( $user ? $user->display_name : '' ) . ' · ' . $data['role'],
+            'post_status' => 'publish',
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to submit request.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type', 'interview_prep' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'pending' );
+        update_post_meta( $post_id, '_bpu_sr_data', wp_json_encode( $data ) );
+
+        if ( ! empty( $_FILES['attachment']['tmp_name'] ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $att_id = media_handle_upload( 'attachment', $post_id );
+            if ( ! is_wp_error( $att_id ) ) {
+                update_post_meta( $post_id, '_bpu_sr_attachment_id', $att_id );
+            }
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'id' => $post_id ), 201 );
+    }
+
+    public function member_submit_ambassadorship( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id = (int) $payload['user_id'];
+        $user    = get_userdata( $user_id );
+
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $data = array(
+            'region'               => sanitize_text_field( $body['region'] ?? '' ),
+            'sector'               => sanitize_text_field( $body['sector'] ?? '' ),
+            'motivation'           => sanitize_textarea_field( $body['motivation'] ?? '' ),
+            'community_connection' => sanitize_textarea_field( $body['community_connection'] ?? '' ),
+            'representation'       => sanitize_textarea_field( $body['representation'] ?? '' ),
+            'linkedin_url'         => esc_url_raw( $body['linkedin_url'] ?? '' ),
+        );
+
+        if ( ! $data['region'] || ! $data['motivation'] || ! $data['representation'] ) {
+            return new WP_Error( 'missing_fields', 'Region, motivation and representation are required.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => 'Ambassadorship — ' . ( $user ? $user->display_name : '' ),
+            'post_status' => 'publish',
+            'post_author' => $user_id,
+        ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to submit application.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type', 'ambassadorship' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'pending' );
+        update_post_meta( $post_id, '_bpu_sr_data', wp_json_encode( $data ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'id' => $post_id ), 201 );
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin Service Request Endpoints
+    // -------------------------------------------------------------------------
+
+    public function admin_list_service_requests( WP_REST_Request $request ) {
+        $type     = sanitize_text_field( $request->get_param( 'type' ) ?: '' );
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, (int) ( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = 25;
+
+        $meta_query = array( 'relation' => 'AND' );
+        if ( $type ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_type', 'value' => $type );
+        }
+        if ( $status ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_status', 'value' => $status );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_service_request',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => $meta_query,
+        );
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query( $args );
+        $items = array();
+        foreach ( $query->posts as $post ) {
+            $item   = $this->format_service_request( $post );
+            $author = get_userdata( (int) $post->post_author );
+            $item['member'] = $author ? array(
+                'id'           => (int) $post->post_author,
+                'display_name' => $author->display_name,
+                'email'        => $author->user_email,
+            ) : null;
+            $items[] = $item;
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'success'  => true,
+            'requests' => $items,
+            'total'    => $query->found_posts,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => ceil( $query->found_posts / $per_page ),
+        ), 200 );
+    }
+
+    public function admin_get_service_request( WP_REST_Request $request ) {
+        $id   = (int) $request->get_param( 'id' );
+        $post = get_post( $id );
+        if ( ! $post || $post->post_type !== 'bpu_service_request' ) {
+            return new WP_Error( 'not_found', 'Request not found.', array( 'status' => 404 ) );
+        }
+        $item   = $this->format_service_request( $post );
+        $author = get_userdata( (int) $post->post_author );
+        $item['member'] = $author ? array(
+            'id'           => (int) $post->post_author,
+            'display_name' => $author->display_name,
+            'email'        => $author->user_email,
+        ) : null;
+        // Attachment URL if present
+        $att_id = get_post_meta( $id, '_bpu_sr_attachment_id', true ) ?: get_post_meta( $id, '_bpu_sr_cv_id', true );
+        $item['attachment_url'] = $att_id ? wp_get_attachment_url( (int) $att_id ) : null;
+        return new WP_REST_Response( array( 'success' => true, 'request' => $item ), 200 );
+    }
+
+    public function admin_update_service_request_status( WP_REST_Request $request ) {
+        $id   = (int) $request->get_param( 'id' );
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $allowed = array( 'pending', 'under_review', 'accepted', 'rejected', 'completed' );
+        $new_status = sanitize_text_field( $body['status'] ?? '' );
+        if ( ! in_array( $new_status, $allowed, true ) ) {
+            return new WP_Error( 'invalid_status', 'Invalid status.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $id );
+        if ( ! $post || $post->post_type !== 'bpu_service_request' ) {
+            return new WP_Error( 'not_found', 'Request not found.', array( 'status' => 404 ) );
+        }
+
+        update_post_meta( $id, '_bpu_sr_status', $new_status );
+        wp_update_post( array( 'ID' => $id ) );
+
+        // Notify member of status change
+        $member = get_userdata( (int) $post->post_author );
+        if ( $member ) {
+            $type_label = str_replace( '_', ' ', get_post_meta( $id, '_bpu_sr_type', true ) );
+            $subject = sprintf( '[BPU] Your %s application has been updated', ucwords( $type_label ) );
+            $msg = sprintf( "Hi %s,\n\nYour %s application status has been updated to: %s.\n\nIf you have any questions, please contact support via the member portal.\n\nBPU Team",
+                $member->display_name, ucwords( $type_label ), ucwords( str_replace( '_', ' ', $new_status ) ) );
+            wp_mail( $member->user_email, $subject, $msg );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'status' => $new_status ), 200 );
+    }
+
+    public function admin_add_service_request_note( WP_REST_Request $request ) {
+        $id   = (int) $request->get_param( 'id' );
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $note = sanitize_textarea_field( $body['note'] ?? '' );
+        if ( ! $note ) {
+            return new WP_Error( 'missing_note', 'Note is required.', array( 'status' => 400 ) );
+        }
+
+        $post = get_post( $id );
+        if ( ! $post || $post->post_type !== 'bpu_service_request' ) {
+            return new WP_Error( 'not_found', 'Request not found.', array( 'status' => 404 ) );
+        }
+
+        // Append to existing notes with timestamp
+        $existing = get_post_meta( $id, '_bpu_sr_notes', true ) ?: '';
+        $payload  = $this->verify_jwt_bearer( $request );
+        $admin    = $payload && ! empty( $payload['user_id'] ) ? get_userdata( (int) $payload['user_id'] ) : null;
+        $timestamp = current_time( 'Y-m-d H:i' );
+        $by        = $admin ? $admin->display_name : 'Admin';
+        $new_note  = "[{$timestamp} · {$by}] {$note}";
+        $combined  = $existing ? $existing . "\n\n" . $new_note : $new_note;
+
+        update_post_meta( $id, '_bpu_sr_notes', $combined );
+        wp_update_post( array( 'ID' => $id ) );
+
+        return new WP_REST_Response( array( 'success' => true, 'note' => $new_note ), 201 );
     }
 
 } // end class BPU_Headless_Connector

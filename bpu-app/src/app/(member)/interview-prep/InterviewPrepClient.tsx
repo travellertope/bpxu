@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { BPUUser } from '@/lib/auth';
 
 const INTERVIEW_TYPES = [
@@ -39,6 +39,14 @@ export default function InterviewPrepClient({ user }: { user: BPUUser }) {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState('');
+    const [pastRequests, setPastRequests] = useState<{ id: number; status: string; data: Record<string, string>; created_at: string }[]>([]);
+
+    useEffect(() => {
+        fetch('/api/member/interview-prep-submit')
+            .then(r => r.ok ? r.json() : { requests: [] })
+            .then(d => setPastRequests(d.requests ?? []))
+            .catch(() => {});
+    }, [submitted]);
 
     function set(field: string, value: string) {
         setForm(f => ({ ...f, [field]: value }));
@@ -56,7 +64,7 @@ export default function InterviewPrepClient({ user }: { user: BPUUser }) {
             const body = new FormData();
             Object.entries(form).forEach(([k, v]) => body.append(k, v));
             if (file) body.append('file', file);
-            const res = await fetch('/api/member/interview-prep', { method: 'POST', body });
+            const res = await fetch('/api/member/interview-prep-submit', { method: 'POST', body });
             if (!res.ok) throw new Error('Request failed');
             setSubmitted(true);
         } catch {
@@ -258,6 +266,47 @@ export default function InterviewPrepClient({ user }: { user: BPUUser }) {
                     We respond to all requests within 48 hours. You will receive a confirmation email at <strong>{user.email}</strong>.
                 </p>
             </form>
+
+            {pastRequests.length > 0 && (
+                <div className="mt-10" style={{ maxWidth: 720 }}>
+                    <h2 className="font-black uppercase tracking-tight text-lg mb-4" style={{ color: '#111317' }}>Past Requests</h2>
+                    <div className="flex flex-col gap-3">
+                        {pastRequests.map(req => (
+                            <div
+                                key={req.id}
+                                className="rounded-xl p-4"
+                                style={{ background: '#fff', border: '2px solid #111317' }}
+                            >
+                                <div className="flex items-start justify-between gap-3 flex-wrap">
+                                    <div>
+                                        <p className="font-bold text-sm" style={{ color: '#111317' }}>
+                                            {req.data?.role || 'Interview Prep Request'}{req.data?.organisation ? ` · ${req.data.organisation}` : ''}
+                                        </p>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+                                            {req.data?.interview_type || ''}{req.data?.interview_date ? ` · ${req.data.interview_date}` : ''}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className="text-[10px] font-black uppercase px-2 py-0.5 rounded"
+                                            style={{
+                                                background: req.status === 'completed' ? '#f0fdf4' : req.status === 'accepted' ? '#eff6ff' : '#fff7ed',
+                                                color: req.status === 'completed' ? '#16a34a' : req.status === 'accepted' ? '#1d4ed8' : '#c2410c',
+                                                border: `1px solid currentColor`,
+                                            }}
+                                        >
+                                            {req.status.replace('_', ' ')}
+                                        </span>
+                                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                                            {new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

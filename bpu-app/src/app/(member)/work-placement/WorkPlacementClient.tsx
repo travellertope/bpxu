@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { BPUUser } from '@/lib/auth';
 
 const INDUSTRIES = [
@@ -35,6 +35,14 @@ export default function WorkPlacementClient({ user }: { user: BPUUser }) {
     const [submitting, setSubmitting] = useState(false);
     const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState('');
+    const [pastRequests, setPastRequests] = useState<{ id: number; status: string; data: Record<string, unknown>; created_at: string }[]>([]);
+
+    useEffect(() => {
+        fetch('/api/member/work-placement')
+            .then(r => r.ok ? r.json() : { requests: [] })
+            .then(d => setPastRequests(d.requests ?? []))
+            .catch(() => {});
+    }, [submitted]);
 
     function set(field: string, value: string) {
         setForm(f => ({ ...f, [field]: value }));
@@ -254,6 +262,45 @@ export default function WorkPlacementClient({ user }: { user: BPUUser }) {
                     Our team reviews every application personally. Confirmation will be sent to <strong>{user.email}</strong>.
                 </p>
             </form>
+
+            {pastRequests.length > 0 && (
+                <div className="mt-10" style={{ maxWidth: 720 }}>
+                    <h2 className="font-black uppercase tracking-tight text-lg mb-4" style={{ color: '#111317' }}>Past Applications</h2>
+                    <div className="flex flex-col gap-3">
+                        {pastRequests.map(req => (
+                            <div
+                                key={req.id}
+                                className="rounded-xl p-4"
+                                style={{ background: '#fff', border: '2px solid #111317' }}
+                            >
+                                <div className="flex items-start justify-between gap-3 flex-wrap">
+                                    <div>
+                                        <p className="font-bold text-sm" style={{ color: '#111317' }}>Work Placement Application</p>
+                                        <p className="text-xs mt-0.5" style={{ color: 'var(--text-3)' }}>
+                                            {String(req.data?.current_level || '')}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span
+                                            className="text-[10px] font-black uppercase px-2 py-0.5 rounded"
+                                            style={{
+                                                background: req.status === 'completed' ? '#f0fdf4' : req.status === 'accepted' ? '#eff6ff' : '#fff7ed',
+                                                color: req.status === 'completed' ? '#16a34a' : req.status === 'accepted' ? '#1d4ed8' : '#c2410c',
+                                                border: '1px solid currentColor',
+                                            }}
+                                        >
+                                            {req.status.replace('_', ' ')}
+                                        </span>
+                                        <span className="text-xs" style={{ color: 'var(--text-3)' }}>
+                                            {new Date(req.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
