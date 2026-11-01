@@ -304,7 +304,7 @@ export default function HomePageClient() {
                 href="/register"
                 className="bg-hp-accent text-white px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg"
               >
-                Join the Hub
+                Become a Member
               </a>
               <a
                 href="/partnerships"
