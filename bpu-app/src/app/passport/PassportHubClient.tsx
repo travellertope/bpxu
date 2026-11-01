@@ -354,22 +354,25 @@ export default function PassportHubClient({ initialMembers = [] }: { initialMemb
             }}>
                 <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 48, flexWrap: 'wrap' }}>
                     <div style={{ maxWidth: 580, flex: '1 1 380px' }}>
+                        <p style={{ fontFamily: 'monospace', fontSize: 11, letterSpacing: '0.2em', color: '#d9381e', fontWeight: 700, marginBottom: 16, textTransform: 'uppercase' }}>
+                            BPU · Digital Identity System
+                        </p>
                         <h1 style={{
                             fontSize: 'clamp(48px, 8vw, 84px)',
                             fontWeight: 900, color: '#ffffff',
                             lineHeight: 0.92, letterSpacing: '-0.03em',
                             margin: '0 0 28px', textTransform: 'uppercase',
                         }}>
-                            Decade of<br />
-                            <span style={{ color: '#d9381e' }}>Inclusion.</span><br />
-                            Growth.
+                            Your<br />
+                            <span style={{ color: '#d9381e' }}>BPU</span><br />
+                            Passport.
                         </h1>
                         <p style={{
                             fontSize: 15, color: '#b0b0b0', lineHeight: 1.7,
                             maxWidth: 460, fontWeight: 400, margin: '0 0 32px',
                             paddingLeft: 16, borderLeft: '3px solid #d9381e',
                         }}>
-                            For 10 years, Black Professionals UK has empowered 7,000+ professionals across Scotland and the UK with skills, placements, and mentorship to thrive in their careers.
+                            A verified snapshot of your professional credentials — skills, placements, and mentorship — issued by Black Professionals UK and visible to the entire network.
                         </p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                             <a href="/profile" style={{
@@ -400,93 +403,40 @@ export default function PassportHubClient({ initialMembers = [] }: { initialMemb
                         </div>
                     </div>
 
-                    {/* Vertical scrolling card gallery */}
-                    <div style={{ display: 'flex', gap: 10, flex: '0 0 auto', height: 420, overflow: 'hidden', position: 'relative' }}>
-                        {/* top + bottom fade masks */}
-                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to bottom, #0d0d0d, transparent)', zIndex: 2, pointerEvents: 'none' }} />
-                        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to top, #0d0d0d, transparent)', zIndex: 2, pointerEvents: 'none' }} />
-
-                        {/* Column 1 — dark tall member cards, scroll up */}
-                        <div className="hero-scroll-col1" style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'heroScrollUp 22s linear infinite' }}>
-                            {[
-                                { name: 'Carol Anderson', role: '10-Yr Leader', anniversary: true },
-                                { name: 'James Okafor', role: 'Alumni Mentor' },
-                                { name: 'Priya Mensah', role: '10-Yr Member' },
-                                { name: 'David Eze', role: 'Placement Lead' },
-                                { name: 'Amara Diallo', role: 'Pro Member' },
-                                /* duplicate for seamless loop */
-                                { name: 'Carol Anderson', role: '10-Yr Leader', anniversary: true },
-                                { name: 'James Okafor', role: 'Alumni Mentor' },
-                                { name: 'Priya Mensah', role: '10-Yr Member' },
-                                { name: 'David Eze', role: 'Placement Lead' },
-                                { name: 'Amara Diallo', role: 'Pro Member' },
-                            ].map((c, i) => (
-                                <div key={i} style={{
-                                    width: 160, flexShrink: 0,
-                                    background: '#1a1a1a', borderRadius: 12,
-                                    border: '1.5px solid #2a2a2a',
-                                    padding: '14px 14px 18px',
-                                    display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-                                    height: 200,
-                                    position: 'relative',
-                                }}>
-                                    {/* Anniversary badge overlay on first card */}
-                                    {c.anniversary && (
-                                        <div style={{
-                                            position: 'absolute', top: 10, left: 10,
-                                            background: '#1a1a1a', border: '1.5px solid #333',
-                                            borderRadius: 8, padding: '8px 10px',
-                                        }}>
-                                            <div style={{ fontSize: 14, fontWeight: 900, color: '#d9381e', lineHeight: 1, letterSpacing: '-0.01em' }}>10th</div>
-                                            <div style={{ fontSize: 7, fontWeight: 800, color: '#888', letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: 1 }}>Anniversary</div>
-                                            <div style={{ fontSize: 7, color: '#555', marginTop: 5, letterSpacing: '0.06em' }}>2016 — 2026</div>
-                                        </div>
-                                    )}
-                                    <div />
-                                    <div>
-                                        <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{c.name}</div>
-                                        <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>({c.role})</div>
+                    {/* Sample passport card mockup */}
+                    <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{
+                            width: 320, background: '#fff', borderRadius: 16,
+                            border: '1.5px solid #2a2a2a', padding: '24px 22px 20px',
+                            boxShadow: '6px 6px 0 #d9381e',
+                            position: 'relative', overflow: 'hidden',
+                        }}>
+                            {/* Card header stripe */}
+                            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, background: '#d9381e' }} />
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.12em', color: '#d9381e', fontFamily: 'monospace', textTransform: 'uppercase' }}>BPU Digital Passport</span>
+                                <span style={{ fontSize: 9, fontWeight: 700, border: '1px solid #1a1a1a', borderRadius: 3, padding: '2px 6px', color: '#1a1a1a', letterSpacing: '0.08em' }}>VERIFIED</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', marginBottom: 16 }}>
+                                <div style={{ width: 52, height: 52, borderRadius: 8, background: '#1a1a1a', border: '2px solid #1a1a1a', flexShrink: 0 }} />
+                                <div>
+                                    <div style={{ fontWeight: 800, fontSize: 16, color: '#1a1a1a', lineHeight: 1.2 }}>Your Name</div>
+                                    <div style={{ fontSize: 12, color: '#555', marginTop: 3 }}>Your Job Title</div>
+                                    <div style={{ fontSize: 11, color: '#888', marginTop: 4, display: 'flex', alignItems: 'center', gap: 3 }}>
+                                        <svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+                                        United Kingdom
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-
-                        {/* Column 2 — mix of light label cards + dark member cards, scroll up slower */}
-                        <div className="hero-scroll-col2" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 40, animation: 'heroScrollUp 30s linear infinite' }}>
-                            {[
-                                { label: '10-Year Summit', light: true },
-                                { name: 'Lawrence Dada', role: '10-Yr Alumni' },
-                                { label: 'Alumni Network', light: true },
-                                { name: 'Yemi Adeyemi', role: 'Mentor' },
-                                { label: 'Scotland Hub', light: true },
-                                { name: 'Tunde Williams', role: '10-Yr Leader' },
-                                /* duplicate */
-                                { label: '10-Year Summit', light: true },
-                                { name: 'Lawrence Dada', role: '10-Yr Alumni' },
-                                { label: 'Alumni Network', light: true },
-                                { name: 'Yemi Adeyemi', role: 'Mentor' },
-                                { label: 'Scotland Hub', light: true },
-                                { name: 'Tunde Williams', role: '10-Yr Leader' },
-                            ].map((c, i) => (
-                                <div key={i} style={{
-                                    width: 150, flexShrink: 0,
-                                    background: (c as {light?: boolean}).light ? '#f0ece4' : '#1a1a1a',
-                                    border: `1.5px solid ${ (c as {light?: boolean}).light ? '#ddd' : '#2a2a2a'}`,
-                                    borderRadius: 12,
-                                    padding: '16px 14px',
-                                    display: 'flex', flexDirection: 'column', justifyContent: (c as {light?: boolean}).light ? 'center' : 'flex-end',
-                                    height: (c as {light?: boolean}).light ? 120 : 160,
-                                }}>
-                                    {(c as {label?: string}).label ? (
-                                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a', lineHeight: 1.2 }}>{(c as {label: string}).label}</div>
-                                    ) : (
-                                        <div>
-                                            <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>{(c as {name: string}).name}</div>
-                                            <div style={{ fontSize: 10, color: '#888', marginTop: 3 }}>({(c as {role: string}).role})</div>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginBottom: 16 }}>
+                                {['Leadership', 'Strategy', 'Technology'].map(s => (
+                                    <span key={s} style={{ fontSize: 10, fontWeight: 700, border: '1px solid #ccc', borderRadius: 4, padding: '2px 7px', color: '#333', background: '#f7f7f7', letterSpacing: '0.04em' }}>{s}</span>
+                                ))}
+                            </div>
+                            <div style={{ borderTop: '1px solid #e5e5e5', paddingTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: 9, color: '#aaa', fontFamily: 'monospace', letterSpacing: '0.06em' }}>PASSPORT NO. 2026-XXXX</span>
+                                <span style={{ fontSize: 9, fontWeight: 700, color: '#d9381e', letterSpacing: '0.08em' }}>PRO MEMBER</span>
+                            </div>
                         </div>
                     </div>
                 </div>
