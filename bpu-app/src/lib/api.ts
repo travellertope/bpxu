@@ -372,6 +372,31 @@ export class BPUApi {
         }
     }
 
+    static async getSupportTickets(jwt: string): Promise<import('@/app/(member)/support/support-types').SupportTicket[]> {
+        try {
+            const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/support/tickets`, {
+                headers: { Authorization: `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+            });
+            if (!res.ok) return [];
+            const data = await res.json();
+            return data.tickets || [];
+        } catch {
+            return [];
+        }
+    }
+
+    static async getSupportTicketDetail(id: string, jwt: string): Promise<import('@/app/(member)/support/support-types').SupportTicketDetail | null> {
+        try {
+            const res = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/support/tickets/${id}`, {
+                headers: { Authorization: `Bearer ${jwt}`, 'Cache-Control': 'no-store' },
+            });
+            if (!res.ok) return null;
+            return await res.json();
+        } catch {
+            return null;
+        }
+    }
+
     static async getCVClinicHistory(jwt: string): Promise<{ analyses: unknown[]; prep_sessions: unknown[] }> {
         try {
             const response = await fetch(`${WP_BACKEND_URL}/wp-json/bpu/v1/member/cv-clinic-history`, {
