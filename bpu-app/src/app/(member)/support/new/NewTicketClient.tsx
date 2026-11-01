@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { BPUUser } from '@/lib/auth';
 
 const CATEGORIES = [
@@ -16,7 +17,8 @@ const CATEGORIES = [
     'Other',
 ];
 
-export default function SupportClient({ user }: { user: BPUUser }) {
+export default function NewTicketClient({ user }: { user: BPUUser }) {
+    const router = useRouter();
     const [form, setForm] = useState({
         category: '',
         subject: '',
@@ -25,7 +27,6 @@ export default function SupportClient({ user }: { user: BPUUser }) {
     });
     const [attachment, setAttachment] = useState<File | null>(null);
     const [submitting, setSubmitting] = useState(false);
-    const [submitted, setSubmitted] = useState(false);
     const [error, setError] = useState('');
 
     function set(field: string, value: string) {
@@ -44,79 +45,31 @@ export default function SupportClient({ user }: { user: BPUUser }) {
             const body = new FormData();
             Object.entries(form).forEach(([k, v]) => body.append(k, v));
             if (attachment) body.append('attachment', attachment);
-            const res = await fetch('/api/member/support', { method: 'POST', body });
-            if (!res.ok) throw new Error('Request failed');
-            setSubmitted(true);
-        } catch {
-            setError('Something went wrong. Please try again.');
-        } finally {
+            const res = await fetch('/api/member/support/tickets', { method: 'POST', body });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Failed to submit');
+            router.push(data.id ? `/support/${data.id}` : '/support');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
             setSubmitting(false);
         }
     }
 
-    if (submitted) {
-        return (
-            <div className="dash-page-wrap">
-                <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center', paddingTop: 40 }}>
-                    <div
-                        style={{
-                            width: 64, height: 64, borderRadius: '50%',
-                            background: 'var(--brand)', border: '2px solid #111317',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            margin: '0 auto 20px',
-                        }}
-                    >
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"/>
-                        </svg>
-                    </div>
-                    <h1 className="font-black uppercase tracking-tight text-2xl mb-3" style={{ color: '#111317' }}>
-                        Ticket Raised
-                    </h1>
-                    <p className="text-base font-medium mb-6" style={{ color: 'var(--text-2)', maxWidth: '44ch', margin: '0 auto 24px' }}>
-                        We've received your support request. Our team will respond within <strong>48 hours</strong>. Check your email for a confirmation.
-                    </p>
-                    <div className="flex gap-3 justify-center">
-                        <button
-                            onClick={() => { setSubmitted(false); setForm({ category: '', subject: '', urgency: 'normal', message: '' }); setAttachment(null); }}
-                            className="btn btn-outline"
-                        >
-                            Raise Another Ticket
-                        </button>
-                        <a href="/dashboard" className="btn btn-amber" style={{ border: '2px solid #111317' }}>
-                            Back to Dashboard
-                        </a>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-
     return (
         <div className="dash-page-wrap">
-            <div className="mb-8">
-                <p className="text-xs font-black uppercase tracking-widest mb-1" style={{ color: 'var(--brand)' }}>
-                    BPU Support Team
-                </p>
-                <h1 className="font-black uppercase tracking-tight text-2xl sm:text-3xl" style={{ color: '#111317' }}>
-                    Member Support
-                </h1>
-                <p className="text-sm font-medium mt-2" style={{ color: 'var(--text-2)', maxWidth: '60ch' }}>
-                    Raise a support ticket and our team will respond within 48 hours with clear, actionable guidance.
-                </p>
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2 mb-6 text-xs font-bold" style={{ color: 'var(--text-3)' }}>
+                <a href="/support" style={{ color: 'var(--brand)' }}>Support</a>
+                <span>/</span>
+                <span>New Ticket</span>
             </div>
 
-            {/* FAQ hint */}
-            <div
-                className="flex items-start gap-4 p-4 mb-6 rounded-xl"
-                style={{ background: 'var(--brand-bg)', border: '1px solid var(--brand-ring)' }}
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}>
-                    <circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-                </svg>
-                <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>
-                    Before raising a ticket, check if your question is answered on the{' '}
-                    <a href="/membership/support" style={{ color: 'var(--brand)', fontWeight: 700 }}>Member Support info page</a>.
+            <div className="mb-7">
+                <h1 className="font-black uppercase tracking-tight text-2xl sm:text-3xl" style={{ color: '#111317' }}>
+                    Raise a Support Ticket
+                </h1>
+                <p className="text-sm font-medium mt-1" style={{ color: 'var(--text-2)' }}>
+                    Our team reviews every ticket personally and responds within 48 hours.
                 </p>
             </div>
 
@@ -126,7 +79,7 @@ export default function SupportClient({ user }: { user: BPUUser }) {
                         <p className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--text-2)' }}>Ticket Details</p>
                     </div>
                     <div className="card-p flex flex-col gap-5">
-                        {/* From (read-only) */}
+                        {/* From */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-extrabold uppercase mb-1.5 tracking-wide" style={{ color: 'var(--text-2)' }}>Name</label>
@@ -143,33 +96,25 @@ export default function SupportClient({ user }: { user: BPUUser }) {
                                 <label className="block text-xs font-extrabold uppercase mb-1.5 tracking-wide" style={{ color: 'var(--text-2)' }}>
                                     Category <span style={{ color: 'var(--brand)' }}>*</span>
                                 </label>
-                                <select
-                                    className="field-input"
-                                    value={form.category}
-                                    onChange={e => set('category', e.target.value)}
-                                    required
-                                >
+                                <select className="field-input" value={form.category} onChange={e => set('category', e.target.value)} required>
                                     <option value="">Select a category…</option>
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-xs font-extrabold uppercase mb-1.5 tracking-wide" style={{ color: 'var(--text-2)' }}>
-                                    Urgency
-                                </label>
-                                <div className="flex gap-2">
-                                    {['normal', 'high'].map(u => (
+                                <label className="block text-xs font-extrabold uppercase mb-1.5 tracking-wide" style={{ color: 'var(--text-2)' }}>Urgency</label>
+                                <div className="flex gap-2 h-[42px]">
+                                    {(['normal', 'high'] as const).map(u => (
                                         <button
                                             key={u}
                                             type="button"
                                             onClick={() => set('urgency', u)}
-                                            className="flex-1 text-xs font-bold uppercase py-2.5 rounded-lg"
+                                            className="flex-1 text-xs font-bold uppercase rounded-lg"
                                             style={{
                                                 border: '2px solid #111317',
                                                 background: form.urgency === u ? (u === 'high' ? 'var(--brand)' : '#111317') : '#fff',
                                                 color: form.urgency === u ? '#fff' : 'var(--text)',
                                                 cursor: 'pointer',
-                                                transition: 'background 0.12s',
                                             }}
                                         >
                                             {u === 'normal' ? 'Normal' : 'High'}
@@ -199,7 +144,7 @@ export default function SupportClient({ user }: { user: BPUUser }) {
                             <textarea
                                 className="field-input"
                                 rows={5}
-                                placeholder="Describe your issue in detail. Include any error messages, steps you've already tried, or relevant context…"
+                                placeholder="Describe your issue in detail — include any error messages, steps you've already tried, or relevant context…"
                                 value={form.message}
                                 onChange={e => set('message', e.target.value)}
                                 required
@@ -236,11 +181,11 @@ export default function SupportClient({ user }: { user: BPUUser }) {
                     >
                         {submitting ? 'Submitting…' : 'Submit Ticket'}
                     </button>
-                    <a href="/dashboard" className="btn btn-ghost btn-lg">Cancel</a>
+                    <a href="/support" className="btn btn-ghost btn-lg">Cancel</a>
                 </div>
 
                 <p className="text-xs mt-4" style={{ color: 'var(--text-3)' }}>
-                    Response sent to <strong>{user.email}</strong> within 48 hours.
+                    We'll respond to <strong>{user.email}</strong> within 48 hours.
                 </p>
             </form>
         </div>

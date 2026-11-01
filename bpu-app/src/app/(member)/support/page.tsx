@@ -1,6 +1,8 @@
 import { getBPUSession } from '@/lib/auth';
+import { BPUApi } from '@/lib/api';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import SupportClient from './SupportClient';
+import SupportListClient from './SupportListClient';
 
 export const metadata = {
     title: 'Member Support | BPU Member Portal',
@@ -12,5 +14,8 @@ export default async function SupportPage() {
         redirect('/login?returnTo=/support');
     }
 
-    return <SupportClient user={session.user} />;
+    const jwt = (await cookies()).get('bpu_session')?.value ?? '';
+    const tickets = await BPUApi.getSupportTickets(jwt);
+
+    return <SupportListClient tickets={tickets} />;
 }
