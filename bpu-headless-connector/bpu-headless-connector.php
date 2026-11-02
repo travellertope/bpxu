@@ -13400,6 +13400,36 @@ jQuery(function($){
                 'default_body'    => "Hi {{name}},\r\n\r\nThe whole team at Black Professionals United wants to wish you a very happy birthday!\r\n\r\nWe hope you have a wonderful day. Thank you for being part of our community — here's to another great year ahead in your career and beyond.\r\n\r\nVisit your member portal: https://app.blackprofessionals.uk\r\n\r\nWarmly,\r\nThe BPU Team",
                 'variables'       => array( '{{name}}' ),
             ),
+            'contact_enquiry' => array(
+                'label'           => 'Contact form enquiry (to admin)',
+                'default_subject' => '[BPU Contact] {{subject}} — from {{name}}',
+                'default_body'    => "A new contact enquiry has been submitted via blackprofessionals.uk.\r\n\r\nName: {{name}}\r\nEmail: {{email}}\r\nSubject: {{subject}}\r\n\r\nMessage:\r\n{{message}}\r\n\r\n---\r\nReply directly to this email to respond to {{name}}.",
+                'variables'       => array( '{{name}}', '{{email}}', '{{subject}}', '{{message}}' ),
+            ),
+            'partnership_enquiry' => array(
+                'label'           => 'Partnership enquiry (to admin)',
+                'default_subject' => 'New Partnership Enquiry: {{org_name}}',
+                'default_body'    => "A new partnership enquiry has been submitted via blackprofessionals.uk.\r\n\r\nOrganisation: {{org_name}}\r\nContact: {{contact_name}}\r\nEmail: {{email}}\r\nPhone: {{phone}}\r\nWebsite: {{website}}\r\nOrg Type: {{org_type}}\r\nInterests: {{interests}}\r\n\r\nMessage:\r\n{{message}}\r\n\r\nView in admin: {{admin_url}}",
+                'variables'       => array( '{{org_name}}', '{{contact_name}}', '{{email}}', '{{phone}}', '{{website}}', '{{org_type}}', '{{interests}}', '{{message}}', '{{admin_url}}' ),
+            ),
+            'programme_application_submitted' => array(
+                'label'           => 'Programme application received (to admin)',
+                'default_subject' => '[BPU] New {{programme}} Application — {{name}}',
+                'default_body'    => "A new programme application has been submitted.\r\n\r\nProgramme: {{programme}}\r\nApplicant: {{name}}\r\nEmail: {{email}}\r\n\r\nReview the application:\r\n{{admin_url}}",
+                'variables'       => array( '{{programme}}', '{{name}}', '{{email}}', '{{admin_url}}' ),
+            ),
+            'programme_application_status' => array(
+                'label'           => 'Programme application status update (to member)',
+                'default_subject' => 'Update on your {{programme}} application',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour {{programme}} application status has been updated to: {{status}}.\r\n\r\nLog in to your member portal for more details and next steps.\r\n\r\n{{portal_url}}\r\n\r\nBPU Team",
+                'variables'       => array( '{{name}}', '{{programme}}', '{{status}}', '{{portal_url}}' ),
+            ),
+            'talent_pool_opted_in' => array(
+                'label'           => 'Talent Pool opt-in confirmation (to member)',
+                'default_subject' => "You're now in the BPU Talent Pool!",
+                'default_body'    => "Hi {{name}},\r\n\r\nGreat news — you're now listed in the BPU Talent Pool. Employers and partners on the BPU platform can now discover your anonymised profile and reach out with opportunities.\r\n\r\nYou can update your preferences or opt out at any time from your member portal:\r\nhttps://app.blackprofessionals.uk/talent-pool\r\n\r\nBPU Team",
+                'variables'       => array( '{{name}}' ),
+            ),
         );
     }
 
@@ -17486,11 +17516,13 @@ PROMPT;
 
         // Notify admin
         $admin_email = get_option( 'admin_email' );
-        wp_mail(
-            $admin_email,
-            '[BPU] New ' . $label . ' Application \xe2\x80\x94 ' . $name,
-            "New programme application received.\n\nProgramme: {$label}\nName: {$name}\nEmail: {$email}\n\nAdmin: " . admin_url( 'post.php?post=' . $post_id . '&action=edit' )
-        );
+        $tpl = $this->render_email_template( 'programme_application_submitted', array(
+            'programme' => $label,
+            'name'      => $name,
+            'email'     => $email,
+            'admin_url' => admin_url( 'post.php?post=' . $post_id . '&action=edit' ),
+        ) );
+        wp_mail( $admin_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
 
         return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
     }
@@ -17588,13 +17620,15 @@ PROMPT;
             // Email notification to member
             $member = get_userdata( (int) $post->post_author );
             if ( $member ) {
-                $prog_label = ucwords( str_replace( array( 'programme_', '_' ), array( '', ' ' ), get_post_meta( $id, '_bpu_sr_type', true ) ?: '' ) );
+                $prog_label   = ucwords( str_replace( array( 'programme_', '_' ), array( '', ' ' ), get_post_meta( $id, '_bpu_sr_type', true ) ?: '' ) );
                 $status_label = ucwords( str_replace( '_', ' ', $new_status ) );
-                wp_mail(
-                    $member->user_email,
-                    '[BPU] Your ' . $prog_label . ' application has been updated',
-                    "Hi {$member->display_name},\n\nYour {$prog_label} application status has been updated to: {$status_label}.\n\nLog in to your member portal for more details.\n\nBPU Team"
-                );
+                $tpl = $this->render_email_template( 'programme_application_status', array(
+                    'name'       => $member->display_name,
+                    'programme'  => $prog_label,
+                    'status'     => $status_label,
+                    'portal_url' => 'https://app.blackprofessionals.uk/programmes',
+                ) );
+                wp_mail( $member->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
             }
 
             return new WP_REST_Response( array( 'success' => true, 'status' => $new_status ), 200 );
@@ -17650,6 +17684,18 @@ PROMPT;
         }
         $opt_in = (bool) $body['opt_in'];
         update_user_meta( $user_id, '_bpu_talent_pool_opted_in', $opt_in ? '1' : '0' );
+
+        // Send opt-in confirmation email to member
+        if ( $opt_in ) {
+            $user = get_userdata( $user_id );
+            if ( $user ) {
+                $tpl = $this->render_email_template( 'talent_pool_opted_in', array(
+                    'name' => $user->display_name,
+                ) );
+                wp_mail( $user->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+            }
+        }
+
         return new WP_REST_Response( array( 'opted_in' => $opt_in ), 200 );
     }
 
@@ -17742,10 +17788,14 @@ PROMPT;
         }
 
         $admin_email = get_option( 'admin_email' );
-        $mail_subject = "[BPU Contact] {$subject} — from {$name}";
-        $mail_body    = "Name: {$name}\nEmail: {$email}\nSubject: {$subject}\n\n{$message}";
-        $headers      = array( 'Reply-To: ' . $name . ' <' . $email . '>' );
-        wp_mail( $admin_email, $mail_subject, $mail_body, $headers );
+        $tpl         = $this->render_email_template( 'contact_enquiry', array(
+            'name'    => $name,
+            'email'   => $email,
+            'subject' => $subject,
+            'message' => $message,
+        ) );
+        $headers = array( 'Reply-To: ' . $name . ' <' . $email . '>', 'Content-Type: text/html; charset=UTF-8' );
+        wp_mail( $admin_email, $tpl['subject'], $tpl['html'], $headers );
 
         return new WP_REST_Response( array( 'status' => 'success' ), 200 );
     }
@@ -17785,17 +17835,18 @@ PROMPT;
 
         // Admin notification
         $admin_email = get_option( 'admin_email' );
-        $subject     = 'New Partnership Enquiry: ' . $data['org_name'];
-        $body        = "Organisation: {$data['org_name']}\n"
-                     . "Contact: {$data['contact_name']}\n"
-                     . "Email: {$data['email']}\n"
-                     . ( ! empty( $data['phone'] )     ? "Phone: {$data['phone']}\n"         : '' )
-                     . ( ! empty( $data['website'] )   ? "Website: {$data['website']}\n"     : '' )
-                     . ( ! empty( $data['org_type'] )  ? "Type: {$data['org_type']}\n"       : '' )
-                     . ( ! empty( $data['interests'] ) ? "Interests: {$data['interests']}\n" : '' )
-                     . ( ! empty( $data['message'] )   ? "\nMessage:\n{$data['message']}\n"  : '' )
-                     . "\nView in admin: " . admin_url( 'admin.php?page=bpu-partnerships' );
-        wp_mail( $admin_email, $subject, $body );
+        $tpl = $this->render_email_template( 'partnership_enquiry', array(
+            'org_name'     => $data['org_name']     ?? '',
+            'contact_name' => $data['contact_name'] ?? '',
+            'email'        => $data['email']         ?? '',
+            'phone'        => $data['phone']         ?? '',
+            'website'      => $data['website']       ?? '',
+            'org_type'     => $data['org_type']      ?? '',
+            'interests'    => $data['interests']     ?? '',
+            'message'      => $data['message']       ?? '',
+            'admin_url'    => admin_url( 'admin.php?page=bpu-partnerships' ),
+        ) );
+        wp_mail( $admin_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
 
         return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
     }
