@@ -6,16 +6,12 @@ const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk'
 
 async function fetchMemberProfile(username: string): Promise<PublicMemberProfile | null> {
   try {
-    // The individual /member/<slug> endpoint doesn't exist; use the list endpoint with a filter.
-    // Numeric slugs are looked up by id, string slugs by username.
-    const param = /^\d+$/.test(username) ? `id=${username}` : `username=${encodeURIComponent(username)}`;
     const res = await fetch(
-      `${WP_URL}/wp-json/bpu/v1/members?${param}&per_page=1`,
+      `${WP_URL}/wp-json/bpu/v1/member/${encodeURIComponent(username)}`,
       { next: { revalidate: 300 } }
     );
     if (!res.ok) return null;
-    const data = await res.json();
-    return Array.isArray(data) && data.length > 0 ? data[0] : null;
+    return await res.json();
   } catch {
     return null;
   }

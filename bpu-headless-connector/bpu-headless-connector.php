@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.16.0
+ * Version: 2.17.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
