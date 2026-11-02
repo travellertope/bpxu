@@ -89,7 +89,7 @@ export default function ExperiencedTalentForm() {
             fd.append('applicant-gender', gender);
             if (cvFile) fd.append('your-file', cvFile);
 
-            const res  = await fetch('/api/experienced-talent', { method: 'POST', body: fd });
+            const res  = await fetch('/api/programmes/experienced-talent', { method: 'POST', body: fd });
             const data = await res.json();
             if (data.status === 'mail_sent') {
                 setSubmitted(true);
