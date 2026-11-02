@@ -37,7 +37,7 @@ export default function SiteFooter() {
                             {[
                                 ['Work Placements', '/membership/work-placement'],
                                 ['Job Board', '/jobs'],
-                                ['CV Clinic & Interview Prep', '/dashboard/cv-clinic'],
+                                ['CV Clinic & Interview Prep', '/cv-clinic'],
                                 ['Free Courses', '/courses'],
                                 ['Mentorship Programme', 'https://pairedbybpu.uk'],
                                 ['Membership Support', '/support'],
@@ -55,8 +55,8 @@ export default function SiteFooter() {
                                 ['Our Partners', '/partnership'],
                                 ['Become a Partner', '/partnership#enquiry'],
                                 ['Post a Job', '/employer/jobs'],
-                                ['Community & Networking', '/community'],
-                                ['Stories & Articles', '/stories'],
+                                ['Member Network', '/members'],
+                                ['Events', '/events'],
                             ].map(([label, href]) => (
                                 <li key={label}><a href={href} className="hover:text-white transition-colors">{label}</a></li>
                             ))}
@@ -70,8 +70,8 @@ export default function SiteFooter() {
                             {[
                                 ['About Us', '/about'],
                                 ['Contact Us', '/contact'],
-                                ['In The Press', '/press'],
-                                ['Resources', '/resources'],
+                                ['Partnership Enquiry', '/partnership'],
+                                ['Reports & Insights', '/reports/harnessing-talent-2026'],
                             ].map(([label, href]) => (
                                 <li key={label}><a href={href} className="hover:text-white transition-colors">{label}</a></li>
                             ))}
