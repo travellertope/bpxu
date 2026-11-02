@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface ProgrammeApplication {
     id: number;
-    programme: 'black-interns' | 'experienced-talent' | 'nextgen';
+    programme: 'black-interns' | 'experienced-talent' | 'nextgen' | 'talent-access';
     status: string;
     data: Record<string, string>;
     notes: string;
@@ -13,7 +13,7 @@ interface ProgrammeApplication {
     updated_at: string;
 }
 
-type ProgrammeFilter = 'all' | 'black-interns' | 'experienced-talent' | 'nextgen';
+type ProgrammeFilter = 'all' | 'black-interns' | 'experienced-talent' | 'nextgen' | 'talent-access';
 type StatusFilter = 'all' | 'pending' | 'under_review' | 'shortlisted' | 'accepted' | 'rejected';
 
 const PROGRAMME_TABS: { value: ProgrammeFilter; label: string }[] = [
@@ -21,6 +21,7 @@ const PROGRAMME_TABS: { value: ProgrammeFilter; label: string }[] = [
     { value: 'black-interns',     label: 'Black Interns' },
     { value: 'experienced-talent',label: 'Experienced Talent' },
     { value: 'nextgen',           label: '#NextGen' },
+    { value: 'talent-access',     label: 'Talent Access' },
 ];
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -43,6 +44,7 @@ const PROGRAMME_LABEL: Record<string, string> = {
     'black-interns':      'Black Interns',
     'experienced-talent': 'Experienced Talent',
     'nextgen':            '#NextGen',
+    'talent-access':      'Talent Access',
 };
 
 function fmtShort(iso: string) {
@@ -285,6 +287,14 @@ export default function ProgrammeApplicationsAdmin() {
                         {/* Experienced Talent specific */}
                         {selected.programme === 'experienced-talent' && <>
                             <DataField label="Years Experience" value={selected.data['years-experience']} />
+                        </>}
+
+                        {/* Talent Access specific */}
+                        {selected.programme === 'talent-access' && <>
+                            <DataField label="Organisation"       value={selected.data['organisation-name']} />
+                            <DataField label="Contact Position"   value={selected.data['contact-title']} />
+                            <DataField label="Programmes"         value={selected.data['interest-programme[]']} />
+                            <DataField label="Additional Info"    value={selected.data['additional-information']} />
                         </>}
 
                         {/* NextGen specific */}
