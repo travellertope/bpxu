@@ -610,7 +610,7 @@ body {
 .prose-legal li { @apply text-sm text-text-2 leading-relaxed; }
 .prose-legal a { @apply text-hp-accent underline underline-offset-2; }
 .prose-legal strong { @apply font-bold text-hp-dark; }
-.prose-legal address { @apply not-italic text-sm text-text-2 leading-relaxed bg-white border-brutal rounded-xl p-5 my-4; }
+.prose-legal address { @apply not-italic text-sm text-text-2 leading-relaxed bg-white rounded-xl p-5 my-4; border: 3px solid #001478; }
 .prose-legal code { @apply text-xs bg-white border border-border rounded px-1 py-0.5 font-mono; }
 
 /* Legal cookie table */
