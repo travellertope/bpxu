@@ -1,4 +1,5 @@
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 
 export const metadata = {
     title: 'Privacy Policy | Black Professionals United Kingdom',
@@ -163,13 +164,7 @@ export default function PrivacyPolicyPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/terms" className="hover:underline">Usage Terms</a> ·{' '}
-                <a href="/cookies" className="hover:underline">Cookie Policy</a> ·{' '}
-                <a href="/contact" className="hover:underline">Contact Us</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

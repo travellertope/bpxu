@@ -1,6 +1,7 @@
 'use client';
 
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 import { useState } from 'react';
 import { Lightbulb, Handshake, Globe, Rocket } from '@phosphor-icons/react';
 
@@ -223,13 +224,7 @@ export default function ContactPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/privacy" className="hover:underline">Privacy Policy</a> ·{' '}
-                <a href="/terms" className="hover:underline">Terms</a> ·{' '}
-                <a href="/cookies" className="hover:underline">Cookies</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

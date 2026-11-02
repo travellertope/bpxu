@@ -1,6 +1,7 @@
 'use client';
 
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 import { useState } from 'react';
 import { Target, Buildings, Megaphone, Handshake, Globe, Rocket } from '@phosphor-icons/react';
 
@@ -382,11 +383,7 @@ export default function PartnershipPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/" className="hover:underline">Back to Portal</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

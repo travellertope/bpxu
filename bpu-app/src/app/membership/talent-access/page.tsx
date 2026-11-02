@@ -1,4 +1,5 @@
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 import TalentAccessForm from './TalentAccessForm';
 
 export const metadata = {
@@ -153,11 +154,7 @@ export default function TalentAccessPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/" className="hover:underline">Back to Portal</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

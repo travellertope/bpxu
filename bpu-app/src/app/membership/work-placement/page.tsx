@@ -1,5 +1,6 @@
 import { getBPUSession } from '@/lib/auth';
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 import { Buildings, TrendUp, Compass, CheckCircle, Target, Star } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata = {
@@ -397,6 +398,7 @@ export default async function WorkPlacementPage() {
                 </section>
 
             </main>
+            <SiteFooter />
         </div>
     );
 }
