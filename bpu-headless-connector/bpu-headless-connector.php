@@ -2235,6 +2235,34 @@ class BPU_Headless_Connector {
                 'per_page'  => array( 'default' => 20,  'sanitize_callback' => 'absint' ),
             ),
         ) );
+
+        // ── Partnership enquiry (public POST) ──────────────────────────────
+        register_rest_route( $this->namespace, '/partnership', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'partnership_submit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ── Admin: partnership submissions ─────────────────────────────────
+        register_rest_route( $this->namespace, '/admin/partnerships', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_partnerships' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'page'     => array( 'default' => 1,   'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 25,  'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/partnerships/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_partnership' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ),
+            ),
+        ) );
     }
 
     /**
@@ -17690,6 +17718,158 @@ PROMPT;
             'page'     => $page,
             'per_page' => $per_page,
             'pages'    => (int) ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    // ── Partnership enquiry handlers ────────────────────────────────────────
+
+    /** POST /partnership — public submission, no auth required */
+    public function partnership_submit( WP_REST_Request $request ) {
+        $allowed = array( 'org_name', 'contact_name', 'email', 'phone', 'website', 'org_type', 'interests', 'message' );
+        $data    = array();
+        foreach ( $allowed as $key ) {
+            $val = $request->get_param( $key );
+            if ( $val !== null ) {
+                $data[ $key ] = is_array( $val )
+                    ? implode( ', ', array_map( 'sanitize_text_field', $val ) )
+                    : sanitize_text_field( $val );
+            }
+        }
+
+        if ( empty( $data['org_name'] ) || empty( $data['email'] ) ) {
+            return new WP_Error( 'missing_fields', 'Organisation name and email are required.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => sanitize_text_field( $data['org_name'] ) . ' — Partnership Enquiry',
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to save enquiry.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type',   'partnership' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'new' );
+        update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
+
+        // Admin notification
+        $admin_email = get_option( 'admin_email' );
+        $subject     = 'New Partnership Enquiry: ' . $data['org_name'];
+        $body        = "Organisation: {$data['org_name']}\n"
+                     . "Contact: {$data['contact_name']}\n"
+                     . "Email: {$data['email']}\n"
+                     . ( ! empty( $data['phone'] )     ? "Phone: {$data['phone']}\n"         : '' )
+                     . ( ! empty( $data['website'] )   ? "Website: {$data['website']}\n"     : '' )
+                     . ( ! empty( $data['org_type'] )  ? "Type: {$data['org_type']}\n"       : '' )
+                     . ( ! empty( $data['interests'] ) ? "Interests: {$data['interests']}\n" : '' )
+                     . ( ! empty( $data['message'] )   ? "\nMessage:\n{$data['message']}\n"  : '' )
+                     . "\nView in admin: " . admin_url( 'admin.php?page=bpu-partnerships' );
+        wp_mail( $admin_email, $subject, $body );
+
+        return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
+    }
+
+    /** GET /admin/partnerships — paginated list for admin */
+    public function admin_list_partnerships( WP_REST_Request $request ) {
+        $status   = $request->get_param( 'status' );
+        $search   = $request->get_param( 'search' );
+        $page     = max( 1, (int) $request->get_param( 'page' ) );
+        $per_page = min( 100, max( 1, (int) $request->get_param( 'per_page' ) ) );
+        $offset   = ( $page - 1 ) * $per_page;
+
+        $meta_query = array( array( 'key' => '_bpu_sr_type', 'value' => 'partnership' ) );
+        if ( $status ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_status', 'value' => sanitize_text_field( $status ) );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_service_request',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'offset'         => $offset,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => array_merge( array( 'relation' => 'AND' ), $meta_query ),
+        );
+
+        if ( $search ) {
+            $args['s'] = sanitize_text_field( $search );
+        }
+
+        $query = new WP_Query( $args );
+        $total = $query->found_posts;
+
+        $enquiries = array();
+        foreach ( $query->posts as $post ) {
+            $raw_data = get_post_meta( $post->ID, '_bpu_sr_data', true );
+            $data     = $raw_data ? json_decode( $raw_data, true ) : array();
+
+            // If search is set, filter by org_name or email in data
+            if ( $search ) {
+                $haystack = strtolower( ( $data['org_name'] ?? '' ) . ' ' . ( $data['email'] ?? '' ) . ' ' . ( $data['contact_name'] ?? '' ) );
+                if ( strpos( $haystack, strtolower( $search ) ) === false ) {
+                    $total--;
+                    continue;
+                }
+            }
+
+            $enquiries[] = array(
+                'id'         => $post->ID,
+                'status'     => get_post_meta( $post->ID, '_bpu_sr_status', true ) ?: 'new',
+                'data'       => $data,
+                'notes'      => get_post_meta( $post->ID, '_bpu_sr_notes', true ) ?: '',
+                'created_at' => $post->post_date_gmt,
+                'updated_at' => $post->post_modified_gmt,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'enquiries' => $enquiries,
+            'total'     => $total,
+            'page'      => $page,
+            'per_page'  => $per_page,
+            'pages'     => (int) ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    /** POST /admin/partnerships/{id}/status — update status or add note */
+    public function admin_update_partnership( WP_REST_Request $request ) {
+        $post_id = (int) $request->get_param( 'id' );
+        $post    = get_post( $post_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_service_request' ) {
+            return new WP_Error( 'not_found', 'Enquiry not found.', array( 'status' => 404 ) );
+        }
+        if ( get_post_meta( $post_id, '_bpu_sr_type', true ) !== 'partnership' ) {
+            return new WP_Error( 'not_found', 'Enquiry not found.', array( 'status' => 404 ) );
+        }
+
+        $new_status = $request->get_param( 'status' );
+        $new_note   = $request->get_param( 'note' );
+
+        $allowed_statuses = array( 'new', 'in_progress', 'converted', 'declined' );
+
+        if ( $new_status && in_array( $new_status, $allowed_statuses, true ) ) {
+            update_post_meta( $post_id, '_bpu_sr_status', $new_status );
+            wp_update_post( array( 'ID' => $post_id, 'post_modified' => current_time( 'mysql' ), 'post_modified_gmt' => current_time( 'mysql', true ) ) );
+        }
+
+        $appended_note = '';
+        if ( $new_note ) {
+            $current_user  = wp_get_current_user();
+            $timestamp     = current_time( 'Y-m-d H:i' );
+            $admin_name    = $current_user->display_name ?: 'Admin';
+            $appended_note = "[{$timestamp} · {$admin_name}] " . sanitize_textarea_field( $new_note );
+            $existing      = get_post_meta( $post_id, '_bpu_sr_notes', true );
+            $updated       = $existing ? $existing . "\n\n" . $appended_note : $appended_note;
+            update_post_meta( $post_id, '_bpu_sr_notes', $updated );
+        }
+
+        return new WP_REST_Response( array(
+            'status' => get_post_meta( $post_id, '_bpu_sr_status', true ),
+            'note'   => $appended_note,
         ), 200 );
     }
 
