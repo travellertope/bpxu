@@ -3,6 +3,26 @@
 import SiteHeader from '@/components/SiteHeader';
 import { useState } from 'react';
 
+const WP = 'https://blackprofessionals.uk/wp-content/uploads';
+
+const PARTNERS = [
+    { name: 'Barclays',                          href: 'https://www.barclays.co.uk/',          logo: `${WP}/2023/11/Barclays-1.jpg` },
+    { name: 'NatWest',                            href: 'https://www.natwest.com/',             logo: `${WP}/2025/07/Natwest.png` },
+    { name: 'BlackRock',                          href: 'https://www.blackrock.com/',           logo: `${WP}/2023/11/blackrock-1.jpg` },
+    { name: 'BNY',                                href: 'https://www.bny.com/',                 logo: `${WP}/2020/08/bny-log.png` },
+    { name: 'Capco',                              href: 'https://www.capco.com/',               logo: `${WP}/2026/08/capco.png` },
+    { name: 'FreeAgent',                          href: 'https://www.freeagent.com/en/',        logo: `${WP}/2026/05/free-agent-.png` },
+    { name: 'M&G',                                href: 'https://www.mandg.com/',               logo: `${WP}/2026/02/m-and-g.png` },
+    { name: 'Walter Scott',                       href: 'https://www.walterscott.com/',         logo: `${WP}/2025/10/walter-scott-1.png` },
+    { name: 'Charles River',                      href: 'https://www.criver.com/',              logo: `${WP}/2023/11/charles_river-1.jpg` },
+    { name: 'Cairngorms',                         href: 'https://cairngorms.co.uk/',            logo: `${WP}/2023/11/Cairngorms.jpg` },
+    { name: 'RSPB',                               href: 'https://www.rspb.org.uk/',             logo: `${WP}/2023/11/RSPB.jpg` },
+    { name: 'Scottish National Investment Bank',  href: 'https://www.thebank.scot/',            logo: `${WP}/2023/11/Scottish-National-Investment-Bank.jpg` },
+    { name: 'The Skills Network',                 href: 'https://theskillsnetwork.com/',        logo: `${WP}/2023/11/The-Skills-Network.jpg` },
+    { name: 'Codebase',                           href: 'https://www.codebase.com/',            logo: `${WP}/2025/03/Codebase.jpg` },
+    { name: 'Addleshaw Goddard',                  href: 'https://www.addleshawgoddard.com/en/', logo: `${WP}/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg` },
+];
+
 const BENEFITS = [
     {
         icon: '🎯',
@@ -165,6 +185,34 @@ export default function PartnershipPage() {
                                     Learn More →
                                 </a>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Partner logos */}
+                <section className="py-16 bg-hp-bg border-b-2 border-hp-dark">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                        <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight mb-3">
+                            Our Partners
+                        </h2>
+                        <p className="text-text-2 mb-10">Organisations championing diversity and inclusion alongside BPU.</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 items-center">
+                            {PARTNERS.map(p => (
+                                <a
+                                    key={p.name}
+                                    href={p.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center p-4 bg-white rounded-xl border-brutal shadow-brutal interactive-card"
+                                >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={p.logo}
+                                        alt={p.name}
+                                        className="h-10 w-auto max-w-full object-contain grayscale hover:grayscale-0 transition-all"
+                                    />
+                                </a>
+                            ))}
                         </div>
                     </div>
                 </section>
