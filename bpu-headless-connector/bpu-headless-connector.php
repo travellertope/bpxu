@@ -2236,6 +2236,13 @@ class BPU_Headless_Connector {
             ),
         ) );
 
+        // ── General contact form (public POST) ─────────────────────────────
+        register_rest_route( $this->namespace, '/contact', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'contact_submit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
         // ── Partnership enquiry (public POST) ──────────────────────────────
         register_rest_route( $this->namespace, '/partnership', array(
             'methods'             => WP_REST_Server::CREATABLE,
@@ -17719,6 +17726,28 @@ PROMPT;
             'per_page' => $per_page,
             'pages'    => (int) ceil( $total / $per_page ),
         ), 200 );
+    }
+
+    // ── General contact form handler ────────────────────────────────────────
+
+    /** POST /contact — public contact form, no auth required */
+    public function contact_submit( WP_REST_Request $request ) {
+        $name    = sanitize_text_field( $request->get_param( 'name' ) );
+        $email   = sanitize_email( $request->get_param( 'email' ) );
+        $subject = sanitize_text_field( $request->get_param( 'subject' ) ?: 'General Enquiry' );
+        $message = sanitize_textarea_field( $request->get_param( 'message' ) );
+
+        if ( ! $name || ! $email || ! $message ) {
+            return new WP_Error( 'missing_fields', 'Name, email and message are required.', array( 'status' => 400 ) );
+        }
+
+        $admin_email = get_option( 'admin_email' );
+        $mail_subject = "[BPU Contact] {$subject} — from {$name}";
+        $mail_body    = "Name: {$name}\nEmail: {$email}\nSubject: {$subject}\n\n{$message}";
+        $headers      = array( 'Reply-To: ' . $name . ' <' . $email . '>' );
+        wp_mail( $admin_email, $mail_subject, $mail_body, $headers );
+
+        return new WP_REST_Response( array( 'status' => 'success' ), 200 );
     }
 
     // ── Partnership enquiry handlers ────────────────────────────────────────
