@@ -85,6 +85,13 @@ export default function MemberDashboardShell({ currentPath, userName, userEmail,
                     </div>
 
                     <div className="dash-nav-section">
+                        <div className="dash-nav-label">Programmes</div>
+                        <NavLink href="/programmes/black-interns"     icon="apps"     label="Black Interns"       active={isActive('/programmes/black-interns')}     onClick={close} />
+                        <NavLink href="/programmes/experienced-talent" icon="briefcase" label="Experienced Talent"  active={isActive('/programmes/experienced-talent')} onClick={close} />
+                        <NavLink href="/programmes/nextgen"           icon="medal"    label="#NextGen"            active={isActive('/programmes/nextgen')}           onClick={close} />
+                    </div>
+
+                    <div className="dash-nav-section">
                         <div className="dash-nav-label">Community</div>
                         <NavLink href="/ambassadorship" icon="medal" label="Ambassadorship" active={isActive('/ambassadorship')} onClick={close} />
                         <NavLink href="/support" icon="headset" label="Member Support" active={isActive('/support')} onClick={close} />

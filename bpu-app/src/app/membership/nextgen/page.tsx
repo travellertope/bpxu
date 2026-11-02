@@ -1,5 +1,4 @@
 import SiteHeader from '@/components/SiteHeader';
-import NextGenForm from './NextGenForm';
 
 export const metadata = {
     title: '#NextGen Apprenticeship Programme | Black Professionals UK',
@@ -137,18 +136,27 @@ export default function NextGenPage() {
                 </section>
 
                 {/* Application Form */}
-                <section className="py-16 bg-hp-dark">
-                    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="text-center mb-10">
-                            <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white mb-3">
-                                Register Now
-                            </h2>
-                            <p className="text-white/70 text-base">
-                                Complete the form below and our team will review your application and be in touch shortly.
-                            </p>
+                {/* Member Gate */}
+                <section className="py-20 bg-hp-dark">
+                    <div className="max-w-xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                        <div className="inline-block bg-hp-accent text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded-full border-2 border-white mb-6">
+                            Members Only
                         </div>
-                        <div className="bg-hp-bg rounded-2xl border-brutal shadow-brutal p-6 sm:p-8">
-                            <NextGenForm />
+                        <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white mb-4">
+                            Ready to Apply?
+                        </h2>
+                        <p className="text-white/70 text-base mb-8">
+                            Sign in to your BPU member account to apply for the #NextGen Apprenticeship Programme. Your profile details will be pre-filled for you.
+                        </p>
+                        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                            <a href="/login?returnTo=/programmes/nextgen"
+                                className="inline-block px-8 py-4 bg-hp-accent text-white font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow">
+                                Sign In to Apply
+                            </a>
+                            <a href="/register"
+                                className="inline-block px-8 py-4 bg-white text-hp-dark font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow">
+                                Become a Member
+                            </a>
                         </div>
                     </div>
                 </section>
