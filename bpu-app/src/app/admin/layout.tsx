@@ -17,7 +17,7 @@ const PAIRED_ONLY_ADMIN_PREFIXES = [
 const BPU_ONLY_ADMIN_PREFIXES = [
   '/admin/jobs', '/admin/applications', '/admin/employers', '/admin/employer-accounts', '/admin/job-reports',
   '/admin/members', '/admin/birthdays', '/admin/profile-completeness',
-  '/admin/support', '/admin/service-requests',
+  '/admin/support', '/admin/service-requests', '/admin/programme-applications',
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

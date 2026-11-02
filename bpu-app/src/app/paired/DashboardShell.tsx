@@ -191,6 +191,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                     <div className="dash-nav-label">Member Services</div>
                                     <NavLink href="/admin/support" icon="messages" label="Support Tickets" active={isActive('/admin/support')} onClick={close} />
                                     <NavLink href="/admin/service-requests" icon="apps" label="Service Requests" active={isActive('/admin/service-requests')} onClick={close} />
+                                    <NavLink href="/admin/programme-applications" icon="apps" label="Programme Applications" active={isActive('/admin/programme-applications')} onClick={close} />
                                 </div>
                             )}
 
