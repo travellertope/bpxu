@@ -1,5 +1,6 @@
 import { getBPUSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
+import SiteHeader from '@/components/SiteHeader';
 
 export const metadata = {
     title: 'Employer Portal | BPU Jobs',
@@ -18,21 +19,10 @@ export default async function EmployerPage() {
     }
 
     return (
-        <div className="min-h-screen flex flex-col">
-            <header className="topbar">
-                <div className="topbar-inner">
-                    <a href="/" className="topbar-brand"><img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" /></a>
-                    <div className="flex items-center gap-3">
-                        <a href="/jobs" className="btn btn-ghost btn-sm">Browse jobs</a>
-                        {session.authenticated
-                            ? <a href="/" className="btn btn-ghost btn-sm">← Dashboard</a>
-                            : <a href="/login" className="btn btn-amber btn-sm">Sign in</a>
-                        }
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen flex flex-col bg-hp-bg text-hp-dark">
+            <SiteHeader />
 
-            <main className="flex-1">
+            <main className="flex-1 pt-20">
                 {/* Hero */}
                 <section
                     className="py-16 text-center"

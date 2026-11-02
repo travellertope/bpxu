@@ -1,5 +1,6 @@
 import { getBPUSession } from '@/lib/auth';
 import { Job } from './types';
+import SiteHeader from '@/components/SiteHeader';
 import JobBoard from './JobBoard';
 import { wpJobsUrl, NO_STORE } from '@/lib/wp-jobs';
 
@@ -28,23 +29,10 @@ export default async function JobsPage() {
     const [session, { jobs, total }] = await Promise.all([getBPUSession(), fetchJobs()]);
 
     return (
-        <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
-            <header className="topbar">
-                <div className="topbar-inner">
-                    <a href="/" className="topbar-brand">
-                        <img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" />
-                    </a>
-                    <div className="flex items-center gap-3">
-                        <a href="/employer" className="btn btn-ghost btn-sm">Post a job</a>
-                        {session.authenticated
-                            ? <a href="/" className="btn btn-ghost btn-sm">← Dashboard</a>
-                            : <a href="/login" className="btn btn-amber btn-sm">Sign in</a>
-                        }
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen flex flex-col bg-hp-bg text-hp-dark">
+            <SiteHeader />
 
-            <main className="flex-1">
+            <main className="flex-1 pt-20">
                 {/* Dark hero */}
                 <section
                     className="py-16 px-4 text-center"

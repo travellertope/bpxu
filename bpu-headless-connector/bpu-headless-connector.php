@@ -2163,6 +2163,113 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'admin_add_service_request_note' ),
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
+
+        // ──────────────────────────────────────────────────────
+        // Programme Applications — member submission (JWT required for member programmes)
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/programmes/black-interns', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => function( $r ) { return $this->programmes_submit( $r, 'black-interns' ); },
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/programmes/experienced-talent', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => function( $r ) { return $this->programmes_submit( $r, 'experienced-talent' ); },
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/programmes/nextgen', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => function( $r ) { return $this->programmes_submit( $r, 'nextgen' ); },
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+        ) );
+        register_rest_route( $this->namespace, '/programmes/talent-access', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => function( $r ) { return $this->programmes_submit( $r, 'talent-access' ); },
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // Programme Applications — admin endpoints
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/admin/programme-applications', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_programme_applications' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'programme' => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'status'    => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'    => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'page'      => array( 'default' => 1,   'sanitize_callback' => 'absint' ),
+                'per_page'  => array( 'default' => 25,  'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/programme-applications/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_programme_application' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+        ) );
+
+        // ──────────────────────────────────────────────────────
+        // Talent Pool — member opt-in and employer browse
+        // ──────────────────────────────────────────────────────
+        register_rest_route( $this->namespace, '/member/talent-pool', array(
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'member_get_talent_pool_status' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'member_update_talent_pool_opt_in' ),
+                'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/talent-pool', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'employer_browse_talent_pool' ),
+            'permission_callback' => array( $this, 'check_jwt_bearer_auth' ),
+            'args'                => array(
+                'programme' => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'    => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'page'      => array( 'default' => 1,   'sanitize_callback' => 'absint' ),
+                'per_page'  => array( 'default' => 20,  'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+
+        // ── General contact form (public POST) ─────────────────────────────
+        register_rest_route( $this->namespace, '/contact', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'contact_submit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ── Partnership enquiry (public POST) ──────────────────────────────
+        register_rest_route( $this->namespace, '/partnership', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'partnership_submit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ── Admin: partnership submissions ─────────────────────────────────
+        register_rest_route( $this->namespace, '/admin/partnerships', array(
+            'methods'             => WP_REST_Server::READABLE,
+            'callback'            => array( $this, 'admin_list_partnerships' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'status'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'search'   => array( 'default' => '',  'sanitize_callback' => 'sanitize_text_field' ),
+                'page'     => array( 'default' => 1,   'sanitize_callback' => 'absint' ),
+                'per_page' => array( 'default' => 25,  'sanitize_callback' => 'absint' ),
+            ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/partnerships/(?P<id>\d+)/status', array(
+            'methods'             => WP_REST_Server::CREATABLE,
+            'callback'            => array( $this, 'admin_update_partnership' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
+            'args'                => array(
+                'id' => array( 'required' => true, 'sanitize_callback' => 'absint' ),
+            ),
+        ) );
     }
 
     /**
@@ -13293,6 +13400,36 @@ jQuery(function($){
                 'default_body'    => "Hi {{name}},\r\n\r\nThe whole team at Black Professionals United wants to wish you a very happy birthday!\r\n\r\nWe hope you have a wonderful day. Thank you for being part of our community — here's to another great year ahead in your career and beyond.\r\n\r\nVisit your member portal: https://app.blackprofessionals.uk\r\n\r\nWarmly,\r\nThe BPU Team",
                 'variables'       => array( '{{name}}' ),
             ),
+            'contact_enquiry' => array(
+                'label'           => 'Contact form enquiry (to admin)',
+                'default_subject' => '[BPU Contact] {{subject}} — from {{name}}',
+                'default_body'    => "A new contact enquiry has been submitted via blackprofessionals.uk.\r\n\r\nName: {{name}}\r\nEmail: {{email}}\r\nSubject: {{subject}}\r\n\r\nMessage:\r\n{{message}}\r\n\r\n---\r\nReply directly to this email to respond to {{name}}.",
+                'variables'       => array( '{{name}}', '{{email}}', '{{subject}}', '{{message}}' ),
+            ),
+            'partnership_enquiry' => array(
+                'label'           => 'Partnership enquiry (to admin)',
+                'default_subject' => 'New Partnership Enquiry: {{org_name}}',
+                'default_body'    => "A new partnership enquiry has been submitted via blackprofessionals.uk.\r\n\r\nOrganisation: {{org_name}}\r\nContact: {{contact_name}}\r\nEmail: {{email}}\r\nPhone: {{phone}}\r\nWebsite: {{website}}\r\nOrg Type: {{org_type}}\r\nInterests: {{interests}}\r\n\r\nMessage:\r\n{{message}}\r\n\r\nView in admin: {{admin_url}}",
+                'variables'       => array( '{{org_name}}', '{{contact_name}}', '{{email}}', '{{phone}}', '{{website}}', '{{org_type}}', '{{interests}}', '{{message}}', '{{admin_url}}' ),
+            ),
+            'programme_application_submitted' => array(
+                'label'           => 'Programme application received (to admin)',
+                'default_subject' => '[BPU] New {{programme}} Application — {{name}}',
+                'default_body'    => "A new programme application has been submitted.\r\n\r\nProgramme: {{programme}}\r\nApplicant: {{name}}\r\nEmail: {{email}}\r\n\r\nReview the application:\r\n{{admin_url}}",
+                'variables'       => array( '{{programme}}', '{{name}}', '{{email}}', '{{admin_url}}' ),
+            ),
+            'programme_application_status' => array(
+                'label'           => 'Programme application status update (to member)',
+                'default_subject' => 'Update on your {{programme}} application',
+                'default_body'    => "Hi {{name}},\r\n\r\nYour {{programme}} application status has been updated to: {{status}}.\r\n\r\nLog in to your member portal for more details and next steps.\r\n\r\n{{portal_url}}\r\n\r\nBPU Team",
+                'variables'       => array( '{{name}}', '{{programme}}', '{{status}}', '{{portal_url}}' ),
+            ),
+            'talent_pool_opted_in' => array(
+                'label'           => 'Talent Pool opt-in confirmation (to member)',
+                'default_subject' => "You're now in the BPU Talent Pool!",
+                'default_body'    => "Hi {{name}},\r\n\r\nGreat news — you're now listed in the BPU Talent Pool. Employers and partners on the BPU platform can now discover your anonymised profile and reach out with opportunities.\r\n\r\nYou can update your preferences or opt out at any time from your member portal:\r\nhttps://app.blackprofessionals.uk/talent-pool\r\n\r\nBPU Team",
+                'variables'       => array( '{{name}}' ),
+            ),
         );
     }
 
@@ -17295,6 +17432,525 @@ PROMPT;
         wp_update_post( array( 'ID' => $id ) );
 
         return new WP_REST_Response( array( 'success' => true, 'note' => $new_note ), 201 );
+    }
+
+    // =========================================================================
+    // Programme Applications — submission, admin list, admin update
+    // =========================================================================
+
+    /**
+     * Shared submission handler for all /programmes/* routes.
+     * Stores as bpu_service_request with _bpu_sr_programme meta.
+     */
+    private function programmes_submit( WP_REST_Request $request, string $programme ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        $user_id = $payload ? (int) ( $payload['user_id'] ?? 0 ) : 0;
+        $user    = $user_id ? get_userdata( $user_id ) : null;
+
+        // Collect all form fields submitted as multipart/form-data
+        $allowed_fields = array(
+            'first-name', 'your-name', 'your-email', 'nearest-city', 'nearest-city-other',
+            'selected-other', 'which-uni', 'year-of-study', 'ethnic-background',
+            'your-nationality', 'work-rights', 'applicant-gender', 'years-experience',
+            'your-phone', 'date-321', 'your-location', 'textarea-aspiration',
+            'your-disabilities', 'your-school', 'current-level', 'select-area',
+            'other-area', 'your-skills', 'select-jobtype',
+            'organisation-name', 'contact-name', 'contact-title', 'additional-information',
+        );
+        $data = array();
+        foreach ( $allowed_fields as $key ) {
+            $val = $request->get_param( $key );
+            if ( $val !== null && $val !== '' ) {
+                $data[ $key ] = sanitize_text_field( (string) $val );
+            }
+        }
+
+        // Multi-value interest-programme[] (talent-access form)
+        $ip = $request->get_param( 'interest-programme' );
+        if ( ! $ip && isset( $_POST['interest-programme'] ) ) {
+            $ip = (array) $_POST['interest-programme'];
+        }
+        if ( is_array( $ip ) ) {
+            $data['interest-programme[]'] = implode( ', ', array_map( 'sanitize_text_field', $ip ) );
+        } elseif ( $ip ) {
+            $data['interest-programme[]'] = sanitize_text_field( (string) $ip );
+        }
+
+        $email = $data['your-email'] ?? ( $user ? $user->user_email : '' );
+        if ( ! is_email( $email ) ) {
+            return new WP_Error( 'invalid_email', 'A valid email address is required.', array( 'status' => 400 ) );
+        }
+
+        $label   = ucwords( str_replace( '-', ' ', $programme ) );
+        $name    = $data['first-name'] ?? $data['your-name'] ?? $data['contact-name'] ?? ( $user ? $user->display_name : 'Applicant' );
+        $post_id = wp_insert_post( array_filter( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => $label . ' \xe2\x80\x94 ' . $name,
+            'post_status' => 'publish',
+            'post_author' => $user_id ?: null,
+        ) ), true );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to submit application.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type',      'programme_' . str_replace( '-', '_', $programme ) );
+        update_post_meta( $post_id, '_bpu_sr_programme',  $programme );
+        update_post_meta( $post_id, '_bpu_sr_status',     'pending' );
+        update_post_meta( $post_id, '_bpu_sr_data',       wp_json_encode( $data ) );
+
+        // CV upload (field key differs by programme)
+        $file_key = ( $programme === 'nextgen' ) ? 'file-cv' : 'your-file';
+        if ( ! empty( $_FILES[ $file_key ]['tmp_name'] ) ) {
+            require_once ABSPATH . 'wp-admin/includes/file.php';
+            require_once ABSPATH . 'wp-admin/includes/media.php';
+            require_once ABSPATH . 'wp-admin/includes/image.php';
+            $cv_id = media_handle_upload( $file_key, $post_id );
+            if ( ! is_wp_error( $cv_id ) ) {
+                update_post_meta( $post_id, '_bpu_sr_cv_id', $cv_id );
+                if ( $user_id ) {
+                    update_user_meta( $user_id, '_bpu_member_cv_id', $cv_id );
+                }
+            }
+        }
+
+        // Notify admin
+        $admin_email = get_option( 'admin_email' );
+        $tpl = $this->render_email_template( 'programme_application_submitted', array(
+            'programme' => $label,
+            'name'      => $name,
+            'email'     => $email,
+            'admin_url' => admin_url( 'post.php?post=' . $post_id . '&action=edit' ),
+        ) );
+        wp_mail( $admin_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+
+        return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
+    }
+
+    /** GET /admin/programme-applications */
+    public function admin_list_programme_applications( WP_REST_Request $request ) {
+        $programme = sanitize_text_field( $request->get_param( 'programme' ) ?: '' );
+        $status    = sanitize_text_field( $request->get_param( 'status' )    ?: '' );
+        $search    = sanitize_text_field( $request->get_param( 'search' )    ?: '' );
+        $page      = max( 1, (int) $request->get_param( 'page' ) );
+        $per_page  = min( 100, max( 1, (int) $request->get_param( 'per_page' ) ) );
+
+        $meta_query = array( 'relation' => 'AND' );
+        if ( $programme ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_programme', 'value' => $programme );
+        } else {
+            $meta_query[] = array(
+                'key'     => '_bpu_sr_type',
+                'value'   => array( 'programme_black_interns', 'programme_experienced_talent', 'programme_nextgen', 'programme_talent_access' ),
+                'compare' => 'IN',
+            );
+        }
+        if ( $status ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_status', 'value' => $status );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_service_request',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => $meta_query,
+        );
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query( $args );
+        $items = array();
+        foreach ( $query->posts as $post ) {
+            $pid    = $post->ID;
+            $cv_id  = get_post_meta( $pid, '_bpu_sr_cv_id', true );
+            $items[] = array(
+                'id'         => $pid,
+                'programme'  => get_post_meta( $pid, '_bpu_sr_programme', true ) ?: '',
+                'status'     => get_post_meta( $pid, '_bpu_sr_status',    true ) ?: 'pending',
+                'data'       => json_decode( get_post_meta( $pid, '_bpu_sr_data', true ) ?: '{}', true ),
+                'notes'      => get_post_meta( $pid, '_bpu_sr_notes',     true ) ?: '',
+                'cv_url'     => $cv_id ? wp_get_attachment_url( (int) $cv_id ) : null,
+                'created_at' => get_the_date( 'c', $post ),
+                'updated_at' => get_the_modified_date( 'c', $post ),
+            );
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'applications' => $items,
+            'total'        => $query->found_posts,
+            'page'         => $page,
+            'per_page'     => $per_page,
+            'pages'        => (int) ceil( $query->found_posts / $per_page ),
+        ), 200 );
+    }
+
+    /** POST /admin/programme-applications/{id}/status — update status or add note */
+    public function admin_update_programme_application( WP_REST_Request $request ) {
+        $id   = (int) $request->get_param( 'id' );
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $post = get_post( $id );
+        if ( ! $post || $post->post_type !== 'bpu_service_request' ) {
+            return new WP_Error( 'not_found', 'Application not found.', array( 'status' => 404 ) );
+        }
+
+        if ( isset( $body['status'] ) ) {
+            $allowed = array( 'pending', 'under_review', 'shortlisted', 'accepted', 'rejected' );
+            $new_status = sanitize_text_field( $body['status'] );
+            if ( ! in_array( $new_status, $allowed, true ) ) {
+                return new WP_Error( 'invalid_status', 'Invalid status value.', array( 'status' => 400 ) );
+            }
+            update_post_meta( $id, '_bpu_sr_status', $new_status );
+            wp_update_post( array( 'ID' => $id ) );
+
+            // When accepted, mark the user as programme-accepted for talent pool eligibility
+            if ( $new_status === 'accepted' && $post->post_author ) {
+                $prog = get_post_meta( $id, '_bpu_sr_programme', true ) ?: '';
+                if ( $prog ) {
+                    update_user_meta( (int) $post->post_author, '_bpu_programme_accepted', $prog );
+                }
+            }
+
+            // Email notification to member
+            $member = get_userdata( (int) $post->post_author );
+            if ( $member ) {
+                $prog_label   = ucwords( str_replace( array( 'programme_', '_' ), array( '', ' ' ), get_post_meta( $id, '_bpu_sr_type', true ) ?: '' ) );
+                $status_label = ucwords( str_replace( '_', ' ', $new_status ) );
+                $tpl = $this->render_email_template( 'programme_application_status', array(
+                    'name'       => $member->display_name,
+                    'programme'  => $prog_label,
+                    'status'     => $status_label,
+                    'portal_url' => 'https://app.blackprofessionals.uk/programmes',
+                ) );
+                wp_mail( $member->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+            }
+
+            return new WP_REST_Response( array( 'success' => true, 'status' => $new_status ), 200 );
+        }
+
+        if ( isset( $body['note'] ) ) {
+            $note = sanitize_textarea_field( $body['note'] );
+            if ( ! $note ) {
+                return new WP_Error( 'missing_note', 'Note text is required.', array( 'status' => 400 ) );
+            }
+            $payload   = $this->verify_jwt_bearer( $request );
+            $admin     = $payload && ! empty( $payload['user_id'] ) ? get_userdata( (int) $payload['user_id'] ) : null;
+            $new_note  = '[' . current_time( 'Y-m-d H:i' ) . ' \xc2\xb7 ' . ( $admin ? $admin->display_name : 'Admin' ) . '] ' . $note;
+            $existing  = get_post_meta( $id, '_bpu_sr_notes', true ) ?: '';
+            update_post_meta( $id, '_bpu_sr_notes', $existing ? $existing . "\n\n" . $new_note : $new_note );
+            wp_update_post( array( 'ID' => $id ) );
+            return new WP_REST_Response( array( 'success' => true, 'note' => $new_note ), 201 );
+        }
+
+        return new WP_Error( 'no_action', 'Provide status or note in request body.', array( 'status' => 400 ) );
+    }
+
+    // =========================================================================
+    // Talent Pool
+    // =========================================================================
+
+    /** GET /member/talent-pool — return the authenticated member's opt-in status */
+    public function member_get_talent_pool_status( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id   = (int) $payload['user_id'];
+        $opted_in  = get_user_meta( $user_id, '_bpu_talent_pool_opted_in', true );
+        $programme = get_user_meta( $user_id, '_bpu_programme_accepted', true ) ?: '';
+        return new WP_REST_Response( array(
+            'opted_in'  => $opted_in === '1',
+            'programme' => $programme,
+            'eligible'  => ! empty( $programme ),
+        ), 200 );
+    }
+
+    /** POST /member/talent-pool — toggle opt-in */
+    public function member_update_talent_pool_opt_in( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+        $user_id = (int) $payload['user_id'];
+        $body    = $request->get_json_params() ?: array();
+        if ( ! isset( $body['opt_in'] ) ) {
+            return new WP_Error( 'missing_field', 'opt_in boolean is required.', array( 'status' => 400 ) );
+        }
+        $opt_in = (bool) $body['opt_in'];
+        update_user_meta( $user_id, '_bpu_talent_pool_opted_in', $opt_in ? '1' : '0' );
+
+        // Send opt-in confirmation email to member
+        if ( $opt_in ) {
+            $user = get_userdata( $user_id );
+            if ( $user ) {
+                $tpl = $this->render_email_template( 'talent_pool_opted_in', array(
+                    'name' => $user->display_name,
+                ) );
+                wp_mail( $user->user_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+            }
+        }
+
+        return new WP_REST_Response( array( 'opted_in' => $opt_in ), 200 );
+    }
+
+    /** GET /talent-pool — employer/admin browse of opted-in members */
+    public function employer_browse_talent_pool( WP_REST_Request $request ) {
+        $payload = $this->verify_jwt_bearer( $request );
+        if ( ! $payload || empty( $payload['user_id'] ) ) {
+            return new WP_Error( 'unauthorized', 'Unauthorized.', array( 'status' => 401 ) );
+        }
+
+        $programme = sanitize_text_field( $request->get_param( 'programme' ) ?: '' );
+        $search    = sanitize_text_field( $request->get_param( 'search' )    ?: '' );
+        $page      = max( 1, (int) $request->get_param( 'page' ) );
+        $per_page  = min( 50, max( 1, (int) $request->get_param( 'per_page' ) ) );
+
+        $meta_query = array(
+            array( 'key' => '_bpu_talent_pool_opted_in', 'value' => '1' ),
+            array( 'key' => '_bpu_programme_accepted',   'compare' => 'EXISTS' ),
+        );
+        if ( $programme ) {
+            $meta_query[] = array( 'key' => '_bpu_programme_accepted', 'value' => $programme );
+        }
+
+        $query_args = array(
+            'meta_query' => $meta_query,
+            'number'     => $per_page,
+            'offset'     => ( $page - 1 ) * $per_page,
+            'orderby'    => 'registered',
+            'order'      => 'DESC',
+        );
+        if ( $search ) {
+            $query_args['search']         = '*' . esc_attr( $search ) . '*';
+            $query_args['search_columns'] = array( 'display_name', 'user_email' );
+        }
+
+        $query = new WP_User_Query( $query_args );
+
+        // Separate count query
+        $count_args  = array_merge( $query_args, array( 'count_total' => true, 'number' => 1, 'offset' => 0 ) );
+        $count_query = new WP_User_Query( $count_args );
+        $total       = (int) $count_query->get_total();
+
+        $members = array();
+        foreach ( $query->get_results() as $u ) {
+            $uid  = $u->ID;
+            $acf  = function_exists( 'get_fields' ) ? ( get_fields( 'user_' . $uid ) ?: array() ) : array();
+
+            // Anonymise: first name + last initial only
+            $first   = $acf['first_name'] ?? $u->first_name ?? '';
+            $last    = $acf['last_name']  ?? $u->last_name  ?? '';
+            $display = trim( $first . ' ' . ( $last ? strtoupper( substr( $last, 0, 1 ) ) . '.' : '' ) ) ?: $u->display_name;
+
+            $photo_id = get_user_meta( $uid, '_bpu_photo_id', true ) ?: get_user_meta( $uid, 'profile_photo_id', true );
+            $cv_id    = get_user_meta( $uid, '_bpu_member_cv_id', true );
+
+            $members[] = array(
+                'id'               => $uid,
+                'display_name'     => $display,
+                'photo_url'        => $photo_id ? wp_get_attachment_url( (int) $photo_id ) : ( get_user_meta( $uid, 'photo_url', true ) ?: null ),
+                'cv_url'           => $cv_id    ? wp_get_attachment_url( (int) $cv_id    ) : null,
+                'programme'        => get_user_meta( $uid, '_bpu_programme_accepted', true ) ?: '',
+                'city'             => $acf['location_city']               ?? $acf['where_in_the_uk']           ?? '',
+                'industry'         => $acf['industry']                    ?? $acf['industryfield_of_expertise'] ?? '',
+                'skills'           => $acf['skills_separate']             ?? '',
+                'years_experience' => $acf['years_of_experience']         ?? '',
+                'availability'     => $acf['open_to_opportunities']       ?? '',
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'members'  => $members,
+            'total'    => $total,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => (int) ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    // ── General contact form handler ────────────────────────────────────────
+
+    /** POST /contact — public contact form, no auth required */
+    public function contact_submit( WP_REST_Request $request ) {
+        $name    = sanitize_text_field( $request->get_param( 'name' ) );
+        $email   = sanitize_email( $request->get_param( 'email' ) );
+        $subject = sanitize_text_field( $request->get_param( 'subject' ) ?: 'General Enquiry' );
+        $message = sanitize_textarea_field( $request->get_param( 'message' ) );
+
+        if ( ! $name || ! $email || ! $message ) {
+            return new WP_Error( 'missing_fields', 'Name, email and message are required.', array( 'status' => 400 ) );
+        }
+
+        $admin_email = get_option( 'admin_email' );
+        $tpl         = $this->render_email_template( 'contact_enquiry', array(
+            'name'    => $name,
+            'email'   => $email,
+            'subject' => $subject,
+            'message' => $message,
+        ) );
+        $headers = array( 'Reply-To: ' . $name . ' <' . $email . '>', 'Content-Type: text/html; charset=UTF-8' );
+        wp_mail( $admin_email, $tpl['subject'], $tpl['html'], $headers );
+
+        return new WP_REST_Response( array( 'status' => 'success' ), 200 );
+    }
+
+    // ── Partnership enquiry handlers ────────────────────────────────────────
+
+    /** POST /partnership — public submission, no auth required */
+    public function partnership_submit( WP_REST_Request $request ) {
+        $allowed = array( 'org_name', 'contact_name', 'email', 'phone', 'website', 'org_type', 'interests', 'message' );
+        $data    = array();
+        foreach ( $allowed as $key ) {
+            $val = $request->get_param( $key );
+            if ( $val !== null ) {
+                $data[ $key ] = is_array( $val )
+                    ? implode( ', ', array_map( 'sanitize_text_field', $val ) )
+                    : sanitize_text_field( $val );
+            }
+        }
+
+        if ( empty( $data['org_name'] ) || empty( $data['email'] ) ) {
+            return new WP_Error( 'missing_fields', 'Organisation name and email are required.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => sanitize_text_field( $data['org_name'] ) . ' — Partnership Enquiry',
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to save enquiry.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type',   'partnership' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'new' );
+        update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
+
+        // Admin notification
+        $admin_email = get_option( 'admin_email' );
+        $tpl = $this->render_email_template( 'partnership_enquiry', array(
+            'org_name'     => $data['org_name']     ?? '',
+            'contact_name' => $data['contact_name'] ?? '',
+            'email'        => $data['email']         ?? '',
+            'phone'        => $data['phone']         ?? '',
+            'website'      => $data['website']       ?? '',
+            'org_type'     => $data['org_type']      ?? '',
+            'interests'    => $data['interests']     ?? '',
+            'message'      => $data['message']       ?? '',
+            'admin_url'    => admin_url( 'admin.php?page=bpu-partnerships' ),
+        ) );
+        wp_mail( $admin_email, $tpl['subject'], $tpl['html'], array( 'Content-Type: text/html; charset=UTF-8' ) );
+
+        return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
+    }
+
+    /** GET /admin/partnerships — paginated list for admin */
+    public function admin_list_partnerships( WP_REST_Request $request ) {
+        $status   = $request->get_param( 'status' );
+        $search   = $request->get_param( 'search' );
+        $page     = max( 1, (int) $request->get_param( 'page' ) );
+        $per_page = min( 100, max( 1, (int) $request->get_param( 'per_page' ) ) );
+        $offset   = ( $page - 1 ) * $per_page;
+
+        $meta_query = array( array( 'key' => '_bpu_sr_type', 'value' => 'partnership' ) );
+        if ( $status ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_status', 'value' => sanitize_text_field( $status ) );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_service_request',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'offset'         => $offset,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => array_merge( array( 'relation' => 'AND' ), $meta_query ),
+        );
+
+        if ( $search ) {
+            $args['s'] = sanitize_text_field( $search );
+        }
+
+        $query = new WP_Query( $args );
+        $total = $query->found_posts;
+
+        $enquiries = array();
+        foreach ( $query->posts as $post ) {
+            $raw_data = get_post_meta( $post->ID, '_bpu_sr_data', true );
+            $data     = $raw_data ? json_decode( $raw_data, true ) : array();
+
+            // If search is set, filter by org_name or email in data
+            if ( $search ) {
+                $haystack = strtolower( ( $data['org_name'] ?? '' ) . ' ' . ( $data['email'] ?? '' ) . ' ' . ( $data['contact_name'] ?? '' ) );
+                if ( strpos( $haystack, strtolower( $search ) ) === false ) {
+                    $total--;
+                    continue;
+                }
+            }
+
+            $enquiries[] = array(
+                'id'         => $post->ID,
+                'status'     => get_post_meta( $post->ID, '_bpu_sr_status', true ) ?: 'new',
+                'data'       => $data,
+                'notes'      => get_post_meta( $post->ID, '_bpu_sr_notes', true ) ?: '',
+                'created_at' => $post->post_date_gmt,
+                'updated_at' => $post->post_modified_gmt,
+            );
+        }
+
+        return new WP_REST_Response( array(
+            'enquiries' => $enquiries,
+            'total'     => $total,
+            'page'      => $page,
+            'per_page'  => $per_page,
+            'pages'     => (int) ceil( $total / $per_page ),
+        ), 200 );
+    }
+
+    /** POST /admin/partnerships/{id}/status — update status or add note */
+    public function admin_update_partnership( WP_REST_Request $request ) {
+        $post_id = (int) $request->get_param( 'id' );
+        $post    = get_post( $post_id );
+
+        if ( ! $post || $post->post_type !== 'bpu_service_request' ) {
+            return new WP_Error( 'not_found', 'Enquiry not found.', array( 'status' => 404 ) );
+        }
+        if ( get_post_meta( $post_id, '_bpu_sr_type', true ) !== 'partnership' ) {
+            return new WP_Error( 'not_found', 'Enquiry not found.', array( 'status' => 404 ) );
+        }
+
+        $new_status = $request->get_param( 'status' );
+        $new_note   = $request->get_param( 'note' );
+
+        $allowed_statuses = array( 'new', 'in_progress', 'converted', 'declined' );
+
+        if ( $new_status && in_array( $new_status, $allowed_statuses, true ) ) {
+            update_post_meta( $post_id, '_bpu_sr_status', $new_status );
+            wp_update_post( array( 'ID' => $post_id, 'post_modified' => current_time( 'mysql' ), 'post_modified_gmt' => current_time( 'mysql', true ) ) );
+        }
+
+        $appended_note = '';
+        if ( $new_note ) {
+            $current_user  = wp_get_current_user();
+            $timestamp     = current_time( 'Y-m-d H:i' );
+            $admin_name    = $current_user->display_name ?: 'Admin';
+            $appended_note = "[{$timestamp} · {$admin_name}] " . sanitize_textarea_field( $new_note );
+            $existing      = get_post_meta( $post_id, '_bpu_sr_notes', true );
+            $updated       = $existing ? $existing . "\n\n" . $appended_note : $appended_note;
+            update_post_meta( $post_id, '_bpu_sr_notes', $updated );
+        }
+
+        return new WP_REST_Response( array(
+            'status' => get_post_meta( $post_id, '_bpu_sr_status', true ),
+            'note'   => $appended_note,
+        ), 200 );
     }
 
 } // end class BPU_Headless_Connector

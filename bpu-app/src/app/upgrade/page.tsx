@@ -1,4 +1,5 @@
 import { getBPUSession } from '@/lib/auth';
+import SiteHeader from '@/components/SiteHeader';
 
 const PRO_FEATURES = [
     {
@@ -42,20 +43,10 @@ export default async function UpgradePage() {
     const isPro = session.user?.is_pro ?? false;
 
     return (
-        <div className="min-h-screen flex flex-col">
-            <header className="topbar">
-                <div className="topbar-inner">
-                    <a href="/" className="topbar-brand"><img src="https://blackprofessionals.uk/wp-content/uploads/2025/03/bpu_logo-.png" alt="Black Professionals United" /></a>
-                    <div className="flex items-center gap-3">
-                        {session.authenticated
-                            ? <a href="/" className="btn btn-ghost btn-sm">← Back to dashboard</a>
-                            : <a href="/login" className="btn btn-amber btn-sm">Sign in</a>
-                        }
-                    </div>
-                </div>
-            </header>
+        <div className="min-h-screen flex flex-col bg-hp-bg text-hp-dark">
+            <SiteHeader />
 
-            <main className="flex-1 wrap py-12 space-y-12">
+            <main className="flex-1 wrap pt-28 pb-12 space-y-12">
 
                 {/* Hero */}
                 <div className="text-center space-y-4 max-w-2xl mx-auto">

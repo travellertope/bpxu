@@ -590,3 +590,31 @@ body {
   0%   { transform: translateY(0); }
   100% { transform: translateY(-50%); }
 }
+
+/* ── Legal prose ── */
+.prose-legal {
+  @apply text-base text-text leading-relaxed;
+  max-width: 72ch;
+}
+.prose-legal h2 {
+  @apply text-xl font-black uppercase tracking-tight mt-10 mb-3 text-hp-dark;
+  scroll-margin-top: 5rem;
+}
+.prose-legal h3 {
+  @apply text-base font-black uppercase tracking-tight mt-6 mb-2 text-hp-dark;
+}
+.prose-legal p { @apply mb-4; }
+.prose-legal ul, .prose-legal ol { @apply mb-4 pl-6 space-y-1.5; }
+.prose-legal ul { list-style-type: disc; }
+.prose-legal ol { list-style-type: decimal; }
+.prose-legal li { @apply text-sm text-text-2 leading-relaxed; }
+.prose-legal a { @apply text-hp-accent underline underline-offset-2; }
+.prose-legal strong { @apply font-bold text-hp-dark; }
+.prose-legal address { @apply not-italic text-sm text-text-2 leading-relaxed bg-white rounded-xl p-5 my-4; border: 3px solid #001478; }
+.prose-legal code { @apply text-xs bg-white border border-border rounded px-1 py-0.5 font-mono; }
+
+/* Legal cookie table */
+.cookie-table { @apply overflow-x-auto my-4; }
+.cookie-table table { @apply w-full text-sm border-collapse; }
+.cookie-table th { @apply text-left text-xs font-black uppercase tracking-wide text-text-3 pb-2 pr-4 border-b-2 border-hp-dark; }
+.cookie-table td { @apply py-2 pr-4 text-sm text-text-2 border-b border-border align-top; }
