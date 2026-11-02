@@ -1,4 +1,5 @@
 import SiteHeader from '@/components/SiteHeader';
+import { Target, Globe, Handshake, TrendUp, Buildings, UsersThree } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata = {
     title: 'Experienced Talent Programme | Black Professionals UK',
@@ -7,32 +8,32 @@ export const metadata = {
 
 const BENEFITS = [
     {
-        icon: '🎯',
+        Icon: Target,
         title: 'Targeted Matching',
         desc: 'We connect you directly with employers actively seeking experienced professionals from diverse backgrounds.',
     },
     {
-        icon: '🌍',
+        Icon: Globe,
         title: 'International Experience Valued',
         desc: 'Your global expertise and qualifications are recognised and celebrated, not overlooked.',
     },
     {
-        icon: '🤝',
+        Icon: Handshake,
         title: 'Dedicated Support',
         desc: 'Receive personalised guidance throughout your job search and onboarding journey.',
     },
     {
-        icon: '📈',
+        Icon: TrendUp,
         title: 'Career Progression',
         desc: 'Access roles that reflect your true level of experience and leadership potential.',
     },
     {
-        icon: '🏢',
+        Icon: Buildings,
         title: 'Vetted Employers',
         desc: 'We only work with employers committed to inclusive hiring and fair opportunity.',
     },
     {
-        icon: '🔗',
+        Icon: UsersThree,
         title: 'Professional Network',
         desc: 'Join a community of Black professionals and build lasting connections across industries.',
     },
@@ -69,11 +70,13 @@ export default function ExperiencedTalentPage() {
                             Why Join the Programme?
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {BENEFITS.map(b => (
-                                <div key={b.title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
-                                    <div className="text-3xl">{b.icon}</div>
-                                    <p className="font-black uppercase tracking-tight text-sm">{b.title}</p>
-                                    <p className="text-sm text-text-2 leading-relaxed">{b.desc}</p>
+                            {BENEFITS.map(({ Icon: BenefitIcon, title, desc }) => (
+                                <div key={title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
+                                    <div className="w-10 h-10 rounded-xl bg-hp-accent/10 flex items-center justify-center text-hp-accent">
+                                        <BenefitIcon size={22} weight="bold" />
+                                    </div>
+                                    <p className="font-black uppercase tracking-tight text-sm">{title}</p>
+                                    <p className="text-sm text-text-2 leading-relaxed">{desc}</p>
                                 </div>
                             ))}
                         </div>

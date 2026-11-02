@@ -2,6 +2,7 @@
 
 import SiteHeader from '@/components/SiteHeader';
 import { useState } from 'react';
+import { Target, Buildings, Megaphone, Handshake, Globe, Rocket } from '@phosphor-icons/react';
 
 const WP = 'https://blackprofessionals.uk/wp-content/uploads';
 
@@ -25,32 +26,32 @@ const PARTNERS = [
 
 const BENEFITS = [
     {
-        icon: '🎯',
+        Icon: Target,
         title: 'Access to Diverse Talent Pool',
         desc: 'Our partners possess privileged access to a diverse and highly skilled talent pool through our dynamic job board and sought-after internship and placement programmes. Connect with exceptional Black professionals from various industries.',
     },
     {
-        icon: '🏢',
+        Icon: Buildings,
         title: 'Organisation Representation',
         desc: "Our partners are displayed and well-represented on our platform. Organisations that engage present their values as diverse and inclusive, demonstrating their unwavering commitment to diversity and social responsibility.",
     },
     {
-        icon: '📢',
+        Icon: Megaphone,
         title: 'Increased Visibility & Brand Awareness',
         desc: 'Our partnerships provide organisations with increased visibility among our members and the wider professional community. Benefit from extensive exposure through our website, social media platforms, and events.',
     },
     {
-        icon: '🤝',
+        Icon: Handshake,
         title: 'Collaborative Events & Networking',
         desc: 'Forge valuable connections within our community and unlock new business opportunities. Engage in purposeful networking events, connecting with potential clients, partners, and industry leaders.',
     },
     {
-        icon: '🌍',
+        Icon: Globe,
         title: 'Social Impact',
         desc: 'Your partnership with Black Professionals United Kingdom fosters social impact and meaningful change. Showcase your organisation\'s commitment to community and make a positive difference.',
     },
     {
-        icon: '🚀',
+        Icon: Rocket,
         title: 'Collaborative Projects & Initiatives',
         desc: 'Collaborate with BPU on projects and initiatives that address relevant challenges and drive positive change. Together, we can create a more equitable future and foster a diverse and prosperous community.',
     },
@@ -149,11 +150,13 @@ export default function PartnershipPage() {
                             Partnership Benefits
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {BENEFITS.map(b => (
-                                <div key={b.title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
-                                    <div className="text-3xl">{b.icon}</div>
-                                    <p className="font-black uppercase tracking-tight text-sm">{b.title}</p>
-                                    <p className="text-sm text-text-2 leading-relaxed">{b.desc}</p>
+                            {BENEFITS.map(({ Icon: BenefitIcon, title, desc }) => (
+                                <div key={title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
+                                    <div className="w-10 h-10 rounded-xl bg-hp-accent/10 flex items-center justify-center text-hp-accent">
+                                        <BenefitIcon size={22} weight="bold" />
+                                    </div>
+                                    <p className="font-black uppercase tracking-tight text-sm">{title}</p>
+                                    <p className="text-sm text-text-2 leading-relaxed">{desc}</p>
                                 </div>
                             ))}
                         </div>

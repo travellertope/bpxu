@@ -2,6 +2,14 @@
 
 import SiteHeader from '@/components/SiteHeader';
 import { useState } from 'react';
+import { Lightbulb, Handshake, Globe, Rocket } from '@phosphor-icons/react';
+
+const CONTACT_REASONS = [
+    { Icon: Lightbulb, text: 'Share an innovative idea to empower Black professionals' },
+    { Icon: Handshake, text: 'Reach out for support on your professional journey' },
+    { Icon: Globe, text: 'Connect with industry leaders and like-minded peers' },
+    { Icon: Rocket, text: 'Join a community that celebrates your uniqueness' },
+];
 
 const SUBJECTS = [
     'General Enquiry',
@@ -71,15 +79,12 @@ export default function ContactPage() {
                 <section className="py-16 bg-white border-b-2 border-hp-dark">
                     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-                            {[
-                                { icon: '💡', text: 'Share an innovative idea to empower Black professionals' },
-                                { icon: '🤝', text: 'Reach out for support on your professional journey' },
-                                { icon: '🌐', text: 'Connect with industry leaders and like-minded peers' },
-                                { icon: '🚀', text: 'Join a community that celebrates your uniqueness' },
-                            ].map(item => (
-                                <div key={item.text} className="p-5 rounded-2xl border-brutal shadow-brutal bg-hp-bg space-y-2">
-                                    <div className="text-3xl">{item.icon}</div>
-                                    <p className="text-sm font-semibold text-text-2 leading-snug">{item.text}</p>
+                            {CONTACT_REASONS.map(({ Icon: ReasonIcon, text }) => (
+                                <div key={text} className="p-5 rounded-2xl border-brutal shadow-brutal bg-hp-bg space-y-3">
+                                    <div className="w-10 h-10 rounded-xl bg-hp-accent/10 flex items-center justify-center text-hp-accent">
+                                        <ReasonIcon size={22} weight="bold" />
+                                    </div>
+                                    <p className="text-sm font-semibold text-text-2 leading-snug">{text}</p>
                                 </div>
                             ))}
                         </div>
