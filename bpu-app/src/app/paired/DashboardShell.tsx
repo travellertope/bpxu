@@ -185,6 +185,15 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                 </div>
                             )}
 
+                            {/* ── Member Services (BPU only) ── */}
+                            {!isPaired && hasRole('administrator', 'bpu_editor', 'bpu_moderator') && (
+                                <div className="dash-nav-section">
+                                    <div className="dash-nav-label">Member Services</div>
+                                    <NavLink href="/admin/support" icon="messages" label="Support Tickets" active={isActive('/admin/support')} onClick={close} />
+                                    <NavLink href="/admin/service-requests" icon="apps" label="Service Requests" active={isActive('/admin/service-requests')} onClick={close} />
+                                </div>
+                            )}
+
                             {/* ── Platform ── */}
                             {hasRole('administrator') && (
                                 <div className="dash-nav-section">
