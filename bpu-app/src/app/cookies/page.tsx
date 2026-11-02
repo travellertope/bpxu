@@ -1,4 +1,5 @@
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 
 export const metadata = {
     title: 'Cookie Policy | Black Professionals United Kingdom',
@@ -169,13 +170,7 @@ export default function CookiePolicyPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/privacy" className="hover:underline">Privacy Policy</a> ·{' '}
-                <a href="/terms" className="hover:underline">Usage Terms</a> ·{' '}
-                <a href="/contact" className="hover:underline">Contact Us</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

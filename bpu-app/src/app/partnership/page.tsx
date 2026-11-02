@@ -1,36 +1,58 @@
 'use client';
 
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 import { useState } from 'react';
+import { Target, Buildings, Megaphone, Handshake, Globe, Rocket } from '@phosphor-icons/react';
+
+const WP = 'https://blackprofessionals.uk/wp-content/uploads';
+
+const PARTNERS = [
+    { name: 'Barclays',                          href: 'https://www.barclays.co.uk/',          logo: `${WP}/2023/11/Barclays-1.jpg` },
+    { name: 'NatWest',                            href: 'https://www.natwest.com/',             logo: `${WP}/2025/07/Natwest.png` },
+    { name: 'BlackRock',                          href: 'https://www.blackrock.com/',           logo: `${WP}/2023/11/blackrock-1.jpg` },
+    { name: 'BNY',                                href: 'https://www.bny.com/',                 logo: `${WP}/2020/08/bny-log.png` },
+    { name: 'Capco',                              href: 'https://www.capco.com/',               logo: `${WP}/2026/08/capco.png` },
+    { name: 'FreeAgent',                          href: 'https://www.freeagent.com/en/',        logo: `${WP}/2026/05/free-agent-.png` },
+    { name: 'M&G',                                href: 'https://www.mandg.com/',               logo: `${WP}/2026/02/m-and-g.png` },
+    { name: 'Walter Scott',                       href: 'https://www.walterscott.com/',         logo: `${WP}/2025/10/walter-scott-1.png` },
+    { name: 'Charles River',                      href: 'https://www.criver.com/',              logo: `${WP}/2023/11/charles_river-1.jpg` },
+    { name: 'Cairngorms',                         href: 'https://cairngorms.co.uk/',            logo: `${WP}/2023/11/Cairngorms.jpg` },
+    { name: 'RSPB',                               href: 'https://www.rspb.org.uk/',             logo: `${WP}/2023/11/RSPB.jpg` },
+    { name: 'Scottish National Investment Bank',  href: 'https://www.thebank.scot/',            logo: `${WP}/2023/11/Scottish-National-Investment-Bank.jpg` },
+    { name: 'The Skills Network',                 href: 'https://theskillsnetwork.com/',        logo: `${WP}/2023/11/The-Skills-Network.jpg` },
+    { name: 'Codebase',                           href: 'https://www.codebase.com/',            logo: `${WP}/2025/03/Codebase.jpg` },
+    { name: 'Addleshaw Goddard',                  href: 'https://www.addleshawgoddard.com/en/', logo: `${WP}/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg` },
+];
 
 const BENEFITS = [
     {
-        icon: '🎯',
+        Icon: Target,
         title: 'Access to Diverse Talent Pool',
         desc: 'Our partners possess privileged access to a diverse and highly skilled talent pool through our dynamic job board and sought-after internship and placement programmes. Connect with exceptional Black professionals from various industries.',
     },
     {
-        icon: '🏢',
+        Icon: Buildings,
         title: 'Organisation Representation',
         desc: "Our partners are displayed and well-represented on our platform. Organisations that engage present their values as diverse and inclusive, demonstrating their unwavering commitment to diversity and social responsibility.",
     },
     {
-        icon: '📢',
+        Icon: Megaphone,
         title: 'Increased Visibility & Brand Awareness',
         desc: 'Our partnerships provide organisations with increased visibility among our members and the wider professional community. Benefit from extensive exposure through our website, social media platforms, and events.',
     },
     {
-        icon: '🤝',
+        Icon: Handshake,
         title: 'Collaborative Events & Networking',
         desc: 'Forge valuable connections within our community and unlock new business opportunities. Engage in purposeful networking events, connecting with potential clients, partners, and industry leaders.',
     },
     {
-        icon: '🌍',
+        Icon: Globe,
         title: 'Social Impact',
         desc: 'Your partnership with Black Professionals United Kingdom fosters social impact and meaningful change. Showcase your organisation\'s commitment to community and make a positive difference.',
     },
     {
-        icon: '🚀',
+        Icon: Rocket,
         title: 'Collaborative Projects & Initiatives',
         desc: 'Collaborate with BPU on projects and initiatives that address relevant challenges and drive positive change. Together, we can create a more equitable future and foster a diverse and prosperous community.',
     },
@@ -129,11 +151,13 @@ export default function PartnershipPage() {
                             Partnership Benefits
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {BENEFITS.map(b => (
-                                <div key={b.title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
-                                    <div className="text-3xl">{b.icon}</div>
-                                    <p className="font-black uppercase tracking-tight text-sm">{b.title}</p>
-                                    <p className="text-sm text-text-2 leading-relaxed">{b.desc}</p>
+                            {BENEFITS.map(({ Icon: BenefitIcon, title, desc }) => (
+                                <div key={title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
+                                    <div className="w-10 h-10 rounded-xl bg-hp-accent/10 flex items-center justify-center text-hp-accent">
+                                        <BenefitIcon size={22} weight="bold" />
+                                    </div>
+                                    <p className="font-black uppercase tracking-tight text-sm">{title}</p>
+                                    <p className="text-sm text-text-2 leading-relaxed">{desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -165,6 +189,34 @@ export default function PartnershipPage() {
                                     Learn More →
                                 </a>
                             </div>
+                        </div>
+                    </div>
+                </section>
+
+                {/* Partner logos */}
+                <section className="py-16 bg-hp-bg border-b-2 border-hp-dark">
+                    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                        <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight mb-3">
+                            Our Partners
+                        </h2>
+                        <p className="text-text-2 mb-10">Organisations championing diversity and inclusion alongside BPU.</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 items-center">
+                            {PARTNERS.map(p => (
+                                <a
+                                    key={p.name}
+                                    href={p.href}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center justify-center p-4 bg-white rounded-xl border-brutal shadow-brutal interactive-card"
+                                >
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src={p.logo}
+                                        alt={p.name}
+                                        className="h-10 w-auto max-w-full object-contain grayscale hover:grayscale-0 transition-all"
+                                    />
+                                </a>
+                            ))}
                         </div>
                     </div>
                 </section>
@@ -331,11 +383,7 @@ export default function PartnershipPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/" className="hover:underline">Back to Portal</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

@@ -1,4 +1,5 @@
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
 
 export const metadata = {
     title: 'Usage Terms | Black Professionals United Kingdom',
@@ -249,13 +250,7 @@ export default function UsageTermsPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/privacy" className="hover:underline">Privacy Policy</a> ·{' '}
-                <a href="/cookies" className="hover:underline">Cookie Policy</a> ·{' '}
-                <a href="/contact" className="hover:underline">Contact Us</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

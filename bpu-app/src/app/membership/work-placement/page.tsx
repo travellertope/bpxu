@@ -1,5 +1,7 @@
 import { getBPUSession } from '@/lib/auth';
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
+import { Buildings, TrendUp, Compass, CheckCircle, Target, Star } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata = {
     title: 'Work Placements | Black Professionals UK',
@@ -58,12 +60,12 @@ const PROGRAMMES = [
 ];
 
 const WHY_JOIN = [
-    { icon: '🏢', title: 'Valuable Work Experience', desc: 'Get hands-on experience and exposure to real-world work scenarios, enriching your academic knowledge.' },
-    { icon: '📈', title: 'Skill Development', desc: 'Access workshops and training sessions to develop essential skills needed for professional success.' },
-    { icon: '🗺️', title: 'Structured Career Transition', desc: 'Our programme is designed to offer a smooth transition from academic life to employment, setting you on the right path for your career.' },
-    { icon: '✅', title: 'Enhanced Employability', desc: 'The practical experience gained through our programme enhances your employability and marketability to potential employers.' },
-    { icon: '🎯', title: 'Targeted Opportunity Matching', desc: 'We connect you with host organisations that seek professionals with your skillset, ensuring relevance and compatibility.' },
-    { icon: '🌟', title: 'Demonstrate Your Expertise', desc: 'Showcase your capabilities to potential employers and gain valuable UK work experience to enhance your profile.' },
+    { Icon: Buildings, title: 'Valuable Work Experience', desc: 'Get hands-on experience and exposure to real-world work scenarios, enriching your academic knowledge.' },
+    { Icon: TrendUp, title: 'Skill Development', desc: 'Access workshops and training sessions to develop essential skills needed for professional success.' },
+    { Icon: Compass, title: 'Structured Career Transition', desc: 'Our programme is designed to offer a smooth transition from academic life to employment, setting you on the right path for your career.' },
+    { Icon: CheckCircle, title: 'Enhanced Employability', desc: 'The practical experience gained through our programme enhances your employability and marketability to potential employers.' },
+    { Icon: Target, title: 'Targeted Opportunity Matching', desc: 'We connect you with host organisations that seek professionals with your skillset, ensuring relevance and compatibility.' },
+    { Icon: Star, title: 'Demonstrate Your Expertise', desc: 'Showcase your capabilities to potential employers and gain valuable UK work experience to enhance your profile.' },
 ];
 
 const ELIGIBILITY = {
@@ -200,6 +202,7 @@ export default async function WorkPlacementPage() {
 
                             <div style={prog.flip ? { direction: 'ltr' } : {}} className="space-y-4">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
+                                {!prog.video && (
                                 <div className="rounded-2xl overflow-hidden border-brutal shadow-brutal">
                                     <img
                                         src={prog.image}
@@ -208,6 +211,7 @@ export default async function WorkPlacementPage() {
                                         style={{ maxHeight: 340 }}
                                     />
                                 </div>
+                                )}
                                 {prog.video && (
                                     <div className="rounded-2xl overflow-hidden border-brutal shadow-brutal" style={{ aspectRatio: '16/9' }}>
                                         <iframe
@@ -237,15 +241,17 @@ export default async function WorkPlacementPage() {
                             </h2>
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {WHY_JOIN.map(item => (
+                            {WHY_JOIN.map(({ Icon: ItemIcon, title, desc }) => (
                                 <div
-                                    key={item.title}
+                                    key={title}
                                     className="p-6 rounded-2xl"
                                     style={{ background: '#1a1a1a', border: '2px solid #2a2a2a' }}
                                 >
-                                    <div className="text-3xl mb-4">{item.icon}</div>
-                                    <h3 className="font-black uppercase text-white text-sm tracking-wide mb-2">{item.title}</h3>
-                                    <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>{item.desc}</p>
+                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4" style={{ background: 'rgba(217,56,30,0.15)', color: '#d9381e' }}>
+                                        <ItemIcon size={22} weight="bold" />
+                                    </div>
+                                    <h3 className="font-black uppercase text-white text-sm tracking-wide mb-2">{title}</h3>
+                                    <p className="text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.6)' }}>{desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -392,6 +398,7 @@ export default async function WorkPlacementPage() {
                 </section>
 
             </main>
+            <SiteFooter />
         </div>
     );
 }

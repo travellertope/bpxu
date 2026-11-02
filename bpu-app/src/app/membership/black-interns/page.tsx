@@ -1,4 +1,6 @@
 import SiteHeader from '@/components/SiteHeader';
+import SiteFooter from '@/components/SiteFooter';
+import { Buildings, TrendUp, Compass, CheckCircle, Target, Star } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata = {
     title: 'Black Interns Programme | Black Professionals UK',
@@ -6,12 +8,12 @@ export const metadata = {
 };
 
 const WHY_JOIN = [
-    { icon: '🏢', title: 'Valuable Work Experience', desc: 'Get hands-on experience and exposure to real-world work scenarios, enriching your academic knowledge.' },
-    { icon: '📈', title: 'Skill Development', desc: 'Access workshops and training sessions to develop essential skills needed for professional success.' },
-    { icon: '🗺️', title: 'Structured Career Transition', desc: 'Our programme is designed to offer a smooth transition from academic life to employment.' },
-    { icon: '✅', title: 'Enhanced Employability', desc: 'The practical experience gained through our programme enhances your employability to potential employers.' },
-    { icon: '🎯', title: 'Targeted Opportunity Matching', desc: 'We connect you with host organisations that seek professionals with your skillset, ensuring relevance and compatibility.' },
-    { icon: '🌟', title: 'Demonstrate Your Expertise', desc: 'Showcase your capabilities to potential employers and gain valuable UK work experience.' },
+    { Icon: Buildings, title: 'Valuable Work Experience', desc: 'Get hands-on experience and exposure to real-world work scenarios, enriching your academic knowledge.' },
+    { Icon: TrendUp, title: 'Skill Development', desc: 'Access workshops and training sessions to develop essential skills needed for professional success.' },
+    { Icon: Compass, title: 'Structured Career Transition', desc: 'Our programme is designed to offer a smooth transition from academic life to employment.' },
+    { Icon: CheckCircle, title: 'Enhanced Employability', desc: 'The practical experience gained through our programme enhances your employability to potential employers.' },
+    { Icon: Target, title: 'Targeted Opportunity Matching', desc: 'We connect you with host organisations that seek professionals with your skillset, ensuring relevance and compatibility.' },
+    { Icon: Star, title: 'Demonstrate Your Expertise', desc: 'Showcase your capabilities to potential employers and gain valuable UK work experience.' },
 ];
 
 const ELIGIBILITY = [
@@ -68,11 +70,13 @@ export default function BlackInternsPage() {
                             Why Join the Programme?
                         </h2>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {WHY_JOIN.map(b => (
-                                <div key={b.title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
-                                    <div className="text-3xl">{b.icon}</div>
-                                    <p className="font-black uppercase tracking-tight text-sm">{b.title}</p>
-                                    <p className="text-sm text-text-2 leading-relaxed">{b.desc}</p>
+                            {WHY_JOIN.map(({ Icon: BenefitIcon, title, desc }) => (
+                                <div key={title} className="p-6 rounded-2xl border-brutal shadow-brutal bg-white space-y-3 interactive-card">
+                                    <div className="w-10 h-10 rounded-xl bg-hp-accent/10 flex items-center justify-center text-hp-accent">
+                                        <BenefitIcon size={22} weight="bold" />
+                                    </div>
+                                    <p className="font-black uppercase tracking-tight text-sm">{title}</p>
+                                    <p className="text-sm text-text-2 leading-relaxed">{desc}</p>
                                 </div>
                             ))}
                         </div>
@@ -143,11 +147,7 @@ export default function BlackInternsPage() {
                     </div>
                 </section>
             </main>
-
-            <footer className="py-6 text-center text-xs text-text-3 border-t border-border bg-hp-bg">
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
-                <a href="/" className="hover:underline">Back to Portal</a>
-            </footer>
+                <SiteFooter />
         </div>
     );
 }

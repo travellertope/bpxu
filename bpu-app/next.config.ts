@@ -1,6 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      { source: '/partnerships', destination: '/partnership', permanent: true },
+      { source: '/bpu-harnessing-talent-report-2026', destination: '/reports/harnessing-talent-2026', permanent: true },
+      { source: '/bpu-harnessing-talent-report-2026/', destination: '/reports/harnessing-talent-2026', permanent: true },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'blackprofessionals.uk' },
