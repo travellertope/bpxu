@@ -200,6 +200,7 @@ export default async function WorkPlacementPage() {
 
                             <div style={prog.flip ? { direction: 'ltr' } : {}} className="space-y-4">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
+                                {!prog.video && (
                                 <div className="rounded-2xl overflow-hidden border-brutal shadow-brutal">
                                     <img
                                         src={prog.image}
@@ -208,6 +209,7 @@ export default async function WorkPlacementPage() {
                                         style={{ maxHeight: 340 }}
                                     />
                                 </div>
+                                )}
                                 {prog.video && (
                                     <div className="rounded-2xl overflow-hidden border-brutal shadow-brutal" style={{ aspectRatio: '16/9' }}>
                                         <iframe
