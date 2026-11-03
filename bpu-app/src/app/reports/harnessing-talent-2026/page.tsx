@@ -14,17 +14,6 @@ export const metadata = {
 const WP = 'https://blackprofessionals.uk/wp-content/uploads';
 const PDF_URL = 'https://blackprofessionals.uk/download/57158/';
 
-const HERO_STATS = [
-    { value: '73.1%', label: "Hold Master's degree" },
-    { value: '47.5%', label: 'Experienced racism' },
-    { value: '10.3%', label: 'Ethnicity pay gap' },
-    { value: '12.9%', label: 'Minority ethnic — Scotland' },
-    { value: '58%',   label: 'First-gen immigrants' },
-    { value: '11.7pp', label: 'Employment rate gap' },
-    { value: '28%',   label: 'Black women in desired roles' },
-    { value: '16.1%', label: 'Children experienced racism' },
-];
-
 const CONTEXT = [
     {
         title: 'A changing demographic reality',
@@ -113,15 +102,10 @@ export default function HarnessingTalentPage() {
                     }} />
 
                     <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                        <div className="max-w-3xl">
 
-                            {/* Left — title */}
+                            {/* Title */}
                             <div className="space-y-6">
-                                <div className="flex items-center gap-3">
-                                    <span className="inline-block bg-hp-accent text-white text-xs font-black uppercase tracking-widest px-3 py-1.5 rounded-full border border-white/20">
-                                        BPU, Scotland · 2026 Report
-                                    </span>
-                                </div>
                                 <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tight leading-none">
                                     Harnessing<br />Talent
                                 </h1>
@@ -151,16 +135,6 @@ export default function HarnessingTalentPage() {
                                         Explore the Findings
                                     </a>
                                 </div>
-                            </div>
-
-                            {/* Right — stat cloud */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {HERO_STATS.map(s => (
-                                    <div key={s.value} className="p-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm">
-                                        <p className="text-3xl font-black text-hp-accent leading-none mb-1">{s.value}</p>
-                                        <p className="text-xs text-white/60 leading-snug">{s.label}</p>
-                                    </div>
-                                ))}
                             </div>
                         </div>
                     </div>
@@ -203,7 +177,7 @@ export default function HarnessingTalentPage() {
                         </div>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             {FINDINGS.map(({ Icon: FindingIcon, stat, label, desc }) => (
-                                <div key={label} className="p-6 rounded-2xl border border-white/10 bg-white/5 space-y-3">
+                                <div key={label} className="p-6 rounded-2xl border border-white/20 space-y-3">
                                     <div className="flex items-start gap-4">
                                         <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(217,56,30,0.15)', color: '#d9381e' }}>
                                             <FindingIcon size={22} weight="bold" />
