@@ -1,9 +1,10 @@
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
+import EngageModal from './EngageModal';
 import {
     GraduationCap, Warning, TrendDown, UsersThree,
-    MapPin, Baby, Target, ArrowDown,
-    Buildings, UserCircle, Globe, Lightbulb,
+    MapPin, Target, ArrowDown,
+    Buildings, Globe, Lightbulb,
 } from '@phosphor-icons/react/dist/ssr';
 
 export const metadata = {
@@ -299,43 +300,7 @@ export default function HarnessingTalentPage() {
                     </div>
                 </section>
 
-                {/* ── Policy Engagement Form ── */}
-                <section id="engage" className="py-20 bg-hp-dark text-white">
-                    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="mb-8">
-                            <p className="text-xs font-black uppercase tracking-widest text-hp-accent mb-2">Policy Engagement</p>
-                            <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight text-white mb-3">
-                                Engage with BPU on Policy
-                            </h2>
-                            <p className="text-white/60 text-sm leading-relaxed">
-                                Share your interest or enquiry and a member of the BPU team will be in touch.
-                            </p>
-                        </div>
-                        <div className="rounded-2xl border border-white/20 p-8 text-center space-y-4">
-                            <div className="w-12 h-12 rounded-xl bg-hp-accent/20 flex items-center justify-center text-hp-accent mx-auto">
-                                <UserCircle size={28} weight="bold" />
-                            </div>
-                            <p className="text-white font-black uppercase tracking-tight text-sm">Members: engage via the portal</p>
-                            <p className="text-white/60 text-sm leading-relaxed">
-                                Sign in to your BPU account to submit a policy engagement request and connect with the team directly.
-                            </p>
-                            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
-                                <a
-                                    href="/login?returnTo=/reports/harnessing-talent-2026%23engage"
-                                    className="inline-block px-6 py-3 bg-hp-accent text-white font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow"
-                                >
-                                    Sign In to Engage
-                                </a>
-                                <a
-                                    href="/contact"
-                                    className="inline-block px-6 py-3 border-2 border-white/20 text-white font-black uppercase tracking-tight text-sm rounded-xl hover:bg-white/10 transition-colors"
-                                >
-                                    Contact Us Instead
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                <EngageModal />
 
             </main>
                 <SiteFooter />
