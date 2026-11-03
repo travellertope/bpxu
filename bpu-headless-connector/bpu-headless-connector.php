@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.19.0
+ * Version: 2.20.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -2240,6 +2240,13 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/contact', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'contact_submit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
+        // ── Report policy engagement (public POST) ─────────────────────────
+        register_rest_route( $this->namespace, '/report-engage', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'report_engage_submit' ),
             'permission_callback' => '__return_true',
         ) );
 
@@ -17827,6 +17834,54 @@ PROMPT;
     // ── Partnership enquiry handlers ────────────────────────────────────────
 
     /** POST /safe-space — public submission, no auth required */
+    public function report_engage_submit( WP_REST_Request $request ) {
+        $allowed = array( 're_name', 're_email', 're_org', 're_role', 're_enquiry_type', 're_message' );
+        $data    = array();
+        foreach ( $allowed as $key ) {
+            $val = $request->get_param( $key );
+            if ( $val !== null ) {
+                $data[ $key ] = sanitize_textarea_field( $val );
+            }
+        }
+
+        if ( empty( $data['re_name'] ) || empty( $data['re_email'] ) || empty( $data['re_message'] ) ) {
+            return new WP_Error( 'missing_fields', 'Name, email and message are required.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => sanitize_text_field( $data['re_name'] ) . ' — Policy Engagement',
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to save request.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type',   'report_engage' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'new' );
+        update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
+
+        $admin_email = get_option( 'admin_email' );
+        $subject     = 'New Policy Engagement: ' . ( $data['re_enquiry_type'] ?? 'General' ) . ' — ' . $data['re_name'];
+        $body        = '<h2>New Policy Engagement Enquiry</h2>'
+            . '<p><strong>Name:</strong> ' . esc_html( $data['re_name'] ) . '</p>'
+            . '<p><strong>Email:</strong> ' . esc_html( $data['re_email'] ) . '</p>'
+            . ( ! empty( $data['re_org'] )          ? '<p><strong>Organisation:</strong> ' . esc_html( $data['re_org'] ) . '</p>'          : '' )
+            . ( ! empty( $data['re_role'] )         ? '<p><strong>Role:</strong> ' . esc_html( $data['re_role'] ) . '</p>'                 : '' )
+            . ( ! empty( $data['re_enquiry_type'] ) ? '<p><strong>Type:</strong> ' . esc_html( $data['re_enquiry_type'] ) . '</p>'         : '' )
+            . '<p><strong>Message:</strong><br>' . nl2br( esc_html( $data['re_message'] ) ) . '</p>';
+
+        wp_mail(
+            $admin_email,
+            $subject,
+            $body,
+            array( 'Content-Type: text/html; charset=UTF-8', 'Reply-To: ' . sanitize_email( $data['re_email'] ) )
+        );
+
+        return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
+    }
+
     public function safe_space_submit( WP_REST_Request $request ) {
         $allowed = array( 'ss_name', 'ss_phone', 'ss_email', 'ss_intent', 'ss_support_type', 'ss_experience', 'ss_mindful' );
         $data    = array();
