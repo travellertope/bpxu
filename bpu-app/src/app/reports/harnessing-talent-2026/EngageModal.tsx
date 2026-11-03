@@ -15,7 +15,7 @@ const ENQUIRY_TYPES = [
 ];
 
 export default function EngageModal() {
-    const [open, setOpen]   = useState(false);
+    const [open, setOpen]     = useState(false);
     const [status, setStatus] = useState<Status>('idle');
     const [error, setError]   = useState('');
     const [form, setForm] = useState({
@@ -23,11 +23,6 @@ export default function EngageModal() {
         re_enquiry_type: '', re_message: '',
     });
     const dialogRef = useRef<HTMLDivElement>(null);
-
-    // Auto-open when the page is loaded/navigated to with #engage hash
-    useEffect(() => {
-        if (window.location.hash === '#engage') setOpen(true);
-    }, []);
 
     // Close on Escape
     useEffect(() => {
@@ -74,23 +69,14 @@ export default function EngageModal() {
     const labelCls = 'block text-xs font-black uppercase tracking-wider text-hp-dark/60 mb-1.5';
 
     return (
-        <section id="engage" className="py-20 bg-hp-dark text-white">
-            <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
-                <p className="text-xs font-black uppercase tracking-widest text-hp-accent">Policy Engagement</p>
-                <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight">
-                    Engage with BPU on Policy
-                </h2>
-                <p className="text-white/60 text-sm leading-relaxed max-w-lg mx-auto">
-                    Share your interest or enquiry and a member of the BPU team will be in touch.
-                </p>
-                <button
-                    onClick={() => { setStatus('idle'); setError(''); setOpen(true); }}
-                    className="inline-flex items-center gap-2 px-8 py-4 bg-hp-accent text-white font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow"
-                >
-                    <PaperPlaneTilt size={18} weight="bold" />
-                    Start Engagement
-                </button>
-            </div>
+        <>
+            {/* Trigger button — styled to match the download section's secondary CTA */}
+            <button
+                onClick={() => { setStatus('idle'); setError(''); setOpen(true); }}
+                className="inline-block px-8 py-4 bg-transparent border-2 border-white text-white font-black uppercase tracking-tight text-sm rounded-xl hover:bg-white/10 transition-colors"
+            >
+                Engage with Us &rsaquo;
+            </button>
 
             {/* Modal overlay */}
             {open && (
@@ -180,6 +166,6 @@ export default function EngageModal() {
                     </div>
                 </div>
             )}
-        </section>
+        </>
     );
 }
