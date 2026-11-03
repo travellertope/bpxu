@@ -193,6 +193,7 @@ export default function DashboardShell({ currentPath, userName, userEmail, isMen
                                     <NavLink href="/admin/service-requests" icon="apps" label="Service Requests" active={isActive('/admin/service-requests')} onClick={close} />
                                     <NavLink href="/admin/programme-applications" icon="apps" label="Programme Applications" active={isActive('/admin/programme-applications')} onClick={close} />
                                     <NavLink href="/admin/partnerships" icon="briefcase" label="Partnership Enquiries" active={isActive('/admin/partnerships')} onClick={close} />
+                                    <NavLink href="/admin/safe-space"   icon="heart"     label="Safe Space Requests" active={isActive('/admin/safe-space')}   onClick={close} />
                                 </div>
                             )}
 
