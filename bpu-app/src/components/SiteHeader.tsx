@@ -36,15 +36,30 @@ export default function SiteHeader() {
           </div>
 
           {/* Desktop nav */}
-          <div className="hidden lg:flex space-x-6 items-center font-bold text-sm uppercase tracking-wide">
-            <a href="/membership"             className="hover:text-hp-accent transition-colors">Memberships</a>
-            <a href="/partnership"            className="hover:text-hp-accent transition-colors">Partnerships</a>
+          <div className="hidden lg:flex items-center gap-5 font-bold text-sm uppercase tracking-wide">
+            <a href="/membership"                className="hover:text-hp-accent transition-colors">Membership</a>
+            <a href="/partnership"               className="hover:text-hp-accent transition-colors">Partnership</a>
             <a href="/membership/work-placement" className="hover:text-hp-accent transition-colors">Work Placement</a>
-            <a href="/jobs"                   className="hover:text-hp-accent transition-colors">Job Board</a>
-            <a href="/events"                 className="hover:text-hp-accent transition-colors">Events</a>
-            <a href="/members"               className="hover:text-hp-accent transition-colors">Network</a>
-            <a href="/reports/harnessing-talent-2026" className="hover:text-hp-accent transition-colors">Report</a>
-            <a href="/safe-space"                    className="hover:text-hp-accent transition-colors">Safe Space</a>
+            <a href="/jobs"                      className="hover:text-hp-accent transition-colors">Jobs</a>
+            <a href="/events"                    className="hover:text-hp-accent transition-colors">Events</a>
+
+            {/* Divider */}
+            <span className="w-px h-5 bg-hp-dark/30 flex-shrink-0" aria-hidden="true" />
+
+            {/* Featured projects */}
+            <a
+              href="/reports/harnessing-talent-2026"
+              className="px-3 py-1.5 rounded-lg border-2 border-hp-dark text-hp-dark hover:bg-hp-dark hover:text-white transition-colors text-xs font-black tracking-wider"
+            >
+              Report
+            </a>
+            <a
+              href="/safe-space"
+              className="px-3 py-1.5 rounded-lg border-2 border-hp-accent text-hp-accent hover:bg-hp-accent hover:text-white transition-colors text-xs font-black tracking-wider"
+            >
+              Safe Space
+            </a>
+
             <a
               href="/register"
               className="bg-hp-dark text-white px-6 py-3 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-sm"
@@ -69,14 +84,25 @@ export default function SiteHeader() {
       {/* Mobile dropdown */}
       {menuOpen && (
         <div className="lg:hidden bg-hp-bg border-brutal-b font-bold uppercase text-center flex flex-col">
-          <a href="/membership"                className="block py-4 border-b-2 border-hp-dark">Memberships</a>
-          <a href="/partnership"             className="block py-4 border-b-2 border-hp-dark">Partnerships</a>
+          <a href="/membership"                className="block py-4 border-b-2 border-hp-dark">Membership</a>
+          <a href="/partnership"               className="block py-4 border-b-2 border-hp-dark">Partnership</a>
           <a href="/membership/work-placement" className="block py-4 border-b-2 border-hp-dark">Work Placement</a>
-          <a href="/jobs"                    className="block py-4 border-b-2 border-hp-dark">Job Board</a>
-          <a href="/events"                  className="block py-4 border-b-2 border-hp-dark">Events</a>
-          <a href="/members"                 className="block py-4 border-b-2 border-hp-dark">Network</a>
-          <a href="/reports/harnessing-talent-2026" className="block py-4 border-b-2 border-hp-dark">Report</a>
-          <a href="/safe-space"                     className="block py-4 border-b-2 border-hp-dark">Safe Space</a>
+          <a href="/jobs"                      className="block py-4 border-b-2 border-hp-dark">Jobs</a>
+          <a href="/events"                    className="block py-4 border-b-2 border-hp-dark">Events</a>
+          <div className="flex gap-3 justify-center px-4 py-4 border-b-2 border-hp-dark bg-hp-bg">
+            <a
+              href="/reports/harnessing-talent-2026"
+              className="flex-1 py-3 rounded-lg border-2 border-hp-dark text-hp-dark text-xs font-black tracking-wider text-center"
+            >
+              Report
+            </a>
+            <a
+              href="/safe-space"
+              className="flex-1 py-3 rounded-lg border-2 border-hp-accent text-hp-accent text-xs font-black tracking-wider text-center"
+            >
+              Safe Space
+            </a>
+          </div>
           <div className="p-4">
             <a
               href="/register"
