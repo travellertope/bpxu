@@ -44,6 +44,7 @@ export default function SiteHeader() {
             <a href="/events"                 className="hover:text-hp-accent transition-colors">Events</a>
             <a href="/members"               className="hover:text-hp-accent transition-colors">Network</a>
             <a href="/reports/harnessing-talent-2026" className="hover:text-hp-accent transition-colors">Report</a>
+            <a href="/safe-space"                    className="hover:text-hp-accent transition-colors">Safe Space</a>
             <
               href="/register"
               className="bg-hp-dark text-white px-6 py-3 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-sm"
@@ -75,6 +76,7 @@ export default function SiteHeader() {
           <a href="/events"                  className="block py-4 border-b-2 border-hp-dark">Events</a>
           <a href="/members"                 className="block py-4 border-b-2 border-hp-dark">Network</a>
           <a href="/reports/harnessing-talent-2026" className="block py-4 border-b-2 border-hp-dark">Report</a>
+          <a href="/safe-space"                     className="block py-4 border-b-2 border-hp-dark">Safe Space</a>
           <div className="p-4">
             <a
               href="/register"
