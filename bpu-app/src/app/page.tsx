@@ -233,7 +233,7 @@ export default function HomePageClient() {
                 Become a Member
               </a>
               <a
-                href="/partnerships"
+                href="/partnership"
                 className="bg-white text-hp-dark px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg flex items-center gap-2"
               >
                 Partner With Us <ArrowRight weight="bold" />
@@ -384,7 +384,7 @@ export default function HomePageClient() {
             </div>
             <h3 className="font-black text-2xl uppercase mb-3">Work Placements</h3>
             <p className="font-medium mb-8 flex-grow">Designed to be the catalyst for your career growth in the UK.</p>
-            <a href="/placements" className="inline-block border-b-4 border-hp-dark font-black uppercase text-sm w-max hover:text-hp-accent hover:border-hp-accent transition-colors">
+            <a href="/membership/work-placement" className="inline-block border-b-4 border-hp-dark font-black uppercase text-sm w-max hover:text-hp-accent hover:border-hp-accent transition-colors">
               Explore Opportunities
             </a>
           </div>
@@ -430,7 +430,7 @@ export default function HomePageClient() {
               </p>
             </div>
             <a
-              href="/dashboard/cv-clinic"
+              href="/cv-clinic"
               className="bg-white text-hp-dark px-8 py-4 rounded-xl border-2 border-white shadow-brutal-sm uppercase font-black text-sm whitespace-nowrap hover:bg-hp-bg transition-colors"
             >
               Request Feedback
@@ -506,9 +506,7 @@ export default function HomePageClient() {
                 competitive edge.
               </p>
               <a
-                href="https://blackprofessionals.uk/bpu-harnessing-talent-report-2026/"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/reports/harnessing-talent-2026"
                 className="inline-block bg-white text-hp-dark px-8 py-4 rounded-xl border-2 border-white shadow-[6px_6px_0px_0px_rgba(217,56,30,1)] hover:shadow-[8px_8px_0px_0px_rgba(217,56,30,1)] transition-all uppercase font-black text-lg"
               >
                 View the Report
@@ -614,7 +612,7 @@ export default function HomePageClient() {
           </div>
 
           <a
-            href="/partnerships"
+            href="/partnership"
             className="inline-block bg-hp-bg text-black px-6 py-3 rounded-xl border-brutal shadow-brutal-sm hover:shadow-brutal interactive-card uppercase font-black text-sm mb-24"
           >
             Learn More About Partnering
@@ -683,9 +681,9 @@ export default function HomePageClient() {
               <h4 className="font-black uppercase tracking-wider mb-6 text-hp-accent">Platform</h4>
               <ul className="space-y-3 font-bold text-sm text-gray-300">
                 {[
-                  ['Work Placements', '/placements'],
+                  ['Work Placements', '/membership/work-placement'],
                   ['Job Board', '/jobs'],
-                  ['CV Clinic & Interview Prep', '/dashboard/cv-clinic'],
+                  ['CV Clinic & Interview Prep', '/cv-clinic'],
                   ['Free Courses', '/courses'],
                   ['Mentorship Programme', 'https://pairedbybpu.uk'],
                   ['Membership Support', '/support'],
@@ -700,11 +698,11 @@ export default function HomePageClient() {
               <h4 className="font-black uppercase tracking-wider mb-6 text-hp-accent">Network</h4>
               <ul className="space-y-3 font-bold text-sm text-gray-300">
                 {[
-                  ['Our Partners', '/partnerships'],
-                  ['Become a Partner', '/partnerships#join'],
+                  ['Our Partners', '/partnership'],
+                  ['Become a Partner', '/partnership#enquiry'],
                   ['Post a Job', '/employer/jobs'],
-                  ['Community & Networking', '/community'],
-                  ['Stories & Articles', '/stories'],
+                  ['Member Network', '/members'],
+                  ['Events', '/events'],
                 ].map(([label, href]) => (
                   <li key={label}><a href={href} className="hover:text-white transition-colors">{label}</a></li>
                 ))}
@@ -718,8 +716,8 @@ export default function HomePageClient() {
                 {[
                   ['About Us', '/about'],
                   ['Contact Us', '/contact'],
-                  ['In The Press', '/press'],
-                  ['Resources', '/resources'],
+                  ['Partnership Enquiry', '/partnership'],
+                  ['Reports & Insights', '/reports/harnessing-talent-2026'],
                 ].map(([label, href]) => (
                   <li key={label}><a href={href} className="hover:text-white transition-colors">{label}</a></li>
                 ))}

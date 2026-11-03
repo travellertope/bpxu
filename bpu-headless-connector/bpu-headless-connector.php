@@ -3,7 +3,7 @@
  * Plugin Name: BPU Headless Connector
  * Plugin URI: https://blackprofessionals.uk
  * Description: Custom Headless API connector for Black Professionals United (BPU). Provides Cross-Subdomain SSO verification, SSO Token Relay for PAIRED, headless Job Board Click Tracking, headless Tutor LMS progress triggers, Gemini AI CV parsing, CV Clinic manual reviews dashboard, Mentor Directory endpoints, and Mentorship Booking system.
- * Version: 2.17.0
+ * Version: 2.19.0
  * Author: Antigravity AI & BPU Tech Team
  * Author URI: https://blackprofessionals.uk
  * License: GPL2
@@ -2244,6 +2244,12 @@ class BPU_Headless_Connector {
         ) );
 
         // ── Partnership enquiry (public POST) ──────────────────────────────
+        register_rest_route( $this->namespace, '/safe-space', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'safe_space_submit' ),
+            'permission_callback' => '__return_true',
+        ) );
+
         register_rest_route( $this->namespace, '/partnership', array(
             'methods'             => WP_REST_Server::CREATABLE,
             'callback'            => array( $this, 'partnership_submit' ),
@@ -2251,6 +2257,18 @@ class BPU_Headless_Connector {
         ) );
 
         // ── Admin: partnership submissions ─────────────────────────────────
+        // ── Safe Space — admin endpoints ────────────────────────────────────
+        register_rest_route( $this->namespace, '/admin/safe-space', array(
+            'methods'             => 'GET',
+            'callback'            => array( $this, 'admin_list_safe_space' ),
+            'permission_callback' => array( $this, 'require_admin' ),
+        ) );
+        register_rest_route( $this->namespace, '/admin/safe-space/(?P<id>\d+)/status', array(
+            'methods'             => 'POST',
+            'callback'            => array( $this, 'admin_update_safe_space' ),
+            'permission_callback' => array( $this, 'require_admin' ),
+        ) );
+
         register_rest_route( $this->namespace, '/admin/partnerships', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'admin_list_partnerships' ),
@@ -13406,6 +13424,12 @@ jQuery(function($){
                 'default_body'    => "A new contact enquiry has been submitted via blackprofessionals.uk.\r\n\r\nName: {{name}}\r\nEmail: {{email}}\r\nSubject: {{subject}}\r\n\r\nMessage:\r\n{{message}}\r\n\r\n---\r\nReply directly to this email to respond to {{name}}.",
                 'variables'       => array( '{{name}}', '{{email}}', '{{subject}}', '{{message}}' ),
             ),
+            'safe_space_request' => array(
+                'label'           => 'Safe Space request (to admin)',
+                'default_subject' => '[Safe Space] New Request — {{name}}',
+                'default_body'    => "A new Safe Space request has been submitted via blackprofessionals.uk.\r\n\r\nName: {{name}}\r\nEmail: {{email}}\r\nPhone: {{phone}}\r\n\r\nLooking for: {{intent}}\r\nSupport type: {{support_type}}\r\n\r\nExperience:\r\n{{experience}}\r\n\r\nMindfulness notes:\r\n{{mindful}}\r\n\r\n---\r\nAll submissions are confidential. Reply directly to {{email}} to respond.",
+                'variables'       => array( '{{name}}', '{{email}}', '{{phone}}', '{{intent}}', '{{support_type}}', '{{experience}}', '{{mindful}}' ),
+            ),
             'partnership_enquiry' => array(
                 'label'           => 'Partnership enquiry (to admin)',
                 'default_subject' => 'New Partnership Enquiry: {{org_name}}',
@@ -17801,6 +17825,133 @@ PROMPT;
     }
 
     // ── Partnership enquiry handlers ────────────────────────────────────────
+
+    /** POST /safe-space — public submission, no auth required */
+    public function safe_space_submit( WP_REST_Request $request ) {
+        $allowed = array( 'ss_name', 'ss_phone', 'ss_email', 'ss_intent', 'ss_support_type', 'ss_experience', 'ss_mindful' );
+        $data    = array();
+        foreach ( $allowed as $key ) {
+            $val = $request->get_param( $key );
+            if ( $val !== null ) {
+                $data[ $key ] = sanitize_textarea_field( $val );
+            }
+        }
+
+        if ( empty( $data['ss_name'] ) || empty( $data['ss_email'] ) ) {
+            return new WP_Error( 'missing_fields', 'Name and email are required.', array( 'status' => 400 ) );
+        }
+
+        $post_id = wp_insert_post( array(
+            'post_type'   => 'bpu_service_request',
+            'post_title'  => sanitize_text_field( $data['ss_name'] ) . ' — Safe Space Request',
+            'post_status' => 'publish',
+        ) );
+
+        if ( is_wp_error( $post_id ) ) {
+            return new WP_Error( 'insert_failed', 'Failed to save request.', array( 'status' => 500 ) );
+        }
+
+        update_post_meta( $post_id, '_bpu_sr_type',   'safe_space' );
+        update_post_meta( $post_id, '_bpu_sr_status', 'new' );
+        update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
+
+        $admin_email = get_option( 'admin_email' );
+        $tpl = $this->render_email_template( 'safe_space_request', array(
+            'name'         => $data['ss_name']         ?? '',
+            'email'        => $data['ss_email']        ?? '',
+            'phone'        => $data['ss_phone']        ?? '',
+            'intent'       => $data['ss_intent']       ?? '',
+            'support_type' => $data['ss_support_type'] ?? '',
+            'experience'   => $data['ss_experience']   ?? '',
+            'mindful'      => $data['ss_mindful']      ?? '',
+        ) );
+        wp_mail(
+            $admin_email,
+            $tpl['subject'],
+            $tpl['html'],
+            array( 'Content-Type: text/html; charset=UTF-8', 'Reply-To: ' . sanitize_email( $data['ss_email'] ) )
+        );
+
+        return new WP_REST_Response( array( 'status' => 'success', 'id' => $post_id ), 201 );
+    }
+
+    /** GET /admin/safe-space — paginated list */
+    public function admin_list_safe_space( WP_REST_Request $request ) {
+        $status   = sanitize_text_field( $request->get_param( 'status' ) ?: '' );
+        $search   = sanitize_text_field( $request->get_param( 'search' ) ?: '' );
+        $page     = max( 1, (int) ( $request->get_param( 'page' ) ?: 1 ) );
+        $per_page = 25;
+
+        $meta_query = array( array( 'key' => '_bpu_sr_type', 'value' => 'safe_space' ) );
+        if ( $status ) {
+            $meta_query[] = array( 'key' => '_bpu_sr_status', 'value' => $status );
+        }
+
+        $args = array(
+            'post_type'      => 'bpu_service_request',
+            'post_status'    => 'publish',
+            'posts_per_page' => $per_page,
+            'paged'          => $page,
+            'orderby'        => 'date',
+            'order'          => 'DESC',
+            'meta_query'     => $meta_query,
+        );
+        if ( $search ) {
+            $args['s'] = $search;
+        }
+
+        $query = new WP_Query( $args );
+        $rows  = array();
+        foreach ( $query->posts as $post ) {
+            $raw  = get_post_meta( $post->ID, '_bpu_sr_data', true );
+            $data = $raw ? json_decode( $raw, true ) : array();
+            $rows[] = array(
+                'id'         => $post->ID,
+                'status'     => get_post_meta( $post->ID, '_bpu_sr_status', true ) ?: 'new',
+                'notes'      => get_post_meta( $post->ID, '_bpu_sr_notes', true ) ?: '',
+                'data'       => $data,
+                'created_at' => get_the_date( 'c', $post ),
+                'updated_at' => get_the_modified_date( 'c', $post ),
+            );
+        }
+        wp_reset_postdata();
+
+        return new WP_REST_Response( array(
+            'requests' => $rows,
+            'total'    => $query->found_posts,
+            'page'     => $page,
+            'per_page' => $per_page,
+            'pages'    => ceil( $query->found_posts / $per_page ),
+        ), 200 );
+    }
+
+    /** POST /admin/safe-space/{id}/status — update status or add note */
+    public function admin_update_safe_space( WP_REST_Request $request ) {
+        $id   = (int) $request->get_param( 'id' );
+        $body = $request->get_json_params();
+        if ( ! is_array( $body ) ) $body = array();
+
+        $post = get_post( $id );
+        if ( ! $post || get_post_meta( $id, '_bpu_sr_type', true ) !== 'safe_space' ) {
+            return new WP_Error( 'not_found', 'Request not found.', array( 'status' => 404 ) );
+        }
+
+        $allowed_statuses = array( 'new', 'in_progress', 'resolved', 'closed' );
+        if ( ! empty( $body['status'] ) && in_array( $body['status'], $allowed_statuses, true ) ) {
+            update_post_meta( $id, '_bpu_sr_status', $body['status'] );
+        }
+
+        $note = '';
+        if ( ! empty( $body['note'] ) ) {
+            $note     = sanitize_textarea_field( $body['note'] );
+            $existing = get_post_meta( $id, '_bpu_sr_notes', true ) ?: '';
+            $ts       = current_time( 'Y-m-d H:i' );
+            $appended = $existing ? $existing . "\n\n[{$ts}] " . $note : "[{$ts}] " . $note;
+            update_post_meta( $id, '_bpu_sr_notes', $appended );
+        }
+
+        return new WP_REST_Response( array( 'success' => true, 'note' => $note ), 200 );
+    }
 
     /** POST /partnership — public submission, no auth required */
     public function partnership_submit( WP_REST_Request $request ) {
