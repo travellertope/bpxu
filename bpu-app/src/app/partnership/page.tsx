@@ -164,35 +164,6 @@ export default function PartnershipPage() {
                     </div>
                 </section>
 
-                {/* Interest callouts */}
-                <section className="py-16 bg-white border-t-2 border-b-2 border-hp-dark">
-                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight mb-8 text-center">
-                            You May Be Interested In…
-                        </h2>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                            <div className="p-6 rounded-2xl border-brutal shadow-brutal bg-hp-bg space-y-3">
-                                <p className="font-black uppercase tracking-tight">Black Talent Access</p>
-                                <p className="text-sm text-text-2 leading-relaxed">
-                                    Through this programme, we provide organisations with unparalleled access to a pool of skilled Black talents and interns. Talent knows no bounds.
-                                </p>
-                                <a href="/membership/talent-access" className="inline-block text-sm font-black uppercase tracking-wide text-hp-accent hover:underline">
-                                    Learn More →
-                                </a>
-                            </div>
-                            <div className="p-6 rounded-2xl border-brutal shadow-brutal bg-hp-bg space-y-3">
-                                <p className="font-black uppercase tracking-tight">Post a Job</p>
-                                <p className="text-sm text-text-2 leading-relaxed">
-                                    Tap into our rapidly growing network of skilled Black professionals who bring unique perspectives, experiences, and talents to your organisation.
-                                </p>
-                                <a href="/jobs" className="inline-block text-sm font-black uppercase tracking-wide text-hp-accent hover:underline">
-                                    Learn More →
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
                 {/* Partner logos */}
                 <section className="py-16 bg-hp-bg border-b-2 border-hp-dark">
                     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -380,6 +351,35 @@ export default function PartnershipPage() {
                                 </button>
                             </form>
                         )}
+                    </div>
+                </section>
+
+                {/* You May Be Interested In */}
+                <section className="py-16 bg-white border-t-2 border-b-2 border-hp-dark">
+                    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                        <h2 className="text-2xl sm:text-3xl font-black uppercase tracking-tight mb-8 text-center">
+                            You May Be Interested In…
+                        </h2>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                            <div className="p-6 rounded-2xl border-brutal shadow-brutal bg-hp-bg space-y-3">
+                                <p className="font-black uppercase tracking-tight">Black Talent Access</p>
+                                <p className="text-sm text-text-2 leading-relaxed">
+                                    Through this programme, we provide organisations with unparalleled access to a pool of skilled Black talents and interns. Talent knows no bounds.
+                                </p>
+                                <a href="/membership/talent-access" className="inline-block text-sm font-black uppercase tracking-wide text-hp-accent hover:underline">
+                                    Learn More →
+                                </a>
+                            </div>
+                            <div className="p-6 rounded-2xl border-brutal shadow-brutal bg-hp-bg space-y-3">
+                                <p className="font-black uppercase tracking-tight">Post a Job</p>
+                                <p className="text-sm text-text-2 leading-relaxed">
+                                    Tap into our rapidly growing network of skilled Black professionals who bring unique perspectives, experiences, and talents to your organisation.
+                                </p>
+                                <a href="/employer/jobs" className="inline-block text-sm font-black uppercase tracking-wide text-hp-accent hover:underline">
+                                    Learn More →
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </section>
             </main>
