@@ -45,7 +45,7 @@ export default function SiteHeader() {
             <a href="/members"               className="hover:text-hp-accent transition-colors">Network</a>
             <a href="/reports/harnessing-talent-2026" className="hover:text-hp-accent transition-colors">Report</a>
             <a href="/safe-space"                    className="hover:text-hp-accent transition-colors">Safe Space</a>
-            <
+            <a
               href="/register"
               className="bg-hp-dark text-white px-6 py-3 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-sm"
             >
