@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import SiteHeader from '@/components/SiteHeader';
+
+interface AuthUser { id: number; display_name: string; photo_url?: string; is_pro?: boolean; }
 import {
   ArrowRight,
   UsersThree, Buildings, Briefcase, MagnifyingGlass,
@@ -125,6 +127,14 @@ export default function HomePageClient() {
   /* name → resolved WP numeric member ID (populated async after mount) */
   const [resolvedIds, setResolvedIds] = useState<Record<string, number>>({});
   const [counting, setCounting] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => {
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setAuthUser(data?.authenticated ? data.user : null))
+      .catch(() => {});
+  }, []);
   const [cityIndex, setCityIndex] = useState(0);
   const [cityVisible, setCityVisible] = useState(true);
   const marqueeRef = useRef<HTMLDivElement>(null);
@@ -226,12 +236,21 @@ export default function HomePageClient() {
             </p>
 
             <div className="flex flex-wrap gap-4">
-              <a
-                href="/register"
-                className="bg-hp-accent text-white px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg"
-              >
-                Become a Member
-              </a>
+              {authUser ? (
+                <a
+                  href="/paired/dashboard"
+                  className="bg-hp-accent text-white px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg"
+                >
+                  Go to Dashboard
+                </a>
+              ) : (
+                <a
+                  href="/register"
+                  className="bg-hp-accent text-white px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg"
+                >
+                  Become a Member
+                </a>
+              )}
               <a
                 href="/partnership"
                 className="bg-white text-hp-dark px-8 py-4 rounded-xl border-brutal shadow-brutal interactive-card uppercase font-black text-lg flex items-center gap-2"
