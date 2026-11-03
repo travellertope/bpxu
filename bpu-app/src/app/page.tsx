@@ -506,9 +506,7 @@ export default function HomePageClient() {
                 competitive edge.
               </p>
               <a
-                href="https://blackprofessionals.uk/bpu-harnessing-talent-report-2026/"
-                target="_blank"
-                rel="noopener noreferrer"
+                href="/reports/harnessing-talent-2026"
                 className="inline-block bg-white text-hp-dark px-8 py-4 rounded-xl border-2 border-white shadow-[6px_6px_0px_0px_rgba(217,56,30,1)] hover:shadow-[8px_8px_0px_0px_rgba(217,56,30,1)] transition-all uppercase font-black text-lg"
               >
                 View the Report
