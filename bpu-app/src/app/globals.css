@@ -4,7 +4,7 @@
    DESIGN TOKENS
 ───────────────────────────────────────── */
 :root {
-  --bg:        #eef0f3;
+  --bg:        #ffffff;
   --surface:   #ffffff;
   --border:    #e2e4e9;
   --ring:      #d1d5db;
@@ -42,7 +42,7 @@
   --color-purple-dark: var(--purple-dark);
 
   /* Homepage (web.blackprofessionals.uk) design tokens — BPU brand palette */
-  --color-hp-bg:     #F4F4F0;
+  --color-hp-bg:     #ffffff;
   --color-hp-dark:   #001478;
   --color-hp-accent: #C8102E;
 
