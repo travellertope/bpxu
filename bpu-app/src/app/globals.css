@@ -552,7 +552,8 @@ body {
 
 .marquee-container { overflow: hidden; width: 100%; }
 .marquee-content {
-  display: inline-flex;
+  display: flex;
+  width: max-content;
   flex-wrap: nowrap;
   align-items: center;
   gap: 4rem;
