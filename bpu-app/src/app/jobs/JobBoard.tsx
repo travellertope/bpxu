@@ -80,7 +80,9 @@ function JobCard({ job }: { job: Job }) {
     const isInbound = job.job_type === 'inbound';
     const company = decodeHtml(job.company);
     const title = decodeHtml(job.title);
-    const excerpt = job.excerpt ?? '';
+    // Fall back to plain-text excerpt derived from the description
+    const rawExcerpt = job.excerpt || (job.description ? job.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+    const excerpt = rawExcerpt.length > 130 ? rawExcerpt.slice(0, 127) + '…' : rawExcerpt;
     // Outbound jobs route through /go/[id] so click tracking always fires
     const linkHref = isInbound ? `/jobs/${job.id}` : `/go/${job.id}`;
     const linkProps = isInbound ? {} : { target: '_blank' as const, rel: 'noopener noreferrer', prefetch: false };
