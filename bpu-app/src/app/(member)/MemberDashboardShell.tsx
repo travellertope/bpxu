@@ -81,7 +81,6 @@ export default function MemberDashboardShell({ currentPath, userName, userEmail,
                         <NavLink href="/cv-clinic" icon="apps" label="CV Clinic" active={isActive('/cv-clinic')} onClick={close} />
                         <NavLink href="/job-matches" icon="chart" label="Job Matches" active={isActive('/job-matches')} onClick={close} />
                         <NavLink href="/interview-prep" icon="chat" label="Interview Prep" active={isActive('/interview-prep')} onClick={close} />
-                        <NavLink href="/work-placement" icon="briefcase" label="Work Placements" active={isActive('/work-placement')} onClick={close} />
                     </div>
 
                     <div className="dash-nav-section">
