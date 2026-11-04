@@ -290,17 +290,11 @@ export default function HarnessingTalentPage() {
                                 <ArrowDown size={16} weight="bold" />
                                 Download PDF
                             </a>
-                            <a
-                                href="#engage"
-                                className="inline-block px-8 py-4 bg-transparent border-2 border-white text-white font-black uppercase tracking-tight text-sm rounded-xl hover:bg-white/10 transition-colors"
-                            >
-                                Engage with Us &rsaquo;
-                            </a>
+                            <EngageModal />
                         </div>
                     </div>
                 </section>
 
-                <EngageModal />
 
             </main>
                 <SiteFooter />

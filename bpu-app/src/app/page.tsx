@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import SiteHeader from '@/components/SiteHeader';
+import MilestonesSection from './MilestonesSection';
 
 interface AuthUser { id: number; display_name: string; photo_url?: string; is_pro?: boolean; }
 import {
@@ -293,6 +294,8 @@ export default function HomePageClient() {
           </div>
         </div>
       </header>
+
+      <MilestonesSection />
 
       {/* ── Metrics bar – static single row ── */}
       <section ref={marqueeRef} className="bg-hp-dark text-white border-brutal-b py-8">

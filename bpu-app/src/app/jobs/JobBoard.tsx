@@ -80,8 +80,11 @@ function JobCard({ job }: { job: Job }) {
     const isInbound = job.job_type === 'inbound';
     const company = decodeHtml(job.company);
     const title = decodeHtml(job.title);
-    const excerpt = job.excerpt ?? '';
-    const linkHref = isInbound ? `/jobs/${job.id}` : (job.apply_url || '#');
+    // Fall back to plain-text excerpt derived from the description
+    const rawExcerpt = job.excerpt || (job.description ? job.description.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() : '');
+    const excerpt = rawExcerpt.length > 130 ? rawExcerpt.slice(0, 127) + '…' : rawExcerpt;
+    // Outbound jobs route through /go/[id] so click tracking always fires
+    const linkHref = isInbound ? `/jobs/${job.id}` : `/go/${job.id}`;
     const linkProps = isInbound ? {} : { target: '_blank' as const, rel: 'noopener noreferrer', prefetch: false };
     const color = empTypeColor(job.employment_type);
 
@@ -116,12 +119,21 @@ function JobCard({ job }: { job: Job }) {
                         <CompanyAvatar name={company} logoUrl={job.employer?.logo_url || undefined} />
                         <div>
                             <p className="text-xs font-semibold mb-0.5" style={{ color: 'var(--text-3)' }}>{company}</p>
-                            <span
-                                className="inline-block text-white text-[10px] font-bold uppercase px-2 py-0.5 rounded"
-                                style={{ background: 'var(--brand)', letterSpacing: '0.04em' }}
-                            >
-                                Partner
-                            </span>
+                            {isInbound ? (
+                                <span
+                                    className="inline-block text-white text-[10px] font-bold uppercase px-2 py-0.5 rounded"
+                                    style={{ background: '#16a34a', letterSpacing: '0.04em' }}
+                                >
+                                    Direct Apply
+                                </span>
+                            ) : (
+                                <span
+                                    className="inline-block text-white text-[10px] font-bold uppercase px-2 py-0.5 rounded"
+                                    style={{ background: 'var(--brand)', letterSpacing: '0.04em' }}
+                                >
+                                    Partner
+                                </span>
+                            )}
                         </div>
                     </div>
                     <span
