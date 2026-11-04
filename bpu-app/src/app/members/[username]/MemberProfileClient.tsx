@@ -206,7 +206,11 @@ function downloadPassport(m: PublicMemberProfile) {
 }
 
 /* ================================================================ */
-export default function MemberProfileClient({ member, username, isOwner, viewer }: Props) {
+const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+
+export default function MemberProfileClient({ member: initialMember, username, isOwner, viewer }: Props) {
+  const [member, setMember] = useState<PublicMemberProfile | null>(initialMember);
+  const [loading, setLoading] = useState(!initialMember);
   const [toast, setToast] = useState<string | null>(null);
   const [showMessage, setShowMessage] = useState(false);
   const [showPassport, setShowPassport] = useState(false);
@@ -221,14 +225,29 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
   const [recRole, setRecRole] = useState('');
   const [recSubmitting, setRecSubmitting] = useState(false);
   const [recError, setRecError] = useState<string | null>(null);
-  const [testimonials, setTestimonials] = useState<PublicTestimonial[]>(member?.testimonials ?? []);
-  const [endorsements, setEndorsements] = useState<{ skill: string; count: number }[]>(member?.endorsements ?? []);
+  const [testimonials, setTestimonials] = useState<PublicTestimonial[]>(initialMember?.testimonials ?? []);
+  const [endorsements, setEndorsements] = useState<{ skill: string; count: number }[]>(initialMember?.endorsements ?? []);
   const [endorsedSkills, setEndorsedSkills] = useState<Set<string>>(new Set<string>());
   const [connectionState, setConnectionState] = useState<'not_connected' | 'pending' | 'pending_received' | 'connected'>('not_connected');
   const [showConnect, setShowConnect] = useState(false);
   const [connectContext, setConnectContext] = useState('Peer Professional');
   const [connectNote, setConnectNote] = useState('');
   const [connectSubmitting, setConnectSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (initialMember) return;
+    fetch(`${WP_URL}/wp-json/bpu/v1/member/${encodeURIComponent(username)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data) {
+          setMember(data);
+          setTestimonials(data.testimonials ?? []);
+          setEndorsements(data.endorsements ?? []);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [initialMember, username]);
 
   useEffect(() => {
     if (!viewer || isOwner) return;
@@ -275,6 +294,15 @@ export default function MemberProfileClient({ member, username, isOwner, viewer 
     }
   };
   const profileUrl = `https://web.blackprofessionals.uk/members/${username}`;
+
+  /* ── Loading (client-side fallback in progress) ── */
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: PAPER }}>
+        <p className="text-sm font-bold text-gray-400 uppercase tracking-wider">Loading profile…</p>
+      </div>
+    );
+  }
 
   /* ── Not found ── */
   if (!member) {
