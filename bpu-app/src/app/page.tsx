@@ -626,7 +626,7 @@ export default function HomePageClient() {
                   <img
                     src={p.logo}
                     alt={p.name}
-                    className="h-10 w-auto object-contain grayscale hover:grayscale-0 transition-all opacity-60 hover:opacity-100"
+                    className="h-10 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
                   />
                 </a>
               ))}
