@@ -1,4 +1,3 @@
-import { getBPUSession } from '@/lib/auth';
 import { Job } from './types';
 import SiteHeader from '@/components/SiteHeader';
 import JobBoard from './JobBoard';
@@ -26,7 +25,7 @@ export const metadata = {
 };
 
 export default async function JobsPage() {
-    const [session, { jobs, total }] = await Promise.all([getBPUSession(), fetchJobs()]);
+    const { jobs, total } = await fetchJobs();
 
     return (
         <div className="min-h-screen flex flex-col bg-hp-bg text-hp-dark">
@@ -63,7 +62,7 @@ export default async function JobsPage() {
             </main>
 
             <footer className="py-6 text-center text-xs border-t" style={{ borderColor: 'var(--border)', color: 'var(--text-3)' }}>
-                © {new Date().getFullYear()} Black Professionals United ·{' '}
+                © {new Date().getFullYear()} Black Professionals United Kingdom ·{' '}
                 <a href="/" className="hover:underline">Back to Portal</a>
             </footer>
         </div>

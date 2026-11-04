@@ -292,7 +292,7 @@ export default async function JobDetailPage({ params, searchParams }: { params: 
             </main>
 
             <footer className="py-6 text-center text-xs text-text-3 border-t border-border mt-8">
-                © {new Date().getFullYear()} Black Professionals United &middot;{' '}
+                © {new Date().getFullYear()} Black Professionals United Kingdom &middot;{' '}
                 <Link href="/jobs" className="hover:underline">Job Board</Link>
                 {' · '}
                 <a href="/" className="hover:underline">Portal</a>
