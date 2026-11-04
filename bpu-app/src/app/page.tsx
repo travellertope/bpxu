@@ -125,8 +125,8 @@ const STATIC_MEMBERS = [
 
 export default function HomePageClient() {
   const [posts, setPosts] = useState<WpPost[]>([]);
-  /* name → resolved WP numeric member ID (populated async after mount) */
-  const [resolvedIds, setResolvedIds] = useState<Record<string, number>>({});
+  /* name → resolved WP username (populated async after mount) */
+  const [resolvedIds, setResolvedIds] = useState<Record<string, string>>({});
   const [counting, setCounting] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
@@ -149,7 +149,7 @@ export default function HomePageClient() {
 
   /* Resolve each hardcoded member to a WP numeric ID via name search */
   useEffect(() => {
-    const results: Record<string, number> = {};
+    const results: Record<string, string> = {};
     Promise.allSettled(
       STATIC_MEMBERS.map(({ name }) =>
         fetch(`${WP_URL}/wp-json/bpu/v1/members?search=${encodeURIComponent(name)}&per_page=5`)
@@ -157,10 +157,10 @@ export default function HomePageClient() {
           .then((candidates: Array<{ id: number; username: string; display_name: string }>) => {
             /* Pick candidate with highest name token overlap, require ≥2 matching tokens */
             const best = candidates
-              .map(c => ({ id: c.id, score: nameMatchScore(c.display_name, name) }))
+              .map(c => ({ username: c.username, score: nameMatchScore(c.display_name, name) }))
               .filter(c => c.score >= 2)
               .sort((a, b) => b.score - a.score)[0];
-            if (best) results[name] = best.id;
+            if (best) results[name] = best.username;
           })
           .catch(() => {}),
       ),

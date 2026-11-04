@@ -368,7 +368,7 @@ function MemberCard({ member: m }: { member: PublicMemberProfile }) {
 
   return (
     <a
-      href={`/members/${m.id}`}
+      href={`/members/${m.username}`}
       style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
     >
       <div style={{
