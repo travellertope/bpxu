@@ -134,9 +134,14 @@ export default function MilestonesSection() {
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const autoRef  = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const scrollTo = useCallback((idx: number) => {
+  const scrollToCard = useCallback((idx: number) => {
     const card = cardRefs.current[idx];
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    const track = trackRef.current;
+    if (card && track) {
+      // Scroll only within the track — never touch page vertical position
+      const targetLeft = card.offsetLeft - (track.clientWidth - card.clientWidth) / 2;
+      track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+    }
     setActive(idx);
   }, []);
 
@@ -147,7 +152,11 @@ export default function MilestonesSection() {
       setActive(i => {
         const next = (i + 1) % MILESTONES.length;
         const card = cardRefs.current[next];
-        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        const track = trackRef.current;
+        if (card && track) {
+          const targetLeft = card.offsetLeft - (track.clientWidth - card.clientWidth) / 2;
+          track.scrollTo({ left: targetLeft, behavior: 'smooth' });
+        }
         return next;
       });
     }, 4000);
@@ -157,12 +166,12 @@ export default function MilestonesSection() {
   // Keyboard nav
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'ArrowLeft')  scrollTo(Math.max(0, active - 1));
-      if (e.key === 'ArrowRight') scrollTo(Math.min(MILESTONES.length - 1, active + 1));
+      if (e.key === 'ArrowLeft')  scrollToCard(Math.max(0, active - 1));
+      if (e.key === 'ArrowRight') scrollToCard(Math.min(MILESTONES.length - 1, active + 1));
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [active, scrollTo]);
+  }, [active, scrollToCard]);
 
   // Track scroll position to sync dots
   useEffect(() => {
@@ -212,7 +221,7 @@ export default function MilestonesSection() {
           {/* Arrow controls */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => scrollTo(Math.max(0, active - 1))}
+              onClick={() => scrollToCard(Math.max(0, active - 1))}
               disabled={active === 0}
               className="w-10 h-10 rounded-xl border-brutal shadow-brutal-sm bg-white flex items-center justify-center disabled:opacity-30 hover:bg-hp-dark hover:text-white transition-colors"
               aria-label="Previous"
@@ -220,7 +229,7 @@ export default function MilestonesSection() {
               <ArrowLeft size={18} weight="bold" />
             </button>
             <button
-              onClick={() => scrollTo(Math.min(MILESTONES.length - 1, active + 1))}
+              onClick={() => scrollToCard(Math.min(MILESTONES.length - 1, active + 1))}
               disabled={active === MILESTONES.length - 1}
               className="w-10 h-10 rounded-xl border-brutal shadow-brutal-sm bg-white flex items-center justify-center disabled:opacity-30 hover:bg-hp-dark hover:text-white transition-colors"
               aria-label="Next"
@@ -235,7 +244,7 @@ export default function MilestonesSection() {
           {MILESTONES.map((m, i) => (
             <button
               key={m.year}
-              onClick={() => scrollTo(i)}
+              onClick={() => scrollToCard(i)}
               className="flex flex-col items-center group flex-1"
               aria-label={String(m.year)}
             >
@@ -273,7 +282,7 @@ export default function MilestonesSection() {
           <div
             key={m.year}
             ref={el => { cardRefs.current[i] = el; }}
-            onClick={() => scrollTo(i)}
+            onClick={() => scrollToCard(i)}
             style={{ scrollSnapAlign: 'center', flexShrink: 0, width: 'min(340px, 80vw)' }}
             className={`rounded-2xl border-brutal shadow-brutal p-7 flex flex-col gap-4 cursor-pointer transition-all duration-300 ${
               i === active ? 'scale-100 opacity-100' : 'scale-95 opacity-60 hover:opacity-80'

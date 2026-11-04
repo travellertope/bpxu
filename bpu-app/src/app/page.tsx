@@ -295,8 +295,6 @@ export default function HomePageClient() {
         </div>
       </header>
 
-      <MilestonesSection />
-
       {/* ── Metrics bar – static single row ── */}
       <section ref={marqueeRef} className="bg-hp-dark text-white border-brutal-b py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -320,6 +318,8 @@ export default function HomePageClient() {
           </div>
         </div>
       </section>
+
+      <MilestonesSection />
 
       {/* ── Featured Members ── */}
       <section className="py-20 border-brutal-b">
