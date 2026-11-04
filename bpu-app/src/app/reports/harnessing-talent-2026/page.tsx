@@ -1,6 +1,8 @@
 import SiteHeader from '@/components/SiteHeader';
 import SiteFooter from '@/components/SiteFooter';
 import EngageModal from './EngageModal';
+import ReportNav from './ReportNav';
+import StatsConstellation from './StatsConstellation';
 import {
     GraduationCap, Warning, TrendDown, UsersThree,
     MapPin, Target, ArrowDown,
@@ -95,7 +97,7 @@ export default function HarnessingTalentPage() {
             <main className="flex-1 pt-20">
 
                 {/* ── Hero ── */}
-                <section className="relative overflow-hidden bg-hp-dark text-white">
+                <section id="overview" className="relative overflow-hidden bg-hp-dark text-white">
                     {/* Background pattern */}
                     <div className="absolute inset-0 opacity-5" style={{
                         backgroundImage: 'radial-gradient(circle at 20% 50%, #ffffff 1px, transparent 1px), radial-gradient(circle at 80% 20%, #ffffff 1px, transparent 1px)',
@@ -103,9 +105,9 @@ export default function HarnessingTalentPage() {
                     }} />
 
                     <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-                        <div className="max-w-3xl">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
 
-                            {/* Title */}
+                            {/* Left — title + CTAs */}
                             <div className="space-y-6">
                                 <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black uppercase tracking-tight leading-none">
                                     Harnessing<br />Talent
@@ -137,12 +139,20 @@ export default function HarnessingTalentPage() {
                                     </a>
                                 </div>
                             </div>
+
+                            {/* Right — stats constellation */}
+                            <div className="hidden lg:block">
+                                <StatsConstellation />
+                            </div>
                         </div>
                     </div>
                 </section>
 
+                {/* ── Sticky sub-nav ── */}
+                <ReportNav />
+
                 {/* ── Context & Background ── */}
-                <section className="py-20 bg-white border-b-2 border-hp-dark">
+                <section id="context" className="py-20 bg-white border-b-2 border-hp-dark">
                     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="mb-12">
                             <p className="text-xs font-black uppercase tracking-widest text-hp-accent mb-2">Context &amp; Background</p>
@@ -194,7 +204,7 @@ export default function HarnessingTalentPage() {
                 </section>
 
                 {/* ── Report Insights ── */}
-                <section className="py-20 bg-white border-b-2 border-hp-dark">
+                <section id="insights" className="py-20 bg-white border-b-2 border-hp-dark">
                     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
                         <p className="text-xs font-black uppercase tracking-widest text-hp-accent mb-2">Report Insights</p>
                         <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight mb-6">
@@ -216,7 +226,7 @@ export default function HarnessingTalentPage() {
                 </section>
 
                 {/* ── Call to Action (Policymakers & Employers) ── */}
-                <section className="py-20">
+                <section id="action-plan" className="py-20">
                     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
                         <div className="mb-12">
                             <p className="text-xs font-black uppercase tracking-widest text-hp-accent mb-2">For Policymakers &amp; Employers</p>
@@ -271,7 +281,7 @@ export default function HarnessingTalentPage() {
                 </section>
 
                 {/* ── Download CTA ── */}
-                <section className="py-20 bg-hp-accent text-white">
+                <section id="download" className="py-20 bg-hp-accent text-white">
                     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
                         <p className="text-xs font-black uppercase tracking-widest text-white/60">2026 Full Report</p>
                         <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black uppercase tracking-tight leading-tight">
