@@ -1926,13 +1926,14 @@ class BPU_Headless_Connector {
             'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
 
-        // ── Public member profile endpoints ──────────────────────────────
-        register_rest_route( $this->namespace, '/member/(?P<username>[a-zA-Z0-9\-_.@]+)', array(
+        // ── Public member profile endpoint ───────────────────────────────
+        // Uses query param (?u=username) to avoid dynamic path-segment routing issues.
+        register_rest_route( $this->namespace, '/member-profile', array(
             'methods'             => WP_REST_Server::READABLE,
             'callback'            => array( $this, 'get_public_member_profile' ),
             'permission_callback' => '__return_true',
             'args'                => array(
-                'username' => array( 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
+                'u' => array( 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
             ),
         ) );
 
@@ -5267,14 +5268,12 @@ Rules:
      * No authentication required; only non-sensitive fields are returned.
      */
     public function get_public_member_profile( WP_REST_Request $request ) {
-        $username = trim( $request->get_param( 'username' ) );
-        // Numeric: try ID first (most reliable), then slug in case nicename is numeric.
+        $username = trim( $request->get_param( 'u' ) );
         if ( ctype_digit( $username ) ) {
             $user = get_user_by( 'id', intval( $username ) )
                  ?: get_user_by( 'slug', $username )
                  ?: get_user_by( 'login', $username );
         } else {
-            // Non-numeric: try slug (user_nicename) → login → email.
             $user = get_user_by( 'slug',  $username )
                  ?: get_user_by( 'login', $username )
                  ?: get_user_by( 'email', $username );

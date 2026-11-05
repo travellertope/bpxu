@@ -7,7 +7,7 @@ const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk'
 async function fetchMemberProfile(username: string): Promise<PublicMemberProfile | null> {
   try {
     const res = await fetch(
-      `${WP_URL}/wp-json/bpu/v1/member/${encodeURIComponent(username)}`,
+      `${WP_URL}/wp-json/bpu/v1/member-profile?u=${encodeURIComponent(username)}`,
       { cache: 'no-store' }
     );
     if (!res.ok) return null;
