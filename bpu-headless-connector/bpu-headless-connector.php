@@ -7907,7 +7907,6 @@ Rules:
 
         $allowed_origins = array(
             'https://web.blackprofessionals.uk',
-            'https://b.blackprofessionals.uk',
             'https://pairedbybpu.uk',
         );
 
