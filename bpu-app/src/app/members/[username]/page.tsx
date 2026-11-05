@@ -2,13 +2,13 @@ import { getBPUSession } from '@/lib/auth';
 import MemberProfileClient from './MemberProfileClient';
 import { PublicMemberProfile } from './types';
 
-const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://web.blackprofessionals.uk';
 
 async function fetchMemberProfile(username: string): Promise<PublicMemberProfile | null> {
   try {
     const res = await fetch(
-      `${WP_URL}/wp-json/bpu/v1/member/${encodeURIComponent(username)}`,
-      { next: { revalidate: 300 } }
+      `${APP_URL}/api/members/${encodeURIComponent(username)}`,
+      { cache: 'no-store' }
     );
     if (!res.ok) return null;
     return await res.json();
