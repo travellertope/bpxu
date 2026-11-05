@@ -298,22 +298,34 @@ export default function HomePageClient() {
       {/* ── Metrics bar – static single row ── */}
       <section ref={marqueeRef} className="bg-hp-dark text-white border-brutal-b py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-4 gap-x-4 font-black text-xl sm:text-2xl lg:text-2xl uppercase tracking-tighter">
-            <div className="flex items-center gap-2">
-              <UsersThree weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
-              <span>{members.toLocaleString()}+ Members</span>
+          <div className="flex flex-wrap lg:flex-nowrap items-center justify-between gap-y-6 gap-x-4">
+            <div className="flex items-center gap-3">
+              <UsersThree weight="fill" className="text-hp-accent flex-shrink-0" size={28} />
+              <div className="flex flex-col leading-none">
+                <span className="font-black text-3xl sm:text-4xl uppercase tracking-tighter">{members.toLocaleString()}+</span>
+                <span className="font-bold text-xs sm:text-sm uppercase tracking-widest text-gray-300 mt-1">Members</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Buildings weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
-              <span>{partners.toLocaleString()}+ Corporate Partners</span>
+            <div className="flex items-center gap-3">
+              <Buildings weight="fill" className="text-hp-accent flex-shrink-0" size={28} />
+              <div className="flex flex-col leading-none">
+                <span className="font-black text-3xl sm:text-4xl uppercase tracking-tighter">{partners.toLocaleString()}+</span>
+                <span className="font-bold text-xs sm:text-sm uppercase tracking-widest text-gray-300 mt-1">Corporate Partners</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Briefcase weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
-              <span>{placements.toLocaleString()}+ Work Placements</span>
+            <div className="flex items-center gap-3">
+              <Briefcase weight="fill" className="text-hp-accent flex-shrink-0" size={28} />
+              <div className="flex flex-col leading-none">
+                <span className="font-black text-3xl sm:text-4xl uppercase tracking-tighter">{placements.toLocaleString()}+</span>
+                <span className="font-bold text-xs sm:text-sm uppercase tracking-widest text-gray-300 mt-1">Work Placements</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <MagnifyingGlass weight="fill" className="text-hp-accent flex-shrink-0" size={24} />
-              <span>{vacancies.toLocaleString()}+ Vacancies</span>
+            <div className="flex items-center gap-3">
+              <MagnifyingGlass weight="fill" className="text-hp-accent flex-shrink-0" size={28} />
+              <div className="flex flex-col leading-none">
+                <span className="font-black text-3xl sm:text-4xl uppercase tracking-tighter">{vacancies.toLocaleString()}+</span>
+                <span className="font-bold text-xs sm:text-sm uppercase tracking-widest text-gray-300 mt-1">Vacancies</span>
+              </div>
             </div>
           </div>
         </div>
