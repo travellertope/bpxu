@@ -206,8 +206,6 @@ function downloadPassport(m: PublicMemberProfile) {
 }
 
 /* ================================================================ */
-const WP_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';
-
 export default function MemberProfileClient({ member: initialMember, username, isOwner, viewer }: Props) {
   const [member, setMember] = useState<PublicMemberProfile | null>(initialMember);
   const [loading, setLoading] = useState(!initialMember);
@@ -236,7 +234,7 @@ export default function MemberProfileClient({ member: initialMember, username, i
 
   useEffect(() => {
     if (initialMember) return;
-    fetch(`${WP_URL}/wp-json/bpu/v1/member/${encodeURIComponent(username)}`)
+    fetch(`/api/members/${encodeURIComponent(username)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data) {

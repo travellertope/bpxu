@@ -1932,7 +1932,7 @@ class BPU_Headless_Connector {
             'callback'            => array( $this, 'get_public_member_profile' ),
             'permission_callback' => '__return_true',
             'args'                => array(
-                'username' => array( 'required' => true, 'sanitize_callback' => 'sanitize_user' ),
+                'username' => array( 'required' => true, 'sanitize_callback' => 'sanitize_text_field' ),
             ),
         ) );
 
@@ -5267,11 +5267,18 @@ Rules:
      * No authentication required; only non-sensitive fields are returned.
      */
     public function get_public_member_profile( WP_REST_Request $request ) {
-        $username = $request->get_param( 'username' );
-        // Try login → URL slug → numeric ID (handles all WP username formats).
-        $user = get_user_by( 'login', $username )
-             ?: get_user_by( 'slug',  $username )
-             ?: ( ctype_digit( $username ) ? get_user_by( 'id', intval( $username ) ) : false );
+        $username = trim( $request->get_param( 'username' ) );
+        // Numeric: try ID first (most reliable), then slug in case nicename is numeric.
+        if ( ctype_digit( $username ) ) {
+            $user = get_user_by( 'id', intval( $username ) )
+                 ?: get_user_by( 'slug', $username )
+                 ?: get_user_by( 'login', $username );
+        } else {
+            // Non-numeric: try slug (user_nicename) → login → email.
+            $user = get_user_by( 'slug',  $username )
+                 ?: get_user_by( 'login', $username )
+                 ?: get_user_by( 'email', $username );
+        }
 
         if ( ! $user ) {
             return new WP_Error( 'bpu_member_not_found', __( 'Member not found.', 'bpu' ), array( 'status' => 404 ) );
