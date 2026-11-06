@@ -16,7 +16,7 @@ export async function GET(
 
     try {
         const res = await fetch(
-            `${WP_URL}/wp-json/bpu/v1/member/${encodeURIComponent(username)}`,
+            `${WP_URL}/wp-json/bpu/v1/member-profile?u=${encodeURIComponent(username)}`,
             { headers, cache: 'no-store' }
         );
         const data = await res.json();

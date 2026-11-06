@@ -638,7 +638,7 @@ export default function HomePageClient() {
                   <img
                     src={p.logo}
                     alt={p.name}
-                    className="h-10 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
+                    className="h-20 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
                   />
                 </a>
               ))}
