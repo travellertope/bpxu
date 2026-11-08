@@ -353,44 +353,6 @@ export default function MemberProfileClient({ member: initialMember, username, i
   return (
     <div className="min-h-screen flex flex-col" style={{ background: PAPER, fontFamily: '"DM Sans", sans-serif', color: SLATE }}>
 
-      {/* ── Sticky nav ── */}
-      <header
-        className="sticky top-0 z-40"
-        style={{ background: PAPER, borderBottom: `4px solid ${BORDER}` }}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center h-20 gap-4">
-          <Link href="/" className="flex items-center gap-3">
-            <div
-              className="w-10 h-10 flex items-center justify-center font-black text-xl text-white"
-              style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-            >B</div>
-            <div className="hidden sm:block">
-              <span className="font-black text-sm uppercase tracking-tight block leading-none" style={{ fontFamily: 'Plus Jakarta Sans, sans-serif' }}>BLACK PROFESSIONALS UK</span>
-              <span className="text-[11px] font-bold uppercase tracking-widest block" style={{ color: OCHRE, fontFamily: 'monospace' }}>VERIFIED MEMBER PROFILE</span>
-            </div>
-          </Link>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowShare(true)}
-              className="px-4 py-2 text-xs font-black uppercase rounded"
-              style={{ background: '#fff', border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-            >
-              ↗ Share
-            </button>
-            {isOwner && (
-              <Link
-                href="/profile"
-                className="px-4 py-2 text-xs font-black uppercase rounded text-white"
-                style={{ background: SLATE, border: `3px solid ${BORDER}`, boxShadow: `3px 3px 0 ${BORDER}`, fontFamily: 'Plus Jakarta Sans, sans-serif' }}
-              >
-                Edit Profile
-              </Link>
-            )}
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-grow w-full space-y-8">
 
         {/* ── Header profile card ── */}
