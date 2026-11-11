@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { EventItem } from '@/lib/api';
 
-type ModeFilter = 'all' | 'online' | 'in-person';
+type ModeFilter  = 'all' | 'online' | 'in-person';
+type TimeFilter  = 'upcoming' | 'past';
 
 function formatMonthYear(dateStr: string): string {
     try {
@@ -42,7 +43,7 @@ function EventCard({ ev }: { ev: EventItem }) {
                     <img
                         src={ev.image}
                         alt={ev.title}
-                        style={{ width: '100%', height: '100%', minHeight: '140px', objectFit: 'cover' }}
+                        style={{ width: '100%', height: '100%', minHeight: '140px', objectFit: 'cover', opacity: ev.past ? 0.65 : 1 }}
                     />
                 </div>
             )}
@@ -58,6 +59,11 @@ function EventCard({ ev }: { ev: EventItem }) {
                     >
                         {ev.cost === 'Free' || !ev.cost ? 'Free' : ev.cost}
                     </span>
+                    {ev.past && (
+                        <span className="badge" style={{ fontSize: '11px', background: 'var(--surface-2)', color: 'var(--text-3)' }}>
+                            Past Event
+                        </span>
+                    )}
                 </div>
 
                 {/* Title */}
@@ -88,12 +94,12 @@ function EventCard({ ev }: { ev: EventItem }) {
 
                 <div className="mt-auto pt-1">
                     <a
-                        href={ev.register_url || ev.url}
+                        href={ev.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="btn btn-amber btn-sm inline-flex"
+                        className={`btn btn-sm inline-flex ${ev.past ? 'btn-secondary' : 'btn-amber'}`}
                     >
-                        Register →
+                        {ev.past ? 'View Event →' : 'Register →'}
                     </a>
                 </div>
             </div>
@@ -106,19 +112,34 @@ interface Props {
 }
 
 export default function EventBoard({ events }: Props) {
-    const [search, setSearch]     = useState('');
-    const [mode, setMode]         = useState<ModeFilter>('all');
-    const [freeOnly, setFreeOnly] = useState(false);
+    const [search, setSearch]       = useState('');
+    const [mode, setMode]           = useState<ModeFilter>('all');
+    const [freeOnly, setFreeOnly]   = useState(false);
+    const [timeTab, setTimeTab]     = useState<TimeFilter>('upcoming');
+    const [pastEvents, setPastEvents] = useState<EventItem[]>([]);
+    const [loadingPast, setLoadingPast] = useState(false);
+
+    useEffect(() => {
+        if (timeTab !== 'past' || pastEvents.length > 0) return;
+        setLoadingPast(true);
+        fetch('/api/events?type=past&per_page=50')
+            .then(r => r.ok ? r.json() : { events: [] })
+            .then(data => setPastEvents((data.events || []).map((e: EventItem) => ({ ...e, past: true }))))
+            .catch(() => {})
+            .finally(() => setLoadingPast(false));
+    }, [timeTab, pastEvents.length]);
+
+    const activeEvents = timeTab === 'past' ? pastEvents : events;
 
     const filtered = useMemo(() => {
-        return events.filter(ev => {
+        return activeEvents.filter(ev => {
             if (search && !ev.title.toLowerCase().includes(search.toLowerCase()) && !ev.description.toLowerCase().includes(search.toLowerCase())) return false;
             if (mode === 'online' && !ev.is_virtual) return false;
             if (mode === 'in-person' && ev.is_virtual) return false;
             if (freeOnly && ev.cost && ev.cost !== 'Free') return false;
             return true;
         });
-    }, [events, search, mode, freeOnly]);
+    }, [activeEvents, search, mode, freeOnly]);
 
     // Group by month
     const grouped = useMemo(() => {
@@ -133,6 +154,25 @@ export default function EventBoard({ events }: Props) {
 
     return (
         <div>
+            {/* Upcoming / Past tabs */}
+            <div className="flex rounded-lg border border-border overflow-hidden mb-6" style={{ width: 'fit-content' }}>
+                {(['upcoming', 'past'] as TimeFilter[]).map((t, i) => (
+                    <button
+                        key={t}
+                        type="button"
+                        onClick={() => setTimeTab(t)}
+                        className="px-6 py-2 text-sm font-semibold transition-colors"
+                        style={{
+                            background: timeTab === t ? 'var(--brand)' : 'var(--surface)',
+                            color: timeTab === t ? '#fff' : 'var(--text-2)',
+                            borderRight: i === 0 ? '1px solid var(--border)' : 'none',
+                        }}
+                    >
+                        {t === 'upcoming' ? 'Upcoming' : 'Past Events'}
+                    </button>
+                ))}
+            </div>
+
             {/* Filters */}
             <div className="card card-p mb-8 space-y-3">
                 <div className="flex flex-col sm:flex-row gap-3">
@@ -184,10 +224,18 @@ export default function EventBoard({ events }: Props) {
                 </label>
             </div>
 
-            {filtered.length === 0 ? (
+            {loadingPast ? (
                 <div className="empty">
-                    <p className="text-base font-medium mb-1">No events match your filters</p>
-                    <p className="text-sm">Try adjusting your search or filters.</p>
+                    <p className="text-sm text-text-2">Loading past events…</p>
+                </div>
+            ) : filtered.length === 0 ? (
+                <div className="empty">
+                    <p className="text-base font-medium mb-1">
+                        {timeTab === 'past' ? 'No past events found' : 'No events match your filters'}
+                    </p>
+                    <p className="text-sm">
+                        {timeTab === 'past' ? 'Past events will appear here.' : 'Try adjusting your search or filters.'}
+                    </p>
                 </div>
             ) : (
                 <div className="space-y-10">

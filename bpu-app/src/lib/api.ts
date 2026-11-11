@@ -47,6 +47,7 @@ export interface EventItem {
     image: string;
     is_virtual: boolean;
     register_url: string;
+    past?: boolean;
 }
 
 const WP_BACKEND_URL = process.env.NEXT_PUBLIC_WP_URL || 'https://blackprofessionals.uk';

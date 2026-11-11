@@ -909,6 +909,7 @@ class BPU_Headless_Connector {
             'args'                => array(
                 'page'     => array( 'default' => 1,  'sanitize_callback' => 'absint' ),
                 'per_page' => array( 'default' => 12, 'sanitize_callback' => 'absint' ),
+                'type'     => array( 'default' => 'upcoming', 'sanitize_callback' => 'sanitize_text_field' ),
             ),
         ) );
 
@@ -6546,6 +6547,7 @@ Rules:
     public function get_events( WP_REST_Request $request ) {
         $page     = max( 1, $request->get_param( 'page' ) );
         $per_page = min( 50, max( 1, $request->get_param( 'per_page' ) ) );
+        $type     = $request->get_param( 'type' ) === 'past' ? 'past' : 'upcoming';
 
         // The Events Calendar stores events as the 'tribe_events' post type.
         $today = date( 'Y-m-d' );
@@ -6557,12 +6559,12 @@ Rules:
             'paged'          => $page,
             'orderby'        => 'meta_value',
             'meta_key'       => '_EventStartDate',
-            'order'          => 'ASC',
+            'order'          => $type === 'past' ? 'DESC' : 'ASC',
             'meta_query'     => array(
                 array(
                     'key'     => '_EventStartDate',
                     'value'   => $today,
-                    'compare' => '>=',
+                    'compare' => $type === 'past' ? '<' : '>=',
                     'type'    => 'DATETIME',
                 ),
             ),
