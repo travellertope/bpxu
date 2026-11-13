@@ -391,6 +391,10 @@ function RegisterForm() {
         <div className="flex flex-col items-center py-10 px-6 min-h-full">
           <div className="w-full max-w-lg fade-up">
 
+            <a href="/" className="inline-flex items-center gap-1 text-xs text-text-3 hover:text-text mb-6">
+              ← Back to home
+            </a>
+
             {/* Logo — mobile only */}
             <div className="lg:hidden text-center mb-8">
               <img
