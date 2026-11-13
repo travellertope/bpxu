@@ -60,14 +60,18 @@ export async function GET(
     }
 
     // Security: only redirect to http/https URLs
+    // Also strip GA4 cross-domain linker param (_gl) so partner BID tracking
+    // params can always be appended without a double-? collision.
+    let cleanUrl: URL;
     try {
-        const parsed = new URL(applyUrl);
-        if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        cleanUrl = new URL(applyUrl);
+        if (cleanUrl.protocol !== 'https:' && cleanUrl.protocol !== 'http:') {
             return NextResponse.redirect(new URL('/jobs', request.url));
         }
     } catch {
         return NextResponse.redirect(new URL('/jobs', request.url));
     }
+    cleanUrl.searchParams.delete('_gl');
 
-    return NextResponse.redirect(applyUrl, { status: 302 });
+    return NextResponse.redirect(cleanUrl.toString(), { status: 302 });
 }

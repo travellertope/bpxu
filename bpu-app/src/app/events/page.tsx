@@ -40,7 +40,7 @@ export default async function EventsPage() {
 
                     <div className="wrap" style={{ position: 'relative', zIndex: 1 }}>
                         <h1 className="text-4xl font-extrabold tracking-tight mb-4" style={{ color: '#fff' }}>
-                            Upcoming Events
+                            Events
                         </h1>
                         <p className="text-lg max-w-2xl mx-auto" style={{ color: 'rgba(255,255,255,0.82)' }}>
                             Networking events, workshops, panel discussions, and community meetups — all curated for Black professionals in the UK.
