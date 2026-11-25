@@ -212,9 +212,9 @@ export default function ServiceRequestsAdmin() {
                                                 </span>
                                             </div>
                                             <p className="font-semibold text-sm">
-                                                {req.member?.display_name || 'Unknown member'}
+                                                {req.member?.display_name || (req.data as Record<string,string>)?.ss_name || 'Unknown member'}
                                             </p>
-                                            <p className="text-xs text-text-3 mt-0.5">{req.member?.email}</p>
+                                            <p className="text-xs text-text-3 mt-0.5">{req.member?.email || (req.data as Record<string,string>)?.ss_email}</p>
                                         </div>
                                         <p className="text-xs text-text-3 flex-shrink-0">{fmtShort(req.created_at)}</p>
                                     </div>
@@ -240,8 +240,10 @@ export default function ServiceRequestsAdmin() {
                         <div className="flex items-start justify-between gap-2 mb-2">
                             <div>
                                 <span className="badge badge-gray text-[10px]">{TYPE_LABEL[selected.type] || selected.type}</span>
-                                <p className="font-bold text-sm mt-1">{selected.member?.display_name}</p>
-                                <p className="text-xs text-text-3">{selected.member?.email}</p>
+                                <p className="font-bold text-sm mt-1">
+                                    {selected.member?.display_name || (selected.data as Record<string,string>)?.ss_name}
+                                </p>
+                                <p className="text-xs text-text-3">{selected.member?.email || (selected.data as Record<string,string>)?.ss_email}</p>
                             </div>
                             <button onClick={() => setSelected(null)} className="text-text-3 hover:text-text text-lg leading-none flex-shrink-0">×</button>
                         </div>
@@ -289,6 +291,21 @@ export default function ServiceRequestsAdmin() {
                             <DataField label="How They'd Represent BPU" value={selected.data.representation as string} />
                             <DataField label="LinkedIn" value={selected.data.linkedin_url as string} />
                         </>}
+                        {selected.type === 'safe_space' && (() => {
+                            const d = selected.data as Record<string, string>;
+                            return <>
+                                <DataField label="Name"         value={d.ss_name} />
+                                <DataField label="Email"        value={d.ss_email} />
+                                <DataField label="Phone"        value={d.ss_phone} />
+                                <DataField label="Looking for"  value={d.ss_intent} />
+                                <DataField label="Support type" value={d.ss_support_type} />
+                                <DataField label="Experience"   value={d.ss_experience} />
+                                <DataField label="Mindful of"   value={d.ss_mindful} />
+                                {d.ss_email && (
+                                    <a href={`mailto:${d.ss_email}`} className="btn btn-sm btn-ghost mt-1">Reply by Email ↗</a>
+                                )}
+                            </>;
+                        })()}
                         {selected.attachment_url && (
                             <a href={selected.attachment_url} target="_blank" rel="noreferrer" className="btn btn-sm btn-ghost mt-2">
                                 View Attachment ↗

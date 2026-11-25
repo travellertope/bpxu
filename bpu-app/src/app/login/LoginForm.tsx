@@ -114,6 +114,10 @@ export default function LoginForm({ isPaired }: { isPaired?: boolean }) {
       <div className="flex-1 flex flex-col items-center justify-center p-8 bg-white">
         <div className="w-full max-w-sm fade-up">
 
+          <a href="/" className="inline-flex items-center gap-1 text-xs text-text-3 hover:text-text mb-6">
+            ← Back to home
+          </a>
+
           {/* Logo — mobile only */}
           <div className="lg:hidden text-center mb-8">
             <img

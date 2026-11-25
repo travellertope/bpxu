@@ -2270,12 +2270,12 @@ class BPU_Headless_Connector {
         register_rest_route( $this->namespace, '/admin/safe-space', array(
             'methods'             => 'GET',
             'callback'            => array( $this, 'admin_list_safe_space' ),
-            'permission_callback' => array( $this, 'require_admin' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
         register_rest_route( $this->namespace, '/admin/safe-space/(?P<id>\d+)/status', array(
             'methods'             => 'POST',
             'callback'            => array( $this, 'admin_update_safe_space' ),
-            'permission_callback' => array( $this, 'require_admin' ),
+            'permission_callback' => array( $this, 'check_admin_jwt_auth' ),
         ) );
 
         register_rest_route( $this->namespace, '/admin/partnerships', array(
@@ -17350,6 +17350,13 @@ PROMPT;
         $meta_query = array( 'relation' => 'AND' );
         if ( $type ) {
             $meta_query[] = array( 'key' => '_bpu_sr_type', 'value' => $type );
+        } else {
+            // Safe Space requests have their own admin section — exclude them here.
+            $meta_query[] = array(
+                'key'     => '_bpu_sr_type',
+                'value'   => 'safe_space',
+                'compare' => '!=',
+            );
         }
         if ( $status ) {
             $meta_query[] = array( 'key' => '_bpu_sr_status', 'value' => $status );
