@@ -66,7 +66,7 @@ export const PAGES: Record<string, PageContent> = {
         ],
         cta: {
             label: 'Apply for a Placement',
-            href: '/(member)/work-placement',
+            href: '/work-placement',
             requiresAuth: true,
         },
         guestCta: {
@@ -114,7 +114,7 @@ export const PAGES: Record<string, PageContent> = {
         ],
         cta: {
             label: 'Book a Session',
-            href: '/(member)/interview-prep',
+            href: '/interview-prep',
             requiresAuth: true,
         },
         guestCta: {
@@ -166,7 +166,7 @@ export const PAGES: Record<string, PageContent> = {
         ],
         cta: {
             label: 'Open CV Clinic',
-            href: '/(member)/cv-clinic',
+            href: '/cv-clinic',
             requiresAuth: true,
         },
         guestCta: {
@@ -262,7 +262,7 @@ export const PAGES: Record<string, PageContent> = {
         ],
         cta: {
             label: 'Get Support',
-            href: '/(member)/support',
+            href: '/support/new',
             requiresAuth: true,
         },
         guestCta: {
@@ -310,7 +310,7 @@ export const PAGES: Record<string, PageContent> = {
         ],
         cta: {
             label: 'Apply to Become an Ambassador',
-            href: '/(member)/ambassadorship',
+            href: '/ambassadorship',
             requiresAuth: true,
         },
         guestCta: {
