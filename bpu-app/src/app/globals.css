@@ -340,13 +340,15 @@ body {
   padding: 9px 18px; min-height: 40px; font-size: 14px;
   transition: background 0.15s, opacity 0.15s, transform 0.1s;
   border: none; cursor: pointer; white-space: nowrap; text-decoration: none;
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent;
 }
-.btn:active { transform: scale(0.98); }
+.btn:active { transform: scale(0.97); opacity: 0.85; }
 .btn-sm   { padding: 6px 12px; min-height: 32px; font-size: 13px; }
 .btn-lg   { padding: 12px 28px; min-height: 48px; font-size: 15px; }
 
 .btn-amber  { background: var(--brand);  color: #fff; }
 .btn-amber:hover  { background: var(--brand-dark); }
+.btn-amber:active { background: var(--brand-dark); opacity: 0.9; }
 
 .btn-purple { background: var(--purple); color: #fff; }
 .btn-purple:hover { background: var(--purple-dark); }
