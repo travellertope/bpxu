@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 
 interface ServiceRequest {
     id: number;
-    type: 'work_placement' | 'interview_prep' | 'ambassadorship';
+    type: 'work_placement' | 'interview_prep' | 'ambassadorship' | 'safe_space';
     status: string;
     data: Record<string, string | string[]>;
     notes: string;
