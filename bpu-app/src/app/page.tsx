@@ -225,7 +225,7 @@ export default function HomePageClient() {
             </div>
 
             <h1 className="text-6xl sm:text-7xl lg:text-8xl font-black leading-[0.9] tracking-tighter">
-              DECADE OF<br />
+              A DECADE OF<br />
               <span className="text-hp-accent">INCLUSION.</span><br />
               GROWTH.
             </h1>
