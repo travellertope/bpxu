@@ -197,9 +197,10 @@ body {
 
 /* Content area */
 .dash-content {
-  flex: 1; margin-left: 260px; min-height: 100vh;
+  flex: 1; min-width: 0; margin-left: 260px; min-height: 100vh;
   background: var(--bg);
   display: flex; flex-direction: column;
+  overflow-x: hidden;
 }
 .dash-topbar {
   height: 56px; background: var(--surface);
@@ -214,7 +215,8 @@ body {
 }
 .dash-main {
   flex: 1; padding: 24px;
-  max-width: 1200px; width: 100%;
+  max-width: 1200px; width: 100%; min-width: 0;
+  box-sizing: border-box;
 }
 
 /* Page header pattern */
@@ -262,6 +264,12 @@ body {
   .dash-content { margin-left: 0; }
   .dash-topbar-hamburger { display: flex; }
   .dash-main { padding: 16px; }
+  /* Tighter card padding on small screens */
+  .dash-main .card-p { padding: 16px; }
+  .dash-main .card-p-lg { padding: 20px; }
+  /* Prevent wide tables / grids from pushing the layout */
+  .dash-main table { display: block; overflow-x: auto; }
+  .dash-main .grid { min-width: 0; }
 }
 
 /* ─────────────────────────────────────────
