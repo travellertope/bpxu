@@ -62,8 +62,14 @@ export default function InterviewPrepClient({ user }: { user: BPUUser }) {
         setSubmitting(true);
         try {
             const body = new FormData();
-            Object.entries(form).forEach(([k, v]) => body.append(k, v));
-            if (file) body.append('file', file);
+            body.append('organisation', form.organisation);
+            body.append('role', form.role);
+            body.append('interview_type', form.interviewType);
+            body.append('industry', form.industry);
+            body.append('interview_date', form.interviewDate);
+            body.append('rounds_completed', form.roundsCompleted);
+            body.append('specific_help', form.specificHelp);
+            if (file) body.append('attachment', file);
             const res = await fetch('/api/member/interview-prep-submit', { method: 'POST', body });
             if (!res.ok) throw new Error('Request failed');
             setSubmitted(true);
