@@ -13304,6 +13304,7 @@ jQuery(function($){
                 'booking_buffer_hours'         => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
                 'max_bookings_per_day'         => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
                 'job_admin_notification_email' => get_option( '_bpu_job_admin_notification_email', '' ),
+                'form_notification_email'      => get_option( '_bpu_form_notification_email', '' ),
             ),
         ), 200 );
     }
@@ -13321,6 +13322,7 @@ jQuery(function($){
             'booking_buffer_hours'         => '_paired_platform_booking_buffer_hours',
             'max_bookings_per_day'         => '_paired_platform_max_bookings_per_day',
             'job_admin_notification_email' => '_bpu_job_admin_notification_email',
+            'form_notification_email'      => '_bpu_form_notification_email',
         );
 
         foreach ( $allowed as $field => $option_key ) {
@@ -13336,10 +13338,10 @@ jQuery(function($){
                 $value = max( 0, (int) $value );
             } elseif ( $field === 'max_bookings_per_day' ) {
                 $value = max( 1, (int) $value );
-            } elseif ( $field === 'job_admin_notification_email' ) {
+            } elseif ( in_array( $field, array( 'job_admin_notification_email', 'form_notification_email' ), true ) ) {
                 $value = sanitize_email( $value );
                 if ( '' !== $value && ! is_email( $value ) ) {
-                    return new WP_Error( 'bpu_invalid_email', __( 'Invalid job admin notification email.', 'bpu' ), array( 'status' => 400 ) );
+                    return new WP_Error( 'bpu_invalid_email', __( 'Invalid email address.', 'bpu' ), array( 'status' => 400 ) );
                 }
             }
 
@@ -13354,6 +13356,7 @@ jQuery(function($){
                 'booking_buffer_hours'         => (int) get_option( '_paired_platform_booking_buffer_hours', 24 ),
                 'max_bookings_per_day'         => (int) get_option( '_paired_platform_max_bookings_per_day', 10 ),
                 'job_admin_notification_email' => get_option( '_bpu_job_admin_notification_email', '' ),
+                'form_notification_email'      => get_option( '_bpu_form_notification_email', '' ),
             ),
         ), 200 );
     }
@@ -17833,7 +17836,7 @@ PROMPT;
             return new WP_Error( 'missing_fields', 'Name, email and message are required.', array( 'status' => 400 ) );
         }
 
-        $admin_email = get_option( 'admin_email' );
+        $admin_email = get_option( '_bpu_form_notification_email' ) ?: get_option( 'admin_email' );
         $tpl         = $this->render_email_template( 'contact_enquiry', array(
             'name'    => $name,
             'email'   => $email,
@@ -17877,7 +17880,7 @@ PROMPT;
         update_post_meta( $post_id, '_bpu_sr_status', 'new' );
         update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
 
-        $admin_email = get_option( 'admin_email' );
+        $admin_email = get_option( '_bpu_form_notification_email' ) ?: get_option( 'admin_email' );
         $subject     = 'New Policy Engagement: ' . ( $data['re_enquiry_type'] ?? 'General' ) . ' — ' . $data['re_name'];
         $body        = '<h2>New Policy Engagement Enquiry</h2>'
             . '<p><strong>Name:</strong> ' . esc_html( $data['re_name'] ) . '</p>'
@@ -17925,7 +17928,7 @@ PROMPT;
         update_post_meta( $post_id, '_bpu_sr_status', 'new' );
         update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
 
-        $admin_email = get_option( 'admin_email' );
+        $admin_email = get_option( '_bpu_form_notification_email' ) ?: get_option( 'admin_email' );
         $tpl = $this->render_email_template( 'safe_space_request', array(
             'name'         => $data['ss_name']         ?? '',
             'email'        => $data['ss_email']        ?? '',
@@ -18055,7 +18058,7 @@ PROMPT;
         update_post_meta( $post_id, '_bpu_sr_data',   wp_json_encode( $data ) );
 
         // Admin notification
-        $admin_email = get_option( 'admin_email' );
+        $admin_email = get_option( '_bpu_form_notification_email' ) ?: get_option( 'admin_email' );
         $tpl = $this->render_email_template( 'partnership_enquiry', array(
             'org_name'     => $data['org_name']     ?? '',
             'contact_name' => $data['contact_name'] ?? '',

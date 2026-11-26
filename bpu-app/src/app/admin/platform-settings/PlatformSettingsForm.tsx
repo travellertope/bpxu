@@ -8,6 +8,7 @@ interface Settings {
     booking_buffer_hours: number;
     max_bookings_per_day: number;
     job_admin_notification_email: string;
+    form_notification_email: string;
 }
 
 const CURRENCIES = ['GBP', 'USD', 'EUR', 'NGN', 'ZAR', 'KES', 'GHS'];
@@ -19,6 +20,7 @@ export default function PlatformSettingsForm() {
         booking_buffer_hours: 24,
         max_bookings_per_day: 5,
         job_admin_notification_email: '',
+        form_notification_email: '',
     });
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -38,6 +40,7 @@ export default function PlatformSettingsForm() {
                     booking_buffer_hours: s.booking_buffer_hours ?? 24,
                     max_bookings_per_day: s.max_bookings_per_day ?? 5,
                     job_admin_notification_email: s.job_admin_notification_email || '',
+                    form_notification_email: s.form_notification_email || '',
                 });
             } catch (e) {
                 setError(e instanceof Error ? e.message : 'Failed to load settings.');
@@ -136,6 +139,25 @@ export default function PlatformSettingsForm() {
                         onChange={e => setSettings(prev => ({ ...prev, max_bookings_per_day: Number(e.target.value) }))}
                     />
                     <p className="text-xs text-text-3 mt-1">Maximum bookings a mentee can make per day.</p>
+                </div>
+            </div>
+
+            <div className="card card-p space-y-5">
+                <h2 className="text-base font-bold">Form Notifications</h2>
+
+                <div>
+                    <label htmlFor="form-notification-email" className="field-label mb-1 block">Contact, Partnership &amp; Safe Space Forms</label>
+                    <input
+                        id="form-notification-email"
+                        type="email"
+                        className="field-input"
+                        placeholder="hello@blackprofessionals.uk"
+                        value={settings.form_notification_email}
+                        onChange={e => setSettings(prev => ({ ...prev, form_notification_email: e.target.value }))}
+                    />
+                    <p className="text-xs text-text-3 mt-1">
+                        Alert emails from the Contact form, Partnership enquiry form, and Safe Space form are sent here. Leave blank to fall back to the WordPress admin email.
+                    </p>
                 </div>
             </div>
 
