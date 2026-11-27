@@ -49,6 +49,7 @@ const PARTNERS = [
   { name: 'Walter Scott',                    href: 'https://www.walterscott.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
   { name: 'Addleshaw Goddard',               href: 'https://www.addleshawgoddard.com/en/', logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
   { name: 'Capco',                           href: 'https://www.capco.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
+  { name: "People's Postcode Lottery",       href: 'https://www.postcodelottery.co.uk/',   logo: 'https://www.postcodelottery.co.uk/f/290950848304001/300x57/e8c639853a/postcode-lottery-main-logo-white.svg', bg: '#5b2d8e' },
 ];
 
 /* ─── hero photo data ─── */
@@ -649,6 +650,7 @@ export default function HomePageClient() {
                     src={p.logo}
                     alt={p.name}
                     className="h-20 w-auto object-contain opacity-70 hover:opacity-100 transition-opacity"
+                    style={p.bg ? { background: p.bg, padding: '10px 20px', borderRadius: 10 } : undefined}
                   />
                 </a>
               ))}
