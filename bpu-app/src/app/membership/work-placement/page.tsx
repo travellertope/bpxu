@@ -356,7 +356,7 @@ export default async function WorkPlacementPage() {
                 <section className="py-20 px-4 sm:px-6 lg:px-8 text-center" style={{ background: '#111317' }}>
                     <div className="max-w-2xl mx-auto space-y-6">
                         <h2 className="font-black uppercase tracking-tight text-white" style={{ fontSize: 'clamp(2rem,5vw,3.5rem)', lineHeight: 1.05 }}>
-                            Ready to Take the Step?
+                            Ready to Take the Next Steps?
                         </h2>
                         <p className="text-lg font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
                             Join thousands of Black professionals who have used BPU placements to launch and advance their UK careers.
@@ -388,6 +388,12 @@ export default async function WorkPlacementPage() {
                                 </>
                             )}
                         </div>
+                        <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                            Or email us directly at{' '}
+                            <a href="mailto:workplacements@blackprofessionals.uk" className="underline" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                                workplacements@blackprofessionals.uk
+                            </a>
+                        </p>
                         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
                             Also interested in employer opportunities?{' '}
                             <a href="https://blackprofessionals.uk/black-talent-access/" target="_blank" rel="noreferrer" className="underline" style={{ color: 'rgba(255,255,255,0.55)' }}>
