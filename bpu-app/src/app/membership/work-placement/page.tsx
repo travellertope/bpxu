@@ -17,7 +17,7 @@ const PROGRAMMES = [
         sectors: 'Finance, Technology, Consulting, Media, Engineering, Law, Marketing and more.',
         image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/black-interns-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.jpg',
         imageAlt: 'Black Interns Programme',
-        cta: { label: 'Apply Now', href: '/membership/black-interns' },
+        cta: { label: 'Register Now', href: '/membership/black-interns' },
         video: 'https://www.youtube.com/embed/t5aEONuJNhw',
         flip: false,
     },
