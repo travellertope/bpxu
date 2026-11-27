@@ -51,7 +51,7 @@ const PROGRAMMES = [
         title: 'BPU Talent Access',
         body: 'Visionary organisations seeking fresh perspectives and diverse talent can access our full pool of skilled Black and ethnic minority professionals and interns. We connect forward-thinking employers with candidates across all three of our programmes.',
         sectors: 'Finance, Technology, Consulting, Legal, Engineering, Media, Marketing, Healthcare and more.',
-        image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/black-talents-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.jpg',
+        image: 'https://blackprofessionals.uk/wp-content/uploads/2026/04/TBCC2026-103-scaled.jpg',
         imageAlt: 'BPU Talent Access – For Organisations',
         cta: { label: 'Register Interest', href: '/membership/talent-access' },
         video: null,
