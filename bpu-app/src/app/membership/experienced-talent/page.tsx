@@ -36,7 +36,7 @@ const BENEFITS = [
     {
         Icon: UsersThree,
         title: 'Professional Network',
-        desc: 'Join a community of Black professionals and build lasting connections across industries.',
+        desc: 'Join a community of Black and other ethnic minority professionals and build lasting connections across industries.',
     },
 ];
 
