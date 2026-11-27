@@ -10,7 +10,7 @@ import {
   UsersThree, Buildings, Briefcase, MagnifyingGlass,
   ListMagnifyingGlass, MicrophoneStage, FileText, Users,
   GraduationCap, CalendarStar, Lifebuoy, ChartBar, Play,
-  LinkedinLogo, TwitterLogo, InstagramLogo,
+  LinkedinLogo, TwitterLogo, InstagramLogo, TiktokLogo,
 } from '@phosphor-icons/react';
 
 /* ─── WordPress post shape (minimal) ─── */
@@ -706,6 +706,9 @@ export default function HomePageClient() {
                 </a>
                 <a href="https://instagram.com/blackprofessionalsuk" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-hp-accent transition-colors">
                   <InstagramLogo weight="fill" size={20} />
+                </a>
+                <a href="https://www.tiktok.com/@blackprofessionalsunited" target="_blank" rel="noreferrer" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-hp-accent transition-colors">
+                  <TiktokLogo weight="fill" size={20} />
                 </a>
               </div>
             </div>

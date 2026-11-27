@@ -1,4 +1,4 @@
-import { LinkedinLogo, TwitterLogo, InstagramLogo } from '@phosphor-icons/react/dist/ssr';
+import { LinkedinLogo, TwitterLogo, InstagramLogo, TiktokLogo } from '@phosphor-icons/react/dist/ssr';
 
 export default function SiteFooter() {
     return (
@@ -26,6 +26,9 @@ export default function SiteFooter() {
                             </a>
                             <a href="https://instagram.com/blackprofessionalsuk" target="_blank" rel="noreferrer" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-hp-accent transition-colors">
                                 <InstagramLogo weight="fill" size={20} />
+                            </a>
+                            <a href="https://www.tiktok.com/@blackprofessionalsunited" target="_blank" rel="noreferrer" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-hp-accent transition-colors">
+                                <TiktokLogo weight="fill" size={20} />
                             </a>
                         </div>
                     </div>
