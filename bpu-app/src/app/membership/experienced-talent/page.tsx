@@ -92,7 +92,7 @@ export default function ExperiencedTalentPage() {
                         </h2>
                         <ul className="space-y-4">
                             {[
-                                'You identify as Black African, Black Caribbean, Black British, or of another Black or ethnic minority background.',
+                                'You identify as Black or from another ethnic minority background.',
                                 'You have at least 3 years of professional work experience (international experience counts).',
                                 'You are based in the United Kingdom or have the right to work full time in the UK.',
                                 'You are actively seeking employment or a career transition within the UK job market.',
