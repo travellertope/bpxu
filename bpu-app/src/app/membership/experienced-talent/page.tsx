@@ -116,7 +116,7 @@ export default function ExperiencedTalentPage() {
                         </h2>
                         <p className="text-text-2 mb-8">We work with employers across a wide range of industries.</p>
                         <div className="flex flex-wrap justify-center gap-3">
-                            {['Finance', 'Technology', 'Consulting', 'Legal', 'Engineering', 'Business Operations', 'Marketing', 'Healthcare', 'Media', 'Education'].map(s => (
+                            {['Finance', 'Technology', 'Consulting', 'Legal', 'Engineering', 'Business Operations', 'Marketing', 'Healthcare', 'Media', 'Education', 'Environmental & Sustainability'].map(s => (
                                 <span key={s} className="px-4 py-2 rounded-full border-brutal shadow-brutal-sm bg-white text-sm font-black uppercase tracking-wide">
                                     {s}
                                 </span>
