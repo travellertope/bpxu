@@ -41,7 +41,7 @@ const PROGRAMMES = [
         sectors: 'Business Administration, Digital Marketing, Engineering, Finance, Human Resources, Project Management, Technology & IT, Customer Service, Healthcare, Media and Creative Industries.',
         image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/Next-Gen-builders-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.png',
         imageAlt: 'Apprenticeship Programme – Next Gen Builders',
-        cta: { label: 'Apply Now', href: '/membership/nextgen' },
+        cta: { label: 'Register Now', href: '/membership/nextgen' },
         video: null,
         flip: false,
     },
