@@ -129,15 +129,15 @@ export default function BlackInternsPage() {
                             Members Only
                         </div>
                         <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white mb-4">
-                            Ready to Apply?
+                            Ready to Register?
                         </h2>
                         <p className="text-white/70 text-base mb-8">
-                            Sign in to your BPU member account to apply for the Black Interns Programme. Your profile details will be pre-filled for you.
+                            Sign in to your BPU member account to register for the Black Interns Programme. Your profile details will be pre-filled for you.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <a href="/login?returnTo=/programmes/black-interns"
                                 className="inline-block px-8 py-4 bg-hp-accent text-white font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow">
-                                Sign In to Apply
+                                Sign In to Register
                             </a>
                             <a href="/register"
                                 className="inline-block px-8 py-4 bg-white text-hp-dark font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow">

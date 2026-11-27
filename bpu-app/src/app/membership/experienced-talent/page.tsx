@@ -36,7 +36,7 @@ const BENEFITS = [
     {
         Icon: UsersThree,
         title: 'Professional Network',
-        desc: 'Join a community of Black professionals and build lasting connections across industries.',
+        desc: 'Join a community of Black and other ethnic minority professionals and build lasting connections across industries.',
     },
 ];
 
@@ -92,7 +92,7 @@ export default function ExperiencedTalentPage() {
                         </h2>
                         <ul className="space-y-4">
                             {[
-                                'You identify as Black African, Black Caribbean, Black British, or of another Black ethnic background.',
+                                'You identify as Black or from another ethnic minority background.',
                                 'You have at least 3 years of professional work experience (international experience counts).',
                                 'You are based in the United Kingdom or have the right to work full time in the UK.',
                                 'You are actively seeking employment or a career transition within the UK job market.',
@@ -116,7 +116,7 @@ export default function ExperiencedTalentPage() {
                         </h2>
                         <p className="text-text-2 mb-8">We work with employers across a wide range of industries.</p>
                         <div className="flex flex-wrap justify-center gap-3">
-                            {['Finance', 'Technology', 'Consulting', 'Legal', 'Engineering', 'Business Operations', 'Marketing', 'Healthcare', 'Media', 'Education'].map(s => (
+                            {['Finance', 'Technology', 'Consulting', 'Legal', 'Engineering', 'Business Operations', 'Marketing', 'Healthcare', 'Media', 'Education', 'Environmental & Sustainability'].map(s => (
                                 <span key={s} className="px-4 py-2 rounded-full border-brutal shadow-brutal-sm bg-white text-sm font-black uppercase tracking-wide">
                                     {s}
                                 </span>
@@ -132,15 +132,15 @@ export default function ExperiencedTalentPage() {
                             Members Only
                         </div>
                         <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white mb-4">
-                            Ready to Apply?
+                            Ready to Register?
                         </h2>
                         <p className="text-white/70 text-base mb-8">
-                            Sign in to your BPU member account to apply for the Experienced Talent Programme. Your profile details will be pre-filled for you.
+                            Sign in to your BPU member account to register for the Experienced Talent Programme. Your profile details will be pre-filled for you.
                         </p>
                         <div className="flex flex-col sm:flex-row gap-4 justify-center">
                             <a href="/login?returnTo=/programmes/experienced-talent"
                                 className="inline-block px-8 py-4 bg-hp-accent text-white font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow">
-                                Sign In to Apply
+                                Sign In to Register
                             </a>
                             <a href="/register"
                                 className="inline-block px-8 py-4 bg-white text-hp-dark font-black uppercase tracking-tight text-sm rounded-xl border-brutal shadow-brutal hover:shadow-brutal-lg transition-shadow">

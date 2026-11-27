@@ -10,7 +10,7 @@ import {
   UsersThree, Buildings, Briefcase, MagnifyingGlass,
   ListMagnifyingGlass, MicrophoneStage, FileText, Users,
   GraduationCap, CalendarStar, Lifebuoy, ChartBar, Play,
-  LinkedinLogo, TwitterLogo, InstagramLogo,
+  LinkedinLogo, TwitterLogo, InstagramLogo, TiktokLogo,
 } from '@phosphor-icons/react';
 
 /* ─── WordPress post shape (minimal) ─── */
@@ -49,6 +49,7 @@ const PARTNERS = [
   { name: 'Walter Scott',                    href: 'https://www.walterscott.com/',         logo: 'https://blackprofessionals.uk/wp-content/uploads/2025/10/walter-scott-1.png' },
   { name: 'Addleshaw Goddard',               href: 'https://www.addleshawgoddard.com/en/', logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/05/Addleshaw-Goddard-logo-1-768x512-1.jpg' },
   { name: 'Capco',                           href: 'https://www.capco.com/',               logo: 'https://blackprofessionals.uk/wp-content/uploads/2026/08/capco.png' },
+  { name: "People's Postcode Lottery",       href: 'https://www.postcodelottery.co.uk/',   logo: 'https://bigcareerconference.com/wp-content/uploads/2026/11/postcode-lottery-logo-scaled.png' },
 ];
 
 /* ─── hero photo data ─── */
@@ -561,15 +562,21 @@ export default function HomePageClient() {
       </section>
 
       {/* ── Recent Engagements ── */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto border-brutal-b">
-        <div className="flex justify-between items-end mb-12">
-          <div>
-            <h2 className="text-4xl lg:text-5xl font-black uppercase tracking-tight">Recent Engagements</h2>
-            <p className="text-xl mt-2 font-medium">Catch up on our most recent updates and conversations.</p>
+      <section className="py-20 border-brutal-b overflow-hidden">
+        <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          <div className="flex justify-between items-end mb-12">
+            <div>
+              <h2 className="text-4xl lg:text-5xl font-black uppercase tracking-tight">Recent Engagements</h2>
+              <p className="text-xl mt-2 font-medium">Catch up on our most recent updates and conversations.</p>
+            </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        {/* Carousel — full-bleed scroll, cards peek on edges */}
+        <div
+          className="flex gap-6 overflow-x-auto snap-x snap-mandatory pb-4 px-4 sm:px-6 lg:px-8"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
           {posts.map((post) => {
             const title = post.title.rendered.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/<[^>]+>/g, '');
             const excerpt = post.excerpt.rendered.replace(/<[^>]+>/g, '').replace(/\[&hellip;\]|\[…\]/g, '…').trim();
@@ -577,7 +584,11 @@ export default function HomePageClient() {
             const category = rawCategory.replace(/&amp;/g, '&').replace(/&#8217;/g, "'").replace(/&#8211;/g, '–').replace(/&[a-z]+;/gi, '');
             const image = post._embedded?.['wp:featuredmedia']?.[0]?.source_url;
             return (
-              <article key={post.id} className="flex flex-col group cursor-pointer">
+              <article
+                key={post.id}
+                className="flex flex-col group cursor-pointer snap-start flex-shrink-0"
+                style={{ width: 'clamp(280px, 80vw, 360px)' }}
+              >
                 <a href={post.link} target="_blank" rel="noopener noreferrer" className="block w-full aspect-[4/3] bg-hp-dark rounded-2xl border-brutal shadow-brutal mb-6 overflow-hidden relative">
                   <div className="absolute top-4 left-4 bg-white text-black text-xs font-black uppercase px-3 py-1 rounded-full border-2 border-black z-10">
                     {category}
@@ -706,6 +717,9 @@ export default function HomePageClient() {
                 </a>
                 <a href="https://instagram.com/blackprofessionalsuk" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-hp-accent transition-colors">
                   <InstagramLogo weight="fill" size={20} />
+                </a>
+                <a href="https://www.tiktok.com/@blackprofessionalsunited" target="_blank" rel="noreferrer" className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center hover:bg-hp-accent transition-colors">
+                  <TiktokLogo weight="fill" size={20} />
                 </a>
               </div>
             </div>

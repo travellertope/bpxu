@@ -5,7 +5,7 @@ import { Buildings, TrendUp, Compass, CheckCircle, Target, Star } from '@phospho
 
 export const metadata = {
     title: 'Work Placements | Black Professionals UK',
-    description: 'Combining the Black Interns Programme and the Black Talents Programme — paid UK work placements for Black professionals at leading organisations.',
+    description: 'Combining the Black Interns Programme and the Experienced Talent Programme — paid UK work placements for Black professionals at leading organisations.',
 };
 
 const PROGRAMMES = [
@@ -17,7 +17,7 @@ const PROGRAMMES = [
         sectors: 'Finance, Technology, Consulting, Media, Engineering, Law, Marketing and more.',
         image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/black-interns-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.jpg',
         imageAlt: 'Black Interns Programme',
-        cta: { label: 'Apply Now', href: '/membership/black-interns' },
+        cta: { label: 'Register Now', href: '/membership/black-interns' },
         video: 'https://www.youtube.com/embed/t5aEONuJNhw',
         flip: false,
     },
@@ -29,19 +29,19 @@ const PROGRAMMES = [
         sectors: 'Finance, Technology, Consulting, Legal, Engineering, Business Operations and more.',
         image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/black-talents-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.jpg',
         imageAlt: 'Experienced Talent Programme',
-        cta: { label: 'Apply Now', href: '/membership/experienced-talent' },
+        cta: { label: 'Register Now', href: '/membership/experienced-talent' },
         video: null,
         flip: true,
     },
     {
         id: 'apprenticeships',
         badge: 'Apprenticeships',
-        title: 'Apprenticeship Programme',
+        title: "BPU's NextGen Apprenticeship Programme",
         body: 'Our apprenticeship programme spans a variety of sectors, providing structured pathways into employment with full employer support throughout.',
         sectors: 'Business Administration, Digital Marketing, Engineering, Finance, Human Resources, Project Management, Technology & IT, Customer Service, Healthcare, Media and Creative Industries.',
         image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/Next-Gen-builders-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.png',
         imageAlt: 'Apprenticeship Programme – Next Gen Builders',
-        cta: { label: 'Apply Now', href: '/membership/nextgen' },
+        cta: { label: 'Register Now', href: '/membership/nextgen' },
         video: null,
         flip: false,
     },
@@ -51,7 +51,7 @@ const PROGRAMMES = [
         title: 'BPU Talent Access',
         body: 'Visionary organisations seeking fresh perspectives and diverse talent can access our full pool of skilled Black and ethnic minority professionals and interns. We connect forward-thinking employers with candidates across all three of our programmes.',
         sectors: 'Finance, Technology, Consulting, Legal, Engineering, Media, Marketing, Healthcare and more.',
-        image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/black-talents-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.jpg',
+        image: 'https://blackprofessionals.uk/wp-content/uploads/2026/04/TBCC2026-103-scaled.jpg',
         imageAlt: 'BPU Talent Access – For Organisations',
         cta: { label: 'Register Interest', href: '/membership/talent-access' },
         video: null,
@@ -125,7 +125,7 @@ export default async function WorkPlacementPage() {
                                 WORK<br /><span className="text-hp-accent">PLACEMENTS</span>
                             </h1>
                             <p className="text-lg font-medium leading-relaxed border-l-4 border-hp-accent pl-4 max-w-lg">
-                                Work experience from your home country is a valuable asset, but the lack of UK work experience can be a barrier to professional growth. That&rsquo;s why we combined the best of two groundbreaking initiatives — the Black Interns Programme and the Black Talents Programme — to create a transformative experience that shapes the trajectory of your future.
+                                Work experience from your home country is a valuable asset, but the lack of UK work experience can be a barrier to professional growth. That&rsquo;s why we combined the best of two groundbreaking initiatives — the Black Interns Programme and the Experienced Talent Programme — to create a transformative experience that shapes the trajectory of your future.
                             </p>
                             <div className="flex flex-wrap gap-3 pt-2">
                                 {isAuth ? (
@@ -356,7 +356,7 @@ export default async function WorkPlacementPage() {
                 <section className="py-20 px-4 sm:px-6 lg:px-8 text-center" style={{ background: '#111317' }}>
                     <div className="max-w-2xl mx-auto space-y-6">
                         <h2 className="font-black uppercase tracking-tight text-white" style={{ fontSize: 'clamp(2rem,5vw,3.5rem)', lineHeight: 1.05 }}>
-                            Ready to Take the Step?
+                            Ready to Take the Next Steps?
                         </h2>
                         <p className="text-lg font-medium" style={{ color: 'rgba(255,255,255,0.6)' }}>
                             Join thousands of Black professionals who have used BPU placements to launch and advance their UK careers.
@@ -388,6 +388,12 @@ export default async function WorkPlacementPage() {
                                 </>
                             )}
                         </div>
+                        <p className="text-sm font-medium" style={{ color: 'rgba(255,255,255,0.5)' }}>
+                            Or email us directly at{' '}
+                            <a href="mailto:workplacements@blackprofessionals.uk" className="underline" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                                workplacements@blackprofessionals.uk
+                            </a>
+                        </p>
                         <p className="text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
                             Also interested in employer opportunities?{' '}
                             <a href="https://blackprofessionals.uk/black-talent-access/" target="_blank" rel="noreferrer" className="underline" style={{ color: 'rgba(255,255,255,0.55)' }}>

@@ -31,7 +31,7 @@ export const PAGES: Record<string, PageContent> = {
         title: 'Work Placements',
         badge: 'Black Interns & Talents Programme',
         description:
-            'Combining the best of the Black Interns Programme and the Black Talents Programme to create a transformative placement experience that shapes the trajectory of your professional future.',
+            'Combining the best of the Black Interns Programme and the Experienced Talent Programme to create a transformative placement experience that shapes the trajectory of your professional future.',
         steps: [
             {
                 title: 'Apply',
