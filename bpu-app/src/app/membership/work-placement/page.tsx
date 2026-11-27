@@ -29,7 +29,7 @@ const PROGRAMMES = [
         sectors: 'Finance, Technology, Consulting, Legal, Engineering, Business Operations and more.',
         image: 'https://blackprofessionals.uk/wp-content/uploads/elementor/thumbs/black-talents-rpvfdhgxvjv0qzan43320a3czx5u5q2zv7rv132lzw.jpg',
         imageAlt: 'Experienced Talent Programme',
-        cta: { label: 'Apply Now', href: '/membership/experienced-talent' },
+        cta: { label: 'Register Now', href: '/membership/experienced-talent' },
         video: null,
         flip: true,
     },
