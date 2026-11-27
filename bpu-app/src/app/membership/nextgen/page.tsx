@@ -88,7 +88,7 @@ const FAQS = [
     },
     {
         q: 'How do I get started?',
-        a: 'Create a free BPU member account, complete your profile, and apply through the #NextGen application form. Our team will be in touch within 5 working days.',
+        a: 'Create a free BPU member account, complete your profile, and register through the #NextGen registration form. Our team will be in touch within 5 working days.',
     },
 ];
 
