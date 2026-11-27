@@ -11,7 +11,7 @@ export const metadata = {
 const INITIATIVES = [
     {
         title: 'Work Placements',
-        description: 'Combining the best of two groundbreaking initiatives — the Black Interns Programme and the Black Talents Programme — to create a transformative experience that will shape the trajectory of your future.',
+        description: 'Combining the best of two groundbreaking initiatives — the Black Interns Programme and the Experienced Talent Programme — to create a transformative experience that will shape the trajectory of your future.',
         cta: 'Explore Opportunities',
         href: '/membership/work-placement',
         icon: (

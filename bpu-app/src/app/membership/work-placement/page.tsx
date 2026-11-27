@@ -5,7 +5,7 @@ import { Buildings, TrendUp, Compass, CheckCircle, Target, Star } from '@phospho
 
 export const metadata = {
     title: 'Work Placements | Black Professionals UK',
-    description: 'Combining the Black Interns Programme and the Black Talents Programme — paid UK work placements for Black professionals at leading organisations.',
+    description: 'Combining the Black Interns Programme and the Experienced Talent Programme — paid UK work placements for Black professionals at leading organisations.',
 };
 
 const PROGRAMMES = [
@@ -125,7 +125,7 @@ export default async function WorkPlacementPage() {
                                 WORK<br /><span className="text-hp-accent">PLACEMENTS</span>
                             </h1>
                             <p className="text-lg font-medium leading-relaxed border-l-4 border-hp-accent pl-4 max-w-lg">
-                                Work experience from your home country is a valuable asset, but the lack of UK work experience can be a barrier to professional growth. That&rsquo;s why we combined the best of two groundbreaking initiatives — the Black Interns Programme and the Black Talents Programme — to create a transformative experience that shapes the trajectory of your future.
+                                Work experience from your home country is a valuable asset, but the lack of UK work experience can be a barrier to professional growth. That&rsquo;s why we combined the best of two groundbreaking initiatives — the Black Interns Programme and the Experienced Talent Programme — to create a transformative experience that shapes the trajectory of your future.
                             </p>
                             <div className="flex flex-wrap gap-3 pt-2">
                                 {isAuth ? (
